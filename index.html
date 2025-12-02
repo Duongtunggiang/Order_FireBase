@@ -342,6 +342,27 @@
             }
         }
 
+        function showItemContextMenu(event, itemId) {
+            event.preventDefault();
+            const menu = document.getElementById('item-context-menu');
+            window.currentContextItemId = itemId;
+
+            menu.style.left = event.pageX + 'px';
+            menu.style.top = event.pageY + 'px';
+            menu.classList.remove('hidden');
+
+            // Hide menu when clicking outside
+            setTimeout(() => {
+                document.addEventListener('click', hideContextMenu, { once: true });
+            }, 1);
+        }
+
+        function hideContextMenu() {
+            const menu = document.getElementById('item-context-menu');
+            menu.classList.add('hidden');
+            window.currentContextItemId = null;
+        }
+
         function handleLogoClick() {
             if (isAdmin) {
                 if (isPreviewMode) {
@@ -358,6 +379,67 @@
                 setView('customer');
             }
             return false; // Prevent default link behavior
+        }
+
+        function openAddItemModal() {
+            document.getElementById('item-modal-title').textContent = '➕ Thêm Món Mới';
+            document.getElementById('item-modal-submit').textContent = 'Thêm Món';
+
+            // Reset form
+            document.getElementById('item-modal-id').value = '';
+            document.getElementById('item-modal-name').value = '';
+            document.getElementById('item-modal-price').value = '';
+            document.getElementById('item-modal-new-price').value = '';
+            document.getElementById('item-modal-status').value = 'active';
+            document.getElementById('item-modal-size').value = '';
+            document.getElementById('item-modal-image').value = '';
+            document.getElementById('item-modal-description').value = '';
+            document.getElementById('item-modal-size-field').style.display = 'none';
+
+            document.getElementById('item-modal').classList.remove('hidden');
+
+            // Setup category change listener
+            const categorySelect = document.getElementById('item-modal-category');
+            categorySelect.addEventListener('change', function() {
+                const sizeField = document.getElementById('item-modal-size-field');
+                sizeField.style.display = this.value === 'Đồ Uống' ? 'block' : 'none';
+            });
+        }
+
+        function openEditItemModal(itemId) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            document.getElementById('item-modal-title').textContent = '✏️ Chỉnh Sửa Món';
+            document.getElementById('item-modal-submit').textContent = 'Cập Nhật Món';
+
+            // Fill form
+            document.getElementById('item-modal-id').value = item.id;
+            document.getElementById('item-modal-name').value = item.name;
+            document.getElementById('item-modal-price').value = item.price;
+            document.getElementById('item-modal-new-price').value = item.newPrice || '';
+            document.getElementById('item-modal-category').value = item.category;
+            document.getElementById('item-modal-status').value = item.status;
+            document.getElementById('item-modal-size').value = item.size || '';
+            document.getElementById('item-modal-image').value = item.imageUrl || '';
+            document.getElementById('item-modal-description').value = item.description || '';
+
+            // Show/hide size field
+            const sizeField = document.getElementById('item-modal-size-field');
+            sizeField.style.display = item.category === 'Đồ Uống' ? 'block' : 'none';
+
+            document.getElementById('item-modal').classList.remove('hidden');
+
+            // Setup category change listener
+            const categorySelect = document.getElementById('item-modal-category');
+            categorySelect.addEventListener('change', function() {
+                const sizeField = document.getElementById('item-modal-size-field');
+                sizeField.style.display = this.value === 'Đồ Uống' ? 'block' : 'none';
+            });
+        }
+
+        function closeItemModal() {
+            document.getElementById('item-modal').classList.add('hidden');
         }
         
         function formatCurrency(amount) {
@@ -473,7 +555,7 @@
                 let imageUrl = item.imageUrl;
 
                 // Handle file upload - Convert to Data URL
-                const fileInput = document.getElementById('admin-form-image-file');
+                const fileInput = document.getElementById('item-modal-image-file');
                 if (fileInput && fileInput.files && fileInput.files[0]) {
                     console.log("📸 Processing image...");
                     showMessage("Đang xử lý ảnh...", "info");
@@ -536,7 +618,9 @@
                 // Clear file input
                 if (fileInput) fileInput.value = '';
 
-                setView('admin'); // Trở về trang quản lý
+                // Reload menu items and close modal
+                await loadMenuItemsOnce();
+                closeItemModal();
             } catch (e) {
                 console.error("Lỗi khi lưu món:", e);
                 showMessage("Lỗi khi lưu món: " + e.message, "error");
@@ -2134,7 +2218,7 @@
                                 <span class="hidden sm:inline">Thêm Danh Mục</span>
                             </button>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4 max-h-48 overflow-y-auto">
                             ${categories.map((cat, index) => `
                                 <div class="bg-indigo-50 p-3 sm:p-4 rounded-lg border border-indigo-200 flex justify-between items-center active:scale-[0.98] transition">
                                     <div class="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
@@ -2162,78 +2246,14 @@
                         </div>
                     </div>
 
-                    <!-- Form thêm/sửa món -->
+                    <!-- Nút thêm món -->
                     <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg mb-6 sm:mb-8">
-                        <h3 class="text-sm sm:text-base md:text-xl font-bold text-orange-900 mb-3 sm:mb-4">${itemToEdit ? '✏️ Chỉnh Sửa Món' : '➕ Thêm Món Mới'}</h3>
-                        <form id="admin-item-form" onsubmit="event.preventDefault(); handleSaveItem()">
-                            <input type="hidden" id="admin-form-id" value="${itemToEdit ? itemToEdit.id : ''}">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Tên Món</label>
-                                    <input type="text" id="admin-form-name" required value="${itemToEdit ? itemToEdit.name : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Giá Cũ (VNĐ)</label>
-                                    <input type="number" id="admin-form-price" required value="${itemToEdit ? itemToEdit.price : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Giá Mới (VNĐ) <span class="text-xs text-gray-500">(Không bắt buộc)</span></label>
-                                    <input type="number" id="admin-form-new-price" value="${itemToEdit ? itemToEdit.newPrice || '' : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Danh Mục</label>
-                                    <select id="admin-form-category" required class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                        ${categories.map(cat => `<option value="${cat}" ${itemToEdit && itemToEdit.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Trạng Thái</label>
-                                    <select id="admin-form-status" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                        <option value="active" ${!itemToEdit || itemToEdit.status === 'active' ? 'selected' : ''}>✅ Đang bán</option>
-                                        <option value="hot" ${itemToEdit && itemToEdit.status === 'hot' ? 'selected' : ''}>🔥 Bán chạy</option>
-                                        <option value="new" ${itemToEdit && itemToEdit.status === 'new' ? 'selected' : ''}>🆕 Món mới</option>
-                                        <option value="sale" ${itemToEdit && itemToEdit.status === 'sale' ? 'selected' : ''}>💰 Sale</option>
-                                        <option value="best_seller" ${itemToEdit && itemToEdit.status === 'best_seller' ? 'selected' : ''}>⭐ Best Seller</option>
-                                        <option value="out_of_stock" ${itemToEdit && itemToEdit.status === 'out_of_stock' ? 'selected' : ''}>❌ Hết hàng</option>
-                                        <option value="coming_soon" ${itemToEdit && itemToEdit.status === 'coming_soon' ? 'selected' : ''}>⏳ Sắp có</option>
-                                        <option value="deleted" ${itemToEdit && itemToEdit.status === 'deleted' ? 'selected' : ''}>🗑️ Đã xóa</option>
-                                    </select>
-                                </div>
-
-                                <div id="size-field" style="display: ${itemToEdit && itemToEdit.category === 'Đồ Uống' ? 'block' : 'none'};">
-                                    <label class="block text-sm font-medium text-gray-700">Size (Đồ Uống)</label>
-                                    <select id="admin-form-size" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                        <option value="" ${!itemToEdit || !itemToEdit.size ? 'selected' : ''}>Không chọn size</option>
-                                        ${drinkSizes.map(size => `<option value="${size}" ${itemToEdit && itemToEdit.size === size ? 'selected' : ''}>${size}</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Ảnh</label>
-                                    <input type="file" id="admin-form-image-file" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
-                                    <p class="mt-1 text-xs text-gray-500">Hoặc nhập URL trực tiếp:</p>
-                                    <input type="url" id="admin-form-image" value="${itemToEdit ? itemToEdit.imageUrl : ''}" placeholder="https://..." class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                </div>
-                            </div>
-
-                            <!-- Price Preview -->
-                            <div id="admin-price-preview" class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200" style="display: none;">
-                                <div class="text-sm text-amber-800">
-                                    <strong>Preview hiển thị:</strong><br>
-                                    <span id="admin-price-preview-text"></span>
-                                </div>
-                            </div>
-
-                            <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700">Mô Tả</label>
-                                <textarea id="admin-form-description" rows="2" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">${itemToEdit ? itemToEdit.description : ''}</textarea>
-                            </div>
-                            <div class="mt-4 sm:mt-6 flex justify-end space-x-2 sm:space-x-3">
-                                <button type="button" onclick="clearAdminForm()" class="px-3 py-1.5 sm:px-4 sm:py-2 border border-gray-300 rounded-md shadow-sm text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-95 transition">Hủy/Thêm Mới</button>
-                                <button type="submit" class="px-3 py-1.5 sm:px-4 sm:py-2 bg-orange-600 text-white rounded-md shadow-lg text-xs sm:text-sm font-medium hover:bg-orange-700 active:scale-95 transition">
-                                    ${itemToEdit ? 'Cập Nhật Món' : 'Thêm Món'}
-                                </button>
-                            </div>
-                        </form>
+                        <div class="flex justify-center">
+                            <button onclick="openAddItemModal()" class="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 flex items-center gap-2 text-sm sm:text-base font-medium active:scale-95 transition">
+                                <i data-lucide="plus" class="w-5 h-5"></i>
+                                ➕ Thêm Món Mới
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Danh sách món -->
@@ -2244,20 +2264,17 @@
                                 <thead class="bg-amber-50">
                                     <tr>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
-                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
-                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
-                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     ${menuItems.filter(item => item.status !== 'deleted').map(item => `
-                                        <tr class="${item.status === 'deleted' ? 'bg-gray-100' : ''} hover:bg-gray-50 active:scale-[0.99] transition">
+                                        <tr class="hover:bg-gray-50 cursor-pointer transition" onclick="showItemContextMenu(event, '${item.id}')">
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-amber-900">${item.name}</td>
-                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">${item.category}</td>
-                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-blue-600">${item.size || '-'}</td>
-                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-orange-600 font-semibold">
                                                 ${item.newPrice ?
                                                     (parseFloat(item.newPrice) >= parseFloat(item.price) ?
@@ -2267,17 +2284,115 @@
                                                     formatCurrency(item.price)
                                                 }
                                             </td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-blue-600">${item.size || '-'}</td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">${item.category}</td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-right text-xs sm:text-sm font-medium">
                                                 <div class="flex justify-end gap-1 sm:gap-2">
-                                                    <button onclick="openPriceModal('${item.id}')" class="text-blue-600 hover:text-blue-800 p-1 active:scale-95 transition" title="Chỉnh giá">💰</button>
-                                                    <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900 text-xs sm:text-sm active:scale-95 transition">Sửa</button>
-                                                    <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900 text-xs sm:text-sm active:scale-95 transition ml-1">Xóa</button>
+                                                    <button onclick="event.stopPropagation(); openPriceModal('${item.id}')" class="text-blue-600 hover:text-blue-800 p-1 active:scale-95 transition" title="Chỉnh giá">💰</button>
+                                                    <button onclick="event.stopPropagation(); loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900 text-xs sm:text-sm active:scale-95 transition">Sửa</button>
+                                                    <button onclick="event.stopPropagation(); deleteItem('${item.id}')" class="text-red-600 hover:text-red-900 text-xs sm:text-sm active:scale-95 transition ml-1">Xóa</button>
                                                 </div>
                                             </td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
                             </table>
+                        </div>
+
+                            <!-- Context Menu -->
+                        <div id="item-context-menu" class="fixed bg-white border border-gray-300 rounded-lg shadow-lg py-2 z-50 hidden">
+                            <button onclick="openEditItemModal(window.currentContextItemId); hideContextMenu()" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                                Chỉnh sửa
+                            </button>
+                            <button onclick="openPriceModal(window.currentContextItemId); hideContextMenu()" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2">
+                                <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                                Chỉnh giá
+                            </button>
+                            <hr class="my-1">
+                            <button onclick="deleteItem(window.currentContextItemId); hideContextMenu()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                Xóa món
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Add/Edit Item Modal -->
+                    <div id="item-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+                        <div class="bg-white p-6 rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 id="item-modal-title" class="text-xl font-bold text-orange-900">➕ Thêm Món Mới</h3>
+                                <button onclick="closeItemModal()" class="text-gray-500 hover:text-gray-700">
+                                    <i data-lucide="x" class="w-6 h-6"></i>
+                                </button>
+                            </div>
+
+                            <form id="item-modal-form" onsubmit="event.preventDefault(); handleSaveItem()">
+                                <input type="hidden" id="item-modal-id" value="">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Tên Món</label>
+                                        <input type="text" id="item-modal-name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Giá Cũ (VNĐ)</label>
+                                        <input type="number" id="item-modal-price" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Giá Mới (VNĐ) <span class="text-xs text-gray-500">(Không bắt buộc)</span></label>
+                                        <input type="number" id="item-modal-new-price" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Danh Mục</label>
+                                        <select id="item-modal-category" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                            ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Trạng Thái</label>
+                                        <select id="item-modal-status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                            <option value="active">✅ Đang bán</option>
+                                            <option value="hot">🔥 Bán chạy</option>
+                                            <option value="new">🆕 Món mới</option>
+                                            <option value="sale">💰 Sale</option>
+                                            <option value="best_seller">⭐ Best Seller</option>
+                                            <option value="out_of_stock">❌ Hết hàng</option>
+                                            <option value="coming_soon">⏳ Sắp có</option>
+                                        </select>
+                                    </div>
+                                    <div id="item-modal-size-field" style="display: none;">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Size (Đồ Uống)</label>
+                                        <select id="item-modal-size" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                            <option value="">Không chọn size</option>
+                                            ${drinkSizes.map(size => `<option value="${size}">${size}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh</label>
+                                        <input type="file" id="item-modal-image-file" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+                                        <p class="mt-1 text-xs text-gray-500">Hoặc nhập URL trực tiếp:</p>
+                                        <input type="url" id="item-modal-image" placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Mô Tả</label>
+                                        <textarea id="item-modal-description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"></textarea>
+                                    </div>
+                                </div>
+
+                                <!-- Price Preview -->
+                                <div id="item-modal-price-preview" class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 hidden">
+                                    <div class="text-sm text-amber-800">
+                                        <strong>Preview hiển thị:</strong><br>
+                                        <span id="item-modal-price-preview-text"></span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-6 flex justify-end space-x-3">
+                                    <button type="button" onclick="closeItemModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
+                                    <button type="submit" id="item-modal-submit" class="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700">Thêm Món</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
 
@@ -2671,16 +2786,16 @@
         });
         
         function handleSaveItem() {
-            const newPriceValue = document.getElementById('admin-form-new-price').value.trim();
+            const newPriceValue = document.getElementById('item-modal-new-price').value.trim();
             const item = {
-                id: document.getElementById('admin-form-id').value,
-                name: document.getElementById('admin-form-name').value,
-                price: parseFloat(document.getElementById('admin-form-price').value),
-                category: document.getElementById('admin-form-category').value,
-                status: document.getElementById('admin-form-status').value,
-                size: document.getElementById('admin-form-size').value || null,
-                imageUrl: document.getElementById('admin-form-image').value,
-                description: document.getElementById('admin-form-description').value,
+                id: document.getElementById('item-modal-id').value,
+                name: document.getElementById('item-modal-name').value,
+                price: parseFloat(document.getElementById('item-modal-price').value),
+                category: document.getElementById('item-modal-category').value,
+                status: document.getElementById('item-modal-status').value,
+                size: document.getElementById('item-modal-size').value || null,
+                imageUrl: document.getElementById('item-modal-image').value,
+                description: document.getElementById('item-modal-description').value,
             };
 
             // Add newPrice if provided
@@ -4184,6 +4299,11 @@
             window.resetDateFilter = resetDateFilter;
             window.previewAsCustomer = previewAsCustomer;
             window.handleLogoClick = handleLogoClick;
+            window.showItemContextMenu = showItemContextMenu;
+            window.hideContextMenu = hideContextMenu;
+            window.openAddItemModal = openAddItemModal;
+            window.openEditItemModal = openEditItemModal;
+            window.closeItemModal = closeItemModal;
             window.setItemsPerPage = setItemsPerPage;
             window.setPage = setPage;
             window.nextPage = nextPage;
