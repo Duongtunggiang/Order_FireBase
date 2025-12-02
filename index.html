@@ -12,18 +12,68 @@
 
     body {
         font-family: 'Inter', sans-serif;
-        background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+        background: linear-gradient(to bottom, #f5e6d3 0%, #d4a574 100%);
+        position: relative;
+        overflow-x: hidden;
+    }
+
+    /* Trân châu (boba pearls) effect */
+    body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+        background-image: 
+            radial-gradient(circle, rgba(139, 99, 66, 0.4) 8px, transparent 8px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.35) 6px, transparent 6px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.45) 10px, transparent 10px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.3) 7px, transparent 7px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.4) 9px, transparent 9px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.35) 8px, transparent 8px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.5) 11px, transparent 11px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.4) 7px, transparent 7px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.45) 9px, transparent 9px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.35) 6px, transparent 6px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.5) 10px, transparent 10px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.4) 8px, transparent 8px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.3) 5px, transparent 5px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.45) 12px, transparent 12px),
+            radial-gradient(circle, rgba(139, 99, 66, 0.4) 9px, transparent 9px);
+        background-size: 
+            80px 80px, 60px 60px, 100px 100px, 70px 70px, 90px 90px,
+            75px 75px, 110px 110px, 65px 65px, 85px 85px, 55px 55px,
+            95px 95px, 78px 78px, 50px 50px, 115px 115px, 88px 88px;
+        background-position: 
+            10% 85%, 25% 90%, 40% 88%, 60% 92%, 75% 87%,
+            15% 78%, 88% 95%, 50% 80%, 30% 93%, 70% 82%,
+            5% 75%, 95% 90%, 45% 96%, 82% 85%, 20% 70%;
+        background-repeat: no-repeat;
+        opacity: 0.8;
+        /* Gradient mask để làm mỏng dần ở trên */
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,1) 100%);
+        mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,1) 100%);
+    }
+
+    /* Đảm bảo nội dung nằm trên background */
+    body > * {
+        position: relative;
+        z-index: 1;
     }
 
     /* Hide scrollbar for webkit browsers */
     ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #fef3c7; }
+    ::-webkit-scrollbar-track { background: #f5e6d3; }
     ::-webkit-scrollbar-thumb { background: #d97706; border-radius: 10px; }
 
     /* Custom utilities */
     .line-clamp-2 {
         display: -webkit-box;
         -webkit-line-clamp: 2;
+        line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
@@ -1107,9 +1157,11 @@
                                         <span class="lg:hidden">Bàn</span>
                                     </button>
                                 ` : ''}
+                                ${!isAdmin ? `
                                 <button onclick="showMyOrders()" class="p-1 sm:p-1.5 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition duration-150 shadow-sm active:scale-95" title="Đơn hàng của tôi">
                                     <i data-lucide="clipboard" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                                 </button>
+                                ` : ''}
                                 ${!isAdmin || isPreviewMode ? `
                                     <button onclick="openCart()" class="relative p-1 sm:p-1.5 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-sm">
                                         <i data-lucide="shopping-cart" class="w-4 h-4 sm:w-5 sm:h-5"></i>
@@ -3985,14 +4037,14 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #fef3c7; /* Amber-100 light background */
+            background: linear-gradient(to bottom, #f5e6d3 0%, #d4a574 100%);
         }
         /* Custom scrollbar for better aesthetics */
         ::-webkit-scrollbar {
             width: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #fef3c7;
+            background: #f5e6d3;
         }
         ::-webkit-scrollbar-thumb {
             background: #d97706; /* Orange-700 */
