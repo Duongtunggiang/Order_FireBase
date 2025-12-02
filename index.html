@@ -2855,7 +2855,8 @@
           // ==================== ORDER MANAGEMENT (ADMIN) ====================
           
           let currentOrderFilter = 'ordered'; // ordered, preparing, completed, cancelled, all, today
-          let currentDateFilter = 'today'; // today, all
+          let dateFrom = null; // Start date for filtering (Date object)
+          let dateTo = null; // End date for filtering (Date object)
           let currentPage = 1;
           let itemsPerPage = 5; // Default 10 items per page
           let processingOrderId = localStorage.getItem('processingOrderId'); // Lấy từ storage nếu reload
@@ -2953,17 +2954,44 @@
           // Setup mặc định cho trang quản lý đơn hàng
           function setupOrdersPage() {
               currentOrderFilter = 'ordered'; // Mặc định hiển thị đơn chờ
-              currentDateFilter = 'today';
+              // Set default date range to today
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              dateFrom = today;
+              dateTo = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1); // End of today
           }
-          
+
           function setOrderFilter(filter) {
               currentOrderFilter = filter;
               renderOrdersManagementList();
           }
-          
-          function setDateFilter(filter) {
-              currentDateFilter = filter;
+
+          function setDateRangeFilter() {
+              const fromInput = document.getElementById('date-from');
+              const toInput = document.getElementById('date-to');
+
+              if (fromInput && fromInput.value) {
+                  dateFrom = new Date(fromInput.value);
+              } else {
+                  dateFrom = null;
+              }
+
+              if (toInput && toInput.value) {
+                  dateTo = new Date(toInput.value);
+              } else {
+                  dateTo = null;
+              }
+
               currentPage = 1; // Reset to first page when changing filters
+              renderOrdersManagementList();
+          }
+
+          function clearDateFilter() {
+              dateFrom = null;
+              dateTo = null;
+              document.getElementById('date-from').value = '';
+              document.getElementById('date-to').value = '';
+              currentPage = 1; // Reset to first page when clearing filters
               renderOrdersManagementList();
           }
 
@@ -2997,15 +3025,16 @@
               // Filter orders
               let filteredOrders = [...orders];
 
-              // Filter theo date
-              if (currentDateFilter === 'today') {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
+              // Filter theo date range
+              if (dateFrom || dateTo) {
                   filteredOrders = filteredOrders.filter(order => {
                       if (!order.createdAt) return false;
                       const orderDate = new Date(order.createdAt.seconds * 1000);
-                      orderDate.setHours(0, 0, 0, 0);
-                      return orderDate.getTime() === today.getTime();
+
+                      if (dateFrom && orderDate < dateFrom) return false;
+                      if (dateTo && orderDate > dateTo) return false;
+
+                      return true;
                   });
               }
 
@@ -3060,16 +3089,23 @@
               container.innerHTML = `
                   <!-- Filter Bar -->
                   <div class="bg-gray-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4 space-y-2 sm:space-y-3">
-                      <!-- Date Filter -->
+                      <!-- Date Range Filter -->
                       <div>
-                          <label class="text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2 block">🗓️ Lọc theo ngày:</label>
-                          <div class="flex gap-1.5 sm:gap-2">
-                              <button onclick="setDateFilter('today')" class="flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${currentDateFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'} active:scale-95 transition">
-                                  Hôm nay
-                              </button>
-                              <button onclick="setDateFilter('all')" class="flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${currentDateFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'} active:scale-95 transition">
-                                  Tất cả
-                              </button>
+                          <label class="text-xs font-medium text-gray-700 mb-1 block">🗓️ Lọc theo khoảng thời gian:</label>
+                          <div class="flex gap-2">
+                              <div class="flex-1">
+                                  <label class="text-[9px] text-gray-600 block mb-0.5">Từ:</label>
+                                  <input type="datetime-local" id="date-from" onchange="setDateRangeFilter()" class="w-full px-1.5 py-1 border border-gray-300 rounded text-[11px] focus:ring-blue-500 focus:border-blue-500" value="${dateFrom ? dateFrom.toISOString().slice(0, 16) : ''}">
+                              </div>
+                              <div class="flex-1">
+                                  <label class="text-[9px] text-gray-600 block mb-0.5">Đến:</label>
+                                  <input type="datetime-local" id="date-to" onchange="setDateRangeFilter()" class="w-full px-1.5 py-1 border border-gray-300 rounded text-[11px] focus:ring-blue-500 focus:border-blue-500" value="${dateTo ? dateTo.toISOString().slice(0, 16) : ''}">
+                              </div>
+                              <div class="flex items-end">
+                                  <button onclick="clearDateFilter()" class="px-2 py-1 bg-gray-500 text-white rounded text-[10px] hover:bg-gray-600 active:scale-95 transition whitespace-nowrap">
+                                      Xóa
+                                  </button>
+                              </div>
                           </div>
                       </div>
                       
