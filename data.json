@@ -1,12 +1,4 @@
 {
-  "_comment": "Firebase Firestore Import Data - Copy nội dung này vào Firebase Console",
-  "_instructions": [
-    "1. Vào Firebase Console > Firestore Database",
-    "2. Chọn Import JSON",
-    "3. Paste nội dung từ file này",
-    "4. Import vào collection: menuItems",
-    "5. Hoặc dùng Firebase Admin SDK để import programmatically"
-  ],
   "menuItems": [
     {
       "name": "Trà Sữa Trân Châu Đường Đen",

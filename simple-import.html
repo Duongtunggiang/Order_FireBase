@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Firebase Import</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { background: #007bff; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Simple Firebase Import Test</h1>
+
+    <div id="status"></div>
+
+    <button onclick="testConnection()">Test Firebase Connection</button>
+    <button onclick="addSampleItem()">Add Sample Item</button>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Your Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyCGs3xD2uC153yGlV7IpRftllAKx-NHt88",
+            authDomain: "order-d8a0c.firebaseapp.com",
+            projectId: "order-d8a0c",
+            storageBucket: "order-d8a0c.firebasestorage.app",
+            messagingSenderId: "559568129038",
+            appId: "1:559568129038:web:dd1ebcefb23f7cf03dc05f"
+        };
+
+        let app, db;
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        window.testConnection = async function() {
+            try {
+                showStatus('🔄 Testing connection...', 'info');
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                showStatus('✅ Firebase connected successfully!', 'success');
+            } catch (error) {
+                showStatus('❌ Connection failed: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+
+        window.addSampleItem = async function() {
+            try {
+                if (!db) {
+                    showStatus('❌ Please test connection first!', 'error');
+                    return;
+                }
+
+                showStatus('🔄 Adding sample item...', 'info');
+
+                const sampleItem = {
+                    name: "Test Item",
+                    description: "This is a test item",
+                    price: 10000,
+                    category: "Đồ Uống",
+                    imageUrl: "https://via.placeholder.com/150",
+                    updatedAt: new Date()
+                };
+
+                const docRef = await addDoc(collection(db, 'menuItems'), sampleItem);
+                showStatus('✅ Sample item added! Document ID: ' + docRef.id, 'success');
+
+            } catch (error) {
+                showStatus('❌ Failed to add item: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Data vào Firebase Firestore</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #cce7ff; color: #004085; border: 1px solid #b3d7ff; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; max-height: 300px; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Import Dữ Liệu vào Firebase Firestore</h1>
+        <p>Tool này giúp bạn import dữ liệu mẫu vào Firestore Database một cách dễ dàng.</p>
+
+        <div id="status"></div>
+
+        <h3>📋 Bước 1: Lấy Firebase Config</h3>
+        <p>Vào Firebase Console > Project Settings > General > Your apps > Web app</p>
+        <p>Sao chép đoạn code config (từ <code>const firebaseConfig =</code> đến <code>};</code>)</p>
+        <textarea id="firebaseConfig" rows="8" placeholder="const firebaseConfig = {
+  apiKey: 'your-api-key',
+  authDomain: 'your-project.firebaseapp.com',
+  projectId: 'your-project-id',
+  storageBucket: 'your-project.appspot.com',
+  messagingSenderId: '123456789',
+  appId: 'your-app-id'
+};"></textarea>
+
+        <h3>📋 Bước 2: Import Data</h3>
+        <p>Click nút dưới để import 18 món mẫu vào Firestore.</p>
+        <button id="importBtn" onclick="importData()">🚀 Bắt Đầu Import</button>
+
+        <div id="progress" style="display: none;">
+            <p>Đang import... <span id="progressText">0/18</span></p>
+            <div style="width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px;">
+                <div id="progressBar" style="width: 0%; height: 100%; background: #007bff; border-radius: 10px; transition: width 0.3s;"></div>
+            </div>
+        </div>
+
+        <h3>📋 Bước 3: Kiểm tra kết quả</h3>
+        <p>Sau khi import xong, vào Firebase Console > Firestore Database để xem dữ liệu.</p>
+
+        <details>
+            <summary>🔧 Xem cấu trúc dữ liệu mẫu</summary>
+            <pre id="sampleData"></pre>
+        </details>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const menuItems = [
+            {
+                name: "Trà Sữa Trân Châu Đường Đen",
+                description: "Trà sữa truyền thống với trân châu dẻo ngon và đường đen đặc trưng",
+                price: 35000,
+                category: "Đồ Uống",
+                imageUrl: "https://images.unsplash.com/photo-1558857563-b371033873b8?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Trà Đá Xanh Latte",
+                description: "Trà xanh Nhật Bản pha latte kem sữa, vị thanh mát",
+                price: 45000,
+                category: "Đồ Uống",
+                imageUrl: "https://images.unsplash.com/photo-1546173159-315724a3167d?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Cà Phê Sữa Đá",
+                description: "Cà phê đen pha sữa tươi, vị đắng ngọt cân bằng",
+                price: 25000,
+                category: "Đồ Uống",
+                imageUrl: "https://images.unsplash.com/photo-1559496417-e7f25cb247f3?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Sinh Tố Bơ",
+                description: "Sinh tố bơ tươi với sữa đặc và đá lạnh",
+                price: 40000,
+                category: "Đồ Uống",
+                imageUrl: "https://images.unsplash.com/photo-1553909489-cd5096e7fb06?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Trà Ô Long Kem Phô Mai",
+                description: "Trà ô long đậm đà phủ lớp kem phô mai thơm ngon",
+                price: 50000,
+                category: "Đồ Uống",
+                imageUrl: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Nước Ép Dưa Hấu",
+                description: "Nước ép dưa hấu tươi nguyên chất, giải khát",
+                price: 30000,
+                category: "Đồ Uống",
+                imageUrl: "https://images.unsplash.com/photo-1546173159-315724a3167d?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Bánh Mì Kẹp Thịt Nướng",
+                description: "Bánh mì giòn tan kẹp thịt nướng thơm ngon với rau củ",
+                price: 25000,
+                category: "Đồ Ăn",
+                imageUrl: "https://images.unsplash.com/photo-1551782450-17144efb5723?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Cơm Tấm Sườn Bì",
+                description: "Cơm tấm với sườn nướng, bì, trứng ốp la và đồ chua",
+                price: 35000,
+                category: "Đồ Ăn",
+                imageUrl: "https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Phở Bò",
+                description: "Phở bò tái chín với nước dùng ninh xương thơm ngọt",
+                price: 40000,
+                category: "Đồ Ăn",
+                imageUrl: "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Gỏi Cuốn",
+                description: "Gỏi cuốn tươi với tôm, thịt, rau sống và nước mắm chua ngọt",
+                price: 30000,
+                category: "Đồ Ăn",
+                imageUrl: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Bún Bò Huế",
+                description: "Bún bò Huế cay nồng với thịt bò và giò heo",
+                price: 45000,
+                category: "Đồ Ăn",
+                imageUrl: "https://images.unsplash.com/photo-1559847844-5315695dadae?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Salad Trái Cây",
+                description: "Salad trái cây tươi với dừa, xoài, dưa hấu và mật ong",
+                price: 28000,
+                category: "Đồ Ăn",
+                imageUrl: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Mì Xào Hải Sản",
+                description: "Mì xào với tôm, mực, bạch tuộc và rau củ tươi",
+                price: 42000,
+                category: "Đồ Ăn",
+                imageUrl: "https://images.unsplash.com/photo-1563379091339-03246963d96c?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Bia Sài Gòn Lager",
+                description: "Bia Sài Gòn Lager mát lạnh, vị đắng nhẹ",
+                price: 25000,
+                category: "Đồ Nhậu",
+                imageUrl: "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Rượu Vang Đỏ",
+                description: "Rượu vang đỏ nhập khẩu, phù hợp để nhâm nhi",
+                price: 150000,
+                category: "Đồ Nhậu",
+                imageUrl: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Cocktail Mojito",
+                description: "Cocktail Mojito với bạc hà, chanh và soda",
+                price: 55000,
+                category: "Đồ Nhậu",
+                imageUrl: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Bia Tiger",
+                description: "Bia Tiger mát lạnh từ Singapore",
+                price: 20000,
+                category: "Đồ Nhậu",
+                imageUrl: "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            },
+            {
+                name: "Whisky Chivas Regal",
+                description: "Whisky Chivas Regal 12 năm, vị cổ điển",
+                price: 350000,
+                category: "Đồ Nhậu",
+                imageUrl: "https://images.unsplash.com/photo-1527281400683-1a8a7ce3491c?w=400&h=300&fit=crop&crop=center",
+                updatedAt: new Date()
+            }
+        ];
+
+        let app, db;
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function updateProgress(current, total) {
+            const progressText = document.getElementById('progressText');
+            const progressBar = document.getElementById('progressBar');
+            progressText.textContent = `${current}/${total}`;
+            progressBar.style.width = `${(current / total) * 100}%`;
+        }
+
+        window.importData = async function() {
+            try {
+                const configText = document.getElementById('firebaseConfig').value.trim();
+                if (!configText) {
+                    showStatus('❌ Vui lòng nhập Firebase config!', 'error');
+                    return;
+                }
+
+                // Parse Firebase config
+                let firebaseConfig;
+                try {
+                    // Remove 'const firebaseConfig = ' and trailing ';'
+                    const configStr = configText
+                        .replace(/const firebaseConfig\s*=\s*/, '')
+                        .replace(/;$/, '');
+                    firebaseConfig = JSON.parse(configStr);
+                } catch (e) {
+                    showStatus('❌ Firebase config không hợp lệ! Kiểm tra lại format JSON.', 'error');
+                    return;
+                }
+
+                showStatus('🔄 Đang kết nối Firebase...', 'info');
+
+                // Initialize Firebase
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+
+                showStatus('✅ Kết nối thành công! Bắt đầu import dữ liệu...', 'success');
+
+                // Show progress
+                document.getElementById('progress').style.display = 'block';
+                document.getElementById('importBtn').disabled = true;
+
+                let successCount = 0;
+                let errorCount = 0;
+
+                // Import each item
+                for (let i = 0; i < menuItems.length; i++) {
+                    try {
+                        await addDoc(collection(db, 'menuItems'), menuItems[i]);
+                        successCount++;
+                        updateProgress(i + 1, menuItems.length);
+                        showStatus(`✅ Đã import ${successCount}/${menuItems.length} món: ${menuItems[i].name}`, 'success');
+                    } catch (error) {
+                        console.error('Error importing item:', error);
+                        errorCount++;
+                        showStatus(`❌ Lỗi import món: ${menuItems[i].name}`, 'error');
+                    }
+
+                    // Small delay to avoid rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                if (errorCount === 0) {
+                    showStatus(`🎉 Import hoàn thành! Đã thêm ${successCount} món vào Firestore.`, 'success');
+                } else {
+                    showStatus(`⚠️ Import xong với ${errorCount} lỗi. ${successCount} món thành công.`, 'info');
+                }
+
+                document.getElementById('importBtn').disabled = false;
+
+            } catch (error) {
+                console.error('Import error:', error);
+                showStatus('❌ Lỗi kết nối Firebase: ' + error.message, 'error');
+                document.getElementById('importBtn').disabled = false;
+            }
+        };
+
+        // Show sample data
+        document.getElementById('sampleData').textContent = JSON.stringify(menuItems.slice(0, 3), null, 2);
+    </script>
+</body>
+</html>

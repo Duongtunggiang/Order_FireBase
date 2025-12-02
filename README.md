@@ -64,6 +64,45 @@ Một ứng dụng web đơn trang cho quán trà sữa và đồ ăn, được 
 
 5. **Truy cập**: `http://localhost:8000` hoặc mở file HTML
 
+## 🔥 Firebase Setup
+
+### Quan trọng: Ứng dụng sử dụng **Firestore Database**, không phải Realtime Database!
+
+**Nếu bạn đã import vào Realtime Database, hãy làm theo bước sau:**
+
+### 1. Chuyển sang Firestore Database:
+- Trong Firebase Console, click **"Firestore Database"** (không phải Realtime Database)
+- Click **"Create database"**
+- Chọn **"Start in test mode"** (cho development)
+- Chọn location: **asia-southeast1** (Singapore)
+
+### 2. Import dữ liệu mẫu:
+
+#### 🚀 Cách nhanh (nếu không có lỗi):
+- Mở file `import-firebase.html` trong browser
+- Copy Firebase config từ Console (Project Settings > General > Your apps)
+- Paste vào tool và click "🚀 Bắt Đầu Import"
+
+#### 🔧 Debug từng bước (nếu gặp lỗi):
+1. Mở `simple-import.html` → Test connection
+2. Nếu OK → Add sample item
+3. Nếu OK → Dùng `import-firebase.html` đầy đủ
+4. Xem `FIRESTORE-IMPORT-GUIDE.md` để fix lỗi thường gặp
+
+### Hoặc import thủ công (nếu không dùng tool):
+- Trong Firestore Console, click **"+ Start collection"**
+- Collection ID: `menuItems`
+- Click **"+ Add document"** (không cần Document ID)
+- Copy từng object từ `data.json` và paste vào fields
+- Lặp lại cho tất cả 18 món
+
+### 3. Hoặc dùng script tự động:
+```bash
+npm install
+# Cập nhật firebase config trong import-data.js
+npm run import
+```
+
 ## 🚀 Deployment
 
 ### ✅ Đã Deploy lên GitHub + Netlify (Free)
