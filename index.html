@@ -2430,39 +2430,9 @@
                 }
             }
 
-            // Update debug info
-            updateDebugInfo();
-
             renderLucideIcons();
         }
 
-        function updateDebugInfo() {
-            const statusText = document.getElementById('status-text');
-            const itemCount = document.getElementById('item-count');
-            const firebaseStatus = document.getElementById('firebase-status');
-            const userStatus = document.getElementById('user-status');
-            const roleStatus = document.getElementById('role-status');
-            const viewStatus = document.getElementById('view-status');
-
-            if (statusText) statusText.textContent = 'Loaded';
-            if (itemCount) itemCount.textContent = menuItems.length;
-            if (firebaseStatus) firebaseStatus.textContent = db ? 'Connected ✅' : 'Disconnected ❌';
-            
-            if (userStatus) {
-                const user = auth?.currentUser;
-                userStatus.textContent = user ? user.email : 'Not logged in';
-            }
-            
-            if (roleStatus) {
-                roleStatus.textContent = isAdmin ? '👑 Admin' : '👤 Customer';
-            }
-            
-            if (viewStatus) {
-                let viewText = currentView;
-                if (isPreviewMode) viewText += ' (Preview)';
-                viewStatus.textContent = viewText;
-            }
-        }
 
         // --- Khởi tạo Ứng dụng ---
         window.onload = function() {
@@ -2520,7 +2490,6 @@
                 if (loadingScreen && loadingScreen.style.display !== 'none') {
                     console.warn("⚠️ Firebase load timeout - showing app anyway");
                     loadingScreen.style.display = 'none';
-                    updateDebugInfo();
                 }
             }, 10000);
 
@@ -2685,16 +2654,6 @@
             </div>
         </div>
 
-        <!-- Debug Info -->
-        <div id="debug-info" class="fixed bottom-4 right-4 bg-black bg-opacity-80 text-white p-3 rounded-lg text-xs max-w-xs z-40">
-            <div class="font-bold mb-2 text-green-400">🔍 Debug Panel</div>
-            <div>🔄 Status: <span id="status-text">Loading...</span></div>
-            <div>📊 Items: <span id="item-count">0</span></div>
-            <div>🔗 Firebase: <span id="firebase-status">Connecting...</span></div>
-            <div>👤 User: <span id="user-status">Not logged in</span></div>
-            <div>👑 Role: <span id="role-status">Customer</span></div>
-            <div>📺 View: <span id="view-status">customer</span></div>
-        </div>
 
         <!-- Footer đơn giản -->
         <footer class="bg-amber-900 text-white p-4 mt-8 text-center text-sm">
