@@ -552,6 +552,10 @@
                     updatedAt: new Date()
                 });
                 console.log("✅ Chuyển món vào thùng rác thành công");
+
+                // Reload menu items to reflect changes
+                await loadMenuItemsOnce();
+
                 showMessage("Đã chuyển món vào thùng rác!", "success");
             } catch (e) {
                 console.error("❌ Lỗi khi xóa món:", e);
@@ -2114,11 +2118,6 @@
         function renderAdminMenu() {
             const itemToEdit = menuItems.find(i => i.id === (document.getElementById('admin-form-id')?.value || null));
 
-            // Debug: Check menu items
-            const totalItems = menuItems.length;
-            const deletedItems = menuItems.filter(item => item.status === 'deleted').length;
-            const activeItems = menuItems.filter(item => item.status !== 'deleted').length;
-            console.log(`📊 Menu Items: Total=${totalItems}, Active=${activeItems}, Deleted=${deletedItems}`);
 
             return `
                 <div class="p-3 sm:p-6 md:p-10 bg-gray-50 min-h-screen pb-16 sm:pb-20">
@@ -2239,7 +2238,7 @@
 
                     <!-- Danh sách món -->
                     <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg">
-                        <h3 class="text-sm sm:text-base md:text-xl font-bold text-amber-900 mb-3 sm:mb-4">📋 Danh Sách Món Ăn/Đồ Uống (${menuItems.length})</h3>
+                        <h3 class="text-sm sm:text-base md:text-xl font-bold text-amber-900 mb-3 sm:mb-4">📋 Danh Sách Món Ăn/Đồ Uống (${menuItems.filter(item => item.status !== 'deleted').length})</h3>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-amber-50">
@@ -2253,7 +2252,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    ${menuItems.map(item => `
+                                    ${menuItems.filter(item => item.status !== 'deleted').map(item => `
                                         <tr class="${item.status === 'deleted' ? 'bg-gray-100' : ''} hover:bg-gray-50 active:scale-[0.99] transition">
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-amber-900">${item.name}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">${item.category}</td>
