@@ -66,7 +66,7 @@
           let userRole = 'guest'; // 'guest', 'customer', 'admin'
         let isAdmin = false;
         let isPreviewMode = false; // Admin đang xem như khách hàng
-        let categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Danh sách categories có thể thêm
+        let categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Danh sách categories mặc định
         let drinkSizes = ['S', 'M', 'L', 'Big Size']; // Size cho đồ uống
 
         // --- Hàm hỗ trợ chung ---
@@ -291,6 +291,44 @@
         const PUBLIC_DATA_PATH = `menuItems`; // Đơn giản hóa path cho development
         const PRIVATE_SALES_PATH = `sales/${userId}`;
 
+        // ==================== CATEGORIES MANAGEMENT ====================
+
+        const CATEGORIES_DOC_ID = 'categories_config';
+
+        async function loadCategories() {
+            try {
+                console.log("🔄 Loading categories from Firebase...");
+                const docRef = doc(db, 'config', CATEGORIES_DOC_ID);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    categories = data.categories || ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
+                    console.log("✅ Loaded categories:", categories);
+                } else {
+                    // Nếu chưa có, tạo document mặc định
+                    categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
+                    await setDoc(docRef, { categories: categories, updatedAt: new Date() });
+                    console.log("✅ Created default categories in Firebase");
+                }
+            } catch (error) {
+                console.error("❌ Error loading categories:", error);
+                categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Fallback
+            }
+        }
+
+        async function saveCategories() {
+            try {
+                console.log("💾 Saving categories to Firebase...");
+                const docRef = doc(db, 'config', CATEGORIES_DOC_ID);
+                await setDoc(docRef, { categories: categories, updatedAt: new Date() });
+                console.log("✅ Categories saved successfully");
+            } catch (error) {
+                console.error("❌ Error saving categories:", error);
+                showMessage("Lỗi khi lưu danh mục: " + error.message, "error");
+            }
+        }
+
         function setupMenuListener() {
             if (!db) {
                 console.warn("❌ DB chưa được khởi tạo");
@@ -311,6 +349,17 @@
                     newPriceType: typeof item.newPrice
                 })));
                 console.log("🔍 Raw snapshot:", snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
+
+                // Kiểm tra currentCategory có còn active không (có món không)
+                const activeCategories = categories.filter(cat =>
+                    menuItems.some(item => item.category === cat && item.status !== 'deleted')
+                );
+                if (!activeCategories.includes(currentCategory) && activeCategories.length > 0) {
+                    // Nếu currentCategory không còn active, chuyển về category đầu tiên
+                    currentCategory = activeCategories[0];
+                    console.log("🔄 Current category changed to:", currentCategory);
+                }
+
                 renderApp();
             }, (error) => {
                 console.error("❌ Lỗi khi nghe thay đổi menu:", error);
@@ -878,6 +927,9 @@
                             setupMenuListener();
                             setupTablesListener(); // Always setup for table selection modal
 
+                            // Load categories from Firebase
+                            loadCategories();
+
                             // Setup listeners for admin
                             if (isAdmin) {
                                 setupOrdersListener();
@@ -903,6 +955,9 @@
                             // if (!__initial_auth_token) await signInAnonymously(auth);
                             console.log("🔄 Setting up menu listener without auth...");
                             setupMenuListener();
+
+                            // Load categories from Firebase
+                            loadCategories();
                         }
                         setView('customer');
                     }
@@ -1108,10 +1163,15 @@
         }
 
         function renderMenuSelection() {
+            // Chỉ hiển thị categories có ít nhất 1 món active (không phải deleted)
+            const activeCategories = categories.filter(cat =>
+                menuItems.some(item => item.category === cat && item.status !== 'deleted')
+            );
+
             return `
                 <div class="flex justify-center p-3 sm:p-4 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
                     <div class="flex space-x-2 sm:space-x-3 min-w-max">
-                        ${categories.map(cat => `
+                        ${activeCategories.map(cat => `
                             <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-semibold py-2 px-4 sm:px-6 rounded-full transition duration-150 text-sm sm:text-base whitespace-nowrap active:scale-95">
                                 ${cat}
                             </button>
@@ -1260,7 +1320,7 @@
             document.querySelector('button[onclick="addNewCategory()"]').onclick = () => updateCategory();
         }
 
-        function updateCategory() {
+        async function updateCategory() {
             const newName = document.getElementById('new-category-name').value.trim();
             if (!newName) {
                 showMessage("Vui lòng nhập tên danh mục!", "error");
@@ -1287,13 +1347,14 @@
                     }
                 });
 
+                await saveCategories();
                 showMessage(`Đã cập nhật danh mục: ${editingCategory} → ${newName}`, "success");
                 closeCategoryModal();
                 renderApp();
             }
         }
 
-        function deleteCategory(categoryName) {
+        async function deleteCategory(categoryName) {
             const index = categories.indexOf(categoryName);
             if (index < 3) {
                 showMessage("Không thể xóa 3 danh mục mặc định!", "error");
@@ -1315,6 +1376,7 @@
             }
 
             categories.splice(index, 1);
+            await saveCategories();
             showMessage(`Đã xóa danh mục: ${categoryName}`, "success");
             renderApp();
         }
@@ -1454,7 +1516,7 @@
             resetCategoryModal();
         }
 
-        function addNewCategory() {
+        async function addNewCategory() {
             const categoryName = document.getElementById('new-category-name').value.trim();
             if (!categoryName) {
                 showMessage("Vui lòng nhập tên danh mục!", "error");
@@ -1467,6 +1529,7 @@
             }
 
             categories.push(categoryName);
+            await saveCategories();
             showMessage(`Đã thêm danh mục: ${categoryName}`, "success");
             closeCategoryModal();
             renderApp(); // Re-render để cập nhật menu selection
@@ -1786,7 +1849,7 @@
                                     </div>
                                     ${index >= 3 ? `
                                         <div class="flex gap-1">
-                                            <button onclick="editCategory('${cat}')" class="text-blue-600 hover:text-blue-800 p-1" title="Sửa">
+                                            <button onclick="openEditCategoryModalAdmin('${cat}')" class="text-blue-600 hover:text-blue-800 p-1" title="Sửa">
                                                 <i data-lucide="edit" class="w-4 h-4"></i>
                                             </button>
                                             <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1" title="Xóa">
@@ -1922,6 +1985,23 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Edit Category Modal for Admin Menu -->
+                    <div id="edit-category-modal-admin" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+                        <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                            <h3 class="text-xl font-bold text-amber-900 mb-4">✏️ Sửa Danh Mục</h3>
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Tên Danh Mục</label>
+                                <input type="text" id="edit-category-name-admin" placeholder="Ví dụ: Đồ Chay" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                            </div>
+
+                            <div class="flex gap-3">
+                                <button onclick="closeEditCategoryModalAdmin()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                                <button onclick="updateCategoryAdmin()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Cập Nhật</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -1931,7 +2011,7 @@
             document.getElementById('new-category-name-admin').value = '';
         }
 
-        function addNewCategoryAdmin() {
+        async function addNewCategoryAdmin() {
             const categoryName = document.getElementById('new-category-name-admin').value.trim();
             if (!categoryName) {
                 showMessage("Vui lòng nhập tên danh mục!", "error");
@@ -1944,9 +2024,58 @@
             }
 
             categories.push(categoryName);
+            await saveCategories();
             showMessage(`Đã thêm danh mục: ${categoryName}`, "success");
             closeCategoryModalAdmin();
             renderApp(); // Re-render để cập nhật menu selection
+        }
+
+        let editingCategoryAdmin = null;
+
+        function openEditCategoryModalAdmin(categoryName) {
+            editingCategoryAdmin = categoryName;
+            document.getElementById('edit-category-name-admin').value = categoryName;
+            document.getElementById('edit-category-modal-admin').classList.remove('hidden');
+        }
+
+        function closeEditCategoryModalAdmin() {
+            document.getElementById('edit-category-modal-admin').classList.add('hidden');
+            document.getElementById('edit-category-name-admin').value = '';
+            editingCategoryAdmin = null;
+        }
+
+        async function updateCategoryAdmin() {
+            const newName = document.getElementById('edit-category-name-admin').value.trim();
+            if (!newName) {
+                showMessage("Vui lòng nhập tên danh mục!", "error");
+                return;
+            }
+
+            if (newName !== editingCategoryAdmin && categories.includes(newName)) {
+                showMessage("Danh mục này đã tồn tại!", "error");
+                return;
+            }
+
+            const index = categories.indexOf(editingCategoryAdmin);
+            if (index > -1) {
+                categories[index] = newName;
+
+                // Update all items in this category
+                menuItems.forEach(item => {
+                    if (item.category === editingCategoryAdmin) {
+                        // Update in Firestore
+                        updateDoc(doc(db, PUBLIC_DATA_PATH, item.id), {
+                            category: newName,
+                            updatedAt: new Date()
+                        });
+                    }
+                });
+
+                await saveCategories();
+                showMessage(`Đã cập nhật danh mục: ${editingCategoryAdmin} → ${newName}`, "success");
+                closeEditCategoryModalAdmin();
+                renderApp();
+            }
         }
 
         function clearAdminForm() {
@@ -3161,6 +3290,11 @@
             window.openCategoryModal = openCategoryModal;
             window.closeCategoryModalAdmin = closeCategoryModalAdmin;
             window.addNewCategoryAdmin = addNewCategoryAdmin;
+            window.openEditCategoryModalAdmin = openEditCategoryModalAdmin;
+            window.closeEditCategoryModalAdmin = closeEditCategoryModalAdmin;
+            window.updateCategoryAdmin = updateCategoryAdmin;
+            window.loadCategories = loadCategories;
+            window.saveCategories = saveCategories;
             window.closeCategoryModal = closeCategoryModal;
             window.addNewCategory = addNewCategory;
             window.editCategory = editCategory;
