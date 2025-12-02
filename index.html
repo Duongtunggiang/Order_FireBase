@@ -30,6 +30,8 @@
     </style>
     <!-- Lucide Icons for nice, clean icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- QRCode.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -57,8 +59,11 @@
           let menuItems = [];
           let cart = {}; // { itemId: { item, quantity } }
           let orders = []; // Danh sách orders cho admin
+          let tables = []; // Danh sách bàn ăn
           let currentView = 'customer'; // 'customer', 'login', 'admin', 'preview'
           let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
+          let currentTableNumber = null; // Số bàn hiện tại (từ QR code)
+          let userRole = 'guest'; // 'guest', 'customer', 'admin'
         let isAdmin = false;
         let isPreviewMode = false; // Admin đang xem như khách hàng
         let categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Danh sách categories có thể thêm
@@ -525,8 +530,168 @@
         }
 
         // --- Khởi tạo và Quản lý Auth ---
+        // ==================== TABLE MANAGEMENT ====================
+        
+        // Đọc table number từ URL (QR code scan)
+        function checkTableFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tableNumber = urlParams.get('table');
+            
+            if (tableNumber) {
+                currentTableNumber = tableNumber;
+                userRole = 'guest';
+                console.log(`🍽️ Guest accessing from Table ${tableNumber}`);
+                showMessage(`Chào mừng đến Bàn ${tableNumber}!`, 'success');
+                
+                // Lưu vào localStorage để giữ khi refresh
+                localStorage.setItem('currentTable', tableNumber);
+            } else {
+                // Kiểm tra localStorage
+                const savedTable = localStorage.getItem('currentTable');
+                if (savedTable) {
+                    currentTableNumber = savedTable;
+                    userRole = 'guest';
+                }
+            }
+        }
+        
+        // Setup realtime listener cho tables
+        function setupTablesListener() {
+            if (!db) return;
+            
+            try {
+                console.log("📡 Setting up tables realtime listener...");
+                const tablesRef = collection(db, 'tables');
+                
+                onSnapshot(tablesRef, (snapshot) => {
+                    tables = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    console.log("🍽️ Tables updated:", tables.length);
+                    
+                    // Re-render nếu đang ở admin view
+                    if (isAdmin && currentView === 'admin') {
+                        renderApp();
+                    }
+                });
+                
+            } catch (error) {
+                console.error("Error setting up tables listener:", error);
+            }
+        }
+        
+        // Thêm bàn mới
+        async function addTable() {
+            const tableNumber = document.getElementById('new-table-number').value.trim();
+            
+            if (!tableNumber) {
+                showMessage("Vui lòng nhập số bàn!", "warning");
+                return;
+            }
+            
+            // Kiểm tra trùng
+            if (tables.some(t => t.tableNumber === tableNumber)) {
+                showMessage(`Bàn ${tableNumber} đã tồn tại!`, "error");
+                return;
+            }
+            
+            try {
+                const tableData = {
+                    tableNumber: tableNumber,
+                    status: 'available', // available, occupied
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+                
+                await addDoc(collection(db, 'tables'), tableData);
+                
+                showMessage(`✅ Đã thêm Bàn ${tableNumber}`, "success");
+                closeAddTableModal();
+                
+            } catch (error) {
+                console.error("Error adding table:", error);
+                showMessage("Lỗi thêm bàn: " + error.message, "error");
+            }
+        }
+        
+        // Xóa bàn
+        async function deleteTable(tableId) {
+            if (!confirm("Bạn có chắc muốn xóa bàn này?")) return;
+            
+            try {
+                await deleteDoc(doc(db, 'tables', tableId));
+                showMessage("✅ Đã xóa bàn", "success");
+                
+            } catch (error) {
+                console.error("Error deleting table:", error);
+                showMessage("Lỗi xóa bàn: " + error.message, "error");
+            }
+        }
+        
+        // Hiển thị QR Code của bàn
+        function showTableQR(tableId, tableNumber) {
+            const modal = document.getElementById('qr-modal');
+            const qrContainer = document.getElementById('qr-code-container');
+            const tableInfo = document.getElementById('qr-table-info');
+            
+            // Clear previous QR
+            qrContainer.innerHTML = '';
+            
+            // Tạo URL với table parameter
+            const baseUrl = window.location.origin + window.location.pathname;
+            const qrUrl = `${baseUrl}?table=${tableNumber}`;
+            
+            // Generate QR Code
+            new QRCode(qrContainer, {
+                text: qrUrl,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            
+            // Update table info
+            tableInfo.innerHTML = `
+                <p class="text-lg font-bold text-teal-600 mb-2">Bàn ${tableNumber}</p>
+                <p class="text-sm text-gray-600 mb-3">Quét QR code này để vào menu</p>
+                <div class="bg-gray-100 p-2 rounded text-xs break-all">
+                    ${qrUrl}
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+        }
+        
+        function closeQRModal() {
+            document.getElementById('qr-modal').classList.add('hidden');
+        }
+        
+        function openAddTableModal() {
+            document.getElementById('add-table-modal').classList.remove('hidden');
+        }
+        
+        function closeAddTableModal() {
+            document.getElementById('add-table-modal').classList.add('hidden');
+            document.getElementById('new-table-number').value = '';
+        }
+        
+        // Download QR Code as image
+        function downloadQR() {
+            const qrCanvas = document.querySelector('#qr-code-container canvas');
+            if (!qrCanvas) return;
+            
+            const tableNumber = document.querySelector('#qr-table-info .text-teal-600').textContent;
+            
+            const link = document.createElement('a');
+            link.download = `QR-${tableNumber}.png`;
+            link.href = qrCanvas.toDataURL();
+            link.click();
+        }
+        
         function initFirebase() {
             try {
+                // Kiểm tra table từ URL trước
+                checkTableFromURL();
+                
                 console.log("🚀 Initializing Firebase with config:", firebaseConfig);
                 if (Object.keys(firebaseConfig).length > 0) {
                     app = initializeApp(firebaseConfig);
@@ -558,9 +723,10 @@
                         
                         if (db) {
                             setupMenuListener();
-                            // Setup orders listener for admin
+                            // Setup listeners for admin
                             if (isAdmin) {
                                 setupOrdersListener();
+                                setupTablesListener();
                             }
                         }
                         
@@ -642,10 +808,18 @@
             return `
                 <header class="sticky top-0 z-20 bg-amber-100/90 backdrop-blur-sm shadow-md border-b border-yellow-700/50">
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                        <!-- Logo Quán -->
+                        <!-- Logo Quán + Số Bàn -->
                         <div class="flex items-center space-x-3">
                             <i data-lucide="coffee" class="text-amber-800 w-8 h-8"></i>
-                            <h1 class="text-2xl font-bold text-amber-900 font-serif">Quán Trà Đồ</h1>
+                            <div>
+                                <h1 class="text-2xl font-bold text-amber-900 font-serif">Quán Trà Đồ</h1>
+                                ${currentTableNumber ? `
+                                    <p class="text-sm text-teal-600 font-semibold flex items-center gap-1">
+                                        <i data-lucide="table-2" class="w-4 h-4"></i>
+                                        Bàn ${currentTableNumber}
+                                    </p>
+                                ` : ''}
+                            </div>
                         </div>
                         
                         <!-- Liên hệ & Đăng nhập -->
@@ -1101,6 +1275,47 @@
                           </form>
                       </div>
 
+                      <!-- Phần Quản Lý Bàn Ăn -->
+                      <div class="bg-teal-50 p-6 rounded-xl shadow-lg mb-8">
+                          <h3 class="text-2xl font-bold text-teal-600 mb-4">🍽️ Quản Lý Bàn Ăn</h3>
+
+                          <div class="mb-4 flex gap-2">
+                              <button onclick="openAddTableModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2">
+                                  <i data-lucide="plus" class="w-4 h-4"></i>
+                                  Thêm Bàn Mới
+                              </button>
+                              <span class="text-sm text-gray-600 self-center">Tổng: ${tables.length} bàn</span>
+                          </div>
+
+                          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              ${tables.length === 0 ? `
+                                  <p class="text-gray-500 col-span-full text-center py-8">Chưa có bàn nào. Click "Thêm Bàn Mới" để bắt đầu.</p>
+                              ` : tables.map(table => `
+                                  <div class="bg-white p-4 rounded-lg border-2 ${table.status === 'occupied' ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'} shadow-sm">
+                                      <div class="flex justify-between items-start mb-3">
+                                          <div>
+                                              <h4 class="text-lg font-bold text-gray-800">Bàn ${table.tableNumber}</h4>
+                                              <span class="text-xs px-2 py-1 rounded-full ${table.status === 'occupied' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                                                  ${table.status === 'occupied' ? '🔴 Đang dùng' : '🟢 Trống'}
+                                              </span>
+                                          </div>
+                                          <div class="flex gap-1">
+                                              <button onclick="showTableQR('${table.id}', '${table.tableNumber}')" class="p-1.5 bg-blue-500 text-white rounded hover:bg-blue-600" title="Xem QR Code">
+                                                  <i data-lucide="qr-code" class="w-4 h-4"></i>
+                                              </button>
+                                              <button onclick="deleteTable('${table.id}')" class="p-1.5 bg-red-500 text-white rounded hover:bg-red-600" title="Xóa bàn">
+                                                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                              </button>
+                                          </div>
+                                      </div>
+                                      <div class="text-xs text-gray-600">
+                                          <p>Tạo: ${table.createdAt ? new Date(table.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                                      </div>
+                                  </div>
+                              `).join('')}
+                          </div>
+                      </div>
+
                       <!-- Phần Quản Lý Đơn Hàng -->
                       <div class="bg-purple-50 p-6 rounded-xl shadow-lg mb-8">
                           <h3 class="text-2xl font-bold text-purple-600 mb-4">📋 Quản Lý Đơn Hàng</h3>
@@ -1444,6 +1659,7 @@
                       status: 'ordered', // ordered, confirmed, preparing, ready, completed, cancelled, updated
                       customerId: userId,
                       customerEmail: auth.currentUser?.email || 'anonymous',
+                      tableNumber: currentTableNumber || null, // Số bàn (nếu order từ QR code)
                       createdAt: new Date(),
                       updatedAt: new Date()
                   };
@@ -1648,7 +1864,10 @@
                           }">
                               <div class="flex justify-between items-start mb-3">
                                   <div>
-                                      <h4 class="font-semibold text-purple-800">Order #${order.id.slice(-6).toUpperCase()}</h4>
+                                      <h4 class="font-semibold text-purple-800 flex items-center gap-2">
+                                          Order #${order.id.slice(-6).toUpperCase()}
+                                          ${order.tableNumber ? `<span class="px-2 py-0.5 bg-teal-100 text-teal-700 text-xs rounded-full">🍽️ Bàn ${order.tableNumber}</span>` : ''}
+                                      </h4>
                                       <p class="text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
                                       <p class="text-xs text-gray-500">Khách: ${order.customerEmail || order.customerId.slice(-6)}</p>
                                   </div>
@@ -2287,6 +2506,13 @@
             window.closeOrdersManagement = closeOrdersManagement;
             window.setOrderFilter = setOrderFilter;
             window.setDateFilter = setDateFilter;
+            window.addTable = addTable;
+            window.deleteTable = deleteTable;
+            window.showTableQR = showTableQR;
+            window.closeQRModal = closeQRModal;
+            window.openAddTableModal = openAddTableModal;
+            window.closeAddTableModal = closeAddTableModal;
+            window.downloadQR = downloadQR;
 
               // Fallback: Hide loading after 10 seconds if Firebase fails
             setTimeout(() => {
@@ -2409,6 +2635,52 @@
                 <div class="flex gap-3">
                     <button onclick="closeCategoryModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
                     <button onclick="addNewCategory()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Thêm</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add Table Modal -->
+        <div id="add-table-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold text-teal-600 mb-4">🍽️ Thêm Bàn Mới</h3>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Số Bàn</label>
+                    <input type="text" id="new-table-number" placeholder="Ví dụ: 1, A1, VIP-01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500">
+                    <p class="text-xs text-gray-500 mt-1">Có thể dùng số hoặc chữ cái</p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="closeAddTableModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                    <button onclick="addTable()" class="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thêm Bàn</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- QR Code Modal -->
+        <div id="qr-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-teal-600">📱 QR Code</h3>
+                    <button onclick="closeQRModal()" class="text-gray-500 hover:text-gray-700">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                
+                <div id="qr-table-info" class="mb-4 text-center">
+                    <!-- Table info will be inserted here -->
+                </div>
+                
+                <div id="qr-code-container" class="flex justify-center mb-4 bg-white p-4 rounded-lg border-2 border-teal-200">
+                    <!-- QR Code will be generated here -->
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="downloadQR()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        Tải Xuống
+                    </button>
+                    <button onclick="closeQRModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Đóng</button>
                 </div>
             </div>
         </div>
