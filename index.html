@@ -1210,10 +1210,12 @@
             `;
         }
         
+        // Ẩn món đã xóa cho khách hàng và admin preview mode
         function renderCustomerMenu() {
             const filteredItems = menuItems.filter(item => {
                 // Ẩn món đã xóa cho khách hàng
                 if (!isAdmin && item.status === 'deleted') return false;
+                if (isAdmin && item.status === 'deleted') return false;
                 return item.category === currentCategory;
             });
             
@@ -4082,8 +4084,8 @@
     </div>
 
     <!-- Footer đơn giản -->
-    <footer class="bg-amber-900 text-white p-3 text-center text-xs fixed bottom-0 left-0 right-0 z-50">
-        &copy; 2025 by GTD Fry. Phát triển bằng HTML, Tailwind & Firebase.
+    <footer class="bg-amber-700 text-white p-2 text-center text-xs fixed bottom-0 left-0 right-0 z-50">
+        &copy; 2025 by GTD Fry. Chill Coffee
     </footer>
 </body>
 </html>
