@@ -347,13 +347,46 @@
             const menu = document.getElementById('item-context-menu');
             window.currentContextItemId = itemId;
 
-            menu.style.left = event.pageX + 'px';
-            menu.style.top = event.pageY + 'px';
+            const menuHeight = 120; // Approximate height of context menu
+            const windowHeight = window.innerHeight;
+            const scrollY = window.scrollY;
+
+            // Check if there's enough space below the click position
+            const spaceBelow = windowHeight - (event.clientY + menuHeight);
+            const spaceAbove = event.clientY;
+
+            let topPosition;
+            if (spaceBelow < 20 && spaceAbove > spaceBelow) {
+                // Show above if not enough space below and more space above
+                topPosition = event.pageY - menuHeight - 10;
+            } else {
+                // Show below (default behavior)
+                topPosition = event.pageY + 10;
+            }
+
+            // Ensure menu doesn't go off-screen horizontally
+            let leftPosition = event.pageX;
+            const menuWidth = 150; // Approximate width
+            if (leftPosition + menuWidth > window.innerWidth) {
+                leftPosition = window.innerWidth - menuWidth - 10;
+            }
+
+            menu.style.left = leftPosition + 'px';
+            menu.style.top = topPosition + 'px';
             menu.classList.remove('hidden');
 
             // Hide menu when clicking outside
             setTimeout(() => {
-                document.addEventListener('click', hideContextMenu, { once: true });
+                const handleClickOutside = (e) => {
+                    const menu = document.getElementById('item-context-menu');
+                    // Don't hide if clicking on menu items
+                    if (menu.contains(e.target)) {
+                        return;
+                    }
+                    hideContextMenu();
+                    document.removeEventListener('click', handleClickOutside);
+                };
+                document.addEventListener('click', handleClickOutside);
             }, 1);
         }
 
@@ -361,6 +394,8 @@
             const menu = document.getElementById('item-context-menu');
             menu.classList.add('hidden');
             window.currentContextItemId = null;
+            // Remove any existing event listeners to prevent conflicts
+            document.removeEventListener('click', hideContextMenu);
         }
 
         function handleLogoClick() {
@@ -2291,7 +2326,7 @@
                                                 <div class="flex justify-end gap-1 sm:gap-2">
                                                     <button onclick="event.stopPropagation(); openPriceModal('${item.id}')" class="text-blue-600 hover:text-blue-800 p-1 active:scale-95 transition" title="Chỉnh giá">💰</button>
                                                     <button onclick="event.stopPropagation(); loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900 text-xs sm:text-sm active:scale-95 transition">Sửa</button>
-                                                    <button onclick="event.stopPropagation(); deleteItem('${item.id}')" class="text-red-600 hover:text-red-900 text-xs sm:text-sm active:scale-95 transition ml-1">Xóa</button>
+                                                    <button onclick="event.stopPropagation(); if(confirm('Bạn có chắc muốn xóa món này không?')) deleteItem('${item.id}')" class="text-red-600 hover:text-red-900 text-xs sm:text-sm active:scale-95 transition ml-1">Xóa</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -2311,7 +2346,7 @@
                                 Chỉnh giá
                             </button>
                             <hr class="my-1">
-                            <button onclick="deleteItem(window.currentContextItemId); hideContextMenu()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                            <button onclick="if(confirm('Bạn có chắc muốn xóa món này không?')) { deleteItem(window.currentContextItemId); } hideContextMenu()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 Xóa món
                             </button>
