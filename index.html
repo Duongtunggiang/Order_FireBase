@@ -610,6 +610,16 @@
             const tableNumber = urlParams.get('table');
 
             if (tableNumber) {
+                // Kiểm tra xem bàn có tồn tại không (chỉ check nếu đã load tables)
+                if (tables.length > 0) {
+                    const tableExists = tables.some(t => t.tableNumber === tableNumber);
+                    if (!tableExists) {
+                        console.warn(`Table ${tableNumber} does not exist`);
+                        showMessage(`Bàn ${tableNumber} không tồn tại!`, 'error');
+                        return;
+                    }
+                }
+
                 // Kiểm tra xem có session cũ với bàn khác không
                 if (currentTableNumber && currentTableNumber !== tableNumber) {
                     // Đổi bàn mới, tạo session mới
@@ -630,6 +640,9 @@
 
                 // Lưu session vào cookie
                 saveSessionToCookie();
+
+                // Re-render để cập nhật header
+                renderApp();
             }
         }
         
@@ -645,14 +658,50 @@
                     tables = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     console.log("🍽️ Tables updated:", tables.length);
                     
-                    // Re-render nếu đang ở admin view
+                    // Re-render nếu đang ở admin view hoặc có modal chọn bàn mở
                     if (isAdmin && currentView === 'admin') {
                         renderApp();
+                    }
+
+                    // Cập nhật modal chọn bàn nếu đang mở
+                    const tableModal = document.getElementById('table-selection-modal');
+                    if (tableModal && !tableModal.classList.contains('hidden')) {
+                        console.log("🔄 Updating table selection modal");
+                        // Re-load danh sách bàn trong modal
+                        const content = document.getElementById('table-selection-content');
+                        if (content) {
+                            const availableTables = tables.filter(table => !table.status || table.status === 'available');
+                            console.log("✅ Available tables for modal:", availableTables);
+                            content.innerHTML = availableTables.map(table => `
+                                <button onclick="selectTable('${table.tableNumber}')" class="p-4 border-2 border-teal-200 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition duration-150 flex flex-col items-center space-y-2">
+                                    <i data-lucide="table-2" class="w-8 h-8 text-teal-600"></i>
+                                    <span class="font-semibold text-gray-800">Bàn ${table.tableNumber}</span>
+                                    <span class="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">${table.status || 'Trống'}</span>
+                                </button>
+                            `).join('');
+                            renderLucideIcons();
+                        }
                     }
                 });
                 
             } catch (error) {
                 console.error("Error setting up tables listener:", error);
+            }
+        }
+
+        // Load tables một lần (fallback nếu realtime chưa load)
+        async function loadTablesOnce() {
+            if (!db || tables.length > 0) return; // Đã có data rồi
+
+            try {
+                console.log("🔄 Loading tables once...");
+                const tablesRef = collection(db, 'tables');
+                const snapshot = await getDocs(tablesRef);
+                tables = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("✅ Tables loaded once:", tables.length);
+                console.log("📋 Tables data:", tables);
+            } catch (error) {
+                console.error("Error loading tables once:", error);
             }
         }
         
@@ -804,10 +853,11 @@
                         
                         if (db) {
                             setupMenuListener();
+                            setupTablesListener(); // Always setup for table selection modal
+
                             // Setup listeners for admin
                             if (isAdmin) {
                                 setupOrdersListener();
-                                setupTablesListener();
                             }
                         }
                         
@@ -919,6 +969,11 @@
                                   <button onclick="showMyOrders()" class="text-blue-600 hover:text-blue-800 transition duration-150 hidden sm:block text-sm">
                                       <i data-lucide="clipboard" class="w-4 h-4 inline mr-1"></i> Đơn Hàng Của Tôi
                                   </button>
+                                  ${!currentTableNumber ? `
+                                      <button onclick="showTableSelectionModal()" class="text-teal-600 hover:text-teal-800 transition duration-150 hidden sm:block text-sm">
+                                          <i data-lucide="table-2" class="w-4 h-4 inline mr-1"></i> Chọn Bàn
+                                      </button>
+                                  ` : ''}
                               ` : ''}
                               <a href="#" class="text-amber-800 hover:text-orange-600 transition duration-150 hidden sm:block">
                                   <i data-lucide="phone" class="w-5 h-5 inline mr-1"></i> Liên Hệ
@@ -1727,6 +1782,12 @@
 
               if (total === 0) {
                   showMessage("Giỏ hàng trống! Vui lòng chọn món.", 'warning');
+                  return;
+              }
+
+              // Kiểm tra table number - nếu chưa có thì hiện modal chọn bàn
+              if (!currentTableNumber) {
+                  showTableSelectionModal();
                   return;
               }
 
@@ -2623,6 +2684,102 @@
         }
 
 
+        // ==================== TABLE SELECTION MODAL ====================
+
+        // Hiển thị modal chọn bàn
+        async function showTableSelectionModal() {
+            const modal = document.getElementById('table-selection-modal');
+            const content = document.getElementById('table-selection-content');
+
+            console.log('📋 Current tables:', tables);
+            console.log('📊 Tables length:', tables.length);
+
+            // Nếu chưa load được tables, thử load một lần
+            if (tables.length === 0) {
+                console.log('🔄 Tables empty, trying to load once...');
+                await loadTablesOnce();
+
+                console.log('📋 After loading tables:', tables);
+                console.log('📊 Tables length after load:', tables.length);
+            }
+
+            // Nếu vẫn chưa có tables, hiển thị loading
+            if (tables.length === 0) {
+                content.innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <i data-lucide="alert-triangle" class="w-8 h-8 mx-auto mb-2 text-yellow-500"></i>
+                        <p class="text-gray-600">Không thể tải danh sách bàn</p>
+                        <p class="text-sm text-gray-500 mt-2">Vui lòng liên hệ nhân viên hoặc thử lại sau.</p>
+                        <button onclick="showTableSelectionModal()" class="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+                            🔄 Thử lại
+                        </button>
+                    </div>
+                `;
+                modal.classList.remove('hidden');
+                renderLucideIcons();
+                return;
+            }
+
+            // Load danh sách bàn - chấp nhận cả 'available' và undefined status (mặc định là trống)
+            const availableTables = tables.filter(table => !table.status || table.status === 'available');
+
+            console.log('✅ Available tables:', availableTables);
+
+            if (availableTables.length === 0) {
+                content.innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-2 text-yellow-500"></i>
+                        <p class="text-gray-600">Không có bàn trống lúc này.</p>
+                        <p class="text-sm text-gray-500 mt-2">Vui lòng liên hệ nhân viên để được hỗ trợ.</p>
+                        <p class="text-xs text-gray-400 mt-4">Debug: ${tables.length} bàn trong hệ thống</p>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = availableTables.map(table => `
+                    <button onclick="selectTable('${table.tableNumber}')" class="p-4 border-2 border-teal-200 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition duration-150 flex flex-col items-center space-y-2">
+                        <i data-lucide="table-2" class="w-8 h-8 text-teal-600"></i>
+                        <span class="font-semibold text-gray-800">Bàn ${table.tableNumber}</span>
+                        <span class="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">${table.status || 'Trống'}</span>
+                    </button>
+                `).join('');
+            }
+
+            modal.classList.remove('hidden');
+            renderLucideIcons();
+        }
+
+        // Đóng modal chọn bàn
+        function closeTableSelectionModal() {
+            document.getElementById('table-selection-modal').classList.add('hidden');
+        }
+
+        // Chọn bàn và tiếp tục đặt hàng
+        function selectTable(tableNumber) {
+            // Đặt table number
+            currentTableNumber = tableNumber;
+            userRole = 'guest';
+
+            // Tạo session mới nếu chưa có
+            if (!currentSessionId) {
+                currentSessionId = generateSessionId();
+            }
+
+            // Lưu session
+            saveSessionToCookie();
+
+            // Đóng modal
+            closeTableSelectionModal();
+
+            // Hiển thị thông báo
+            showMessage(`Đã chọn Bàn ${tableNumber}!`, 'success');
+
+            // Tiếp tục đặt hàng
+            handleOrder();
+
+            // Re-render để cập nhật header
+            renderApp();
+        }
+
         // --- Khởi tạo Ứng dụng ---
         window.onload = function() {
             console.log("🌟 Ứng dụng Quán Trà Đồ khởi động...");
@@ -2672,6 +2829,9 @@
             window.openAddTableModal = openAddTableModal;
             window.closeAddTableModal = closeAddTableModal;
             window.downloadQR = downloadQR;
+            window.showTableSelectionModal = showTableSelectionModal;
+            window.closeTableSelectionModal = closeTableSelectionModal;
+            window.selectTable = selectTable;
 
               // Fallback: Hide loading after 10 seconds if Firebase fails
             setTimeout(() => {
@@ -2776,6 +2936,45 @@
 
                   <div id="orders-management-content">
                       <!-- Orders management will be loaded here -->
+                  </div>
+              </div>
+          </div>
+
+          <!-- Table Selection Modal (Guest) -->
+          <div id="table-selection-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+              <div class="bg-white p-6 rounded-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+                  <div class="flex justify-between items-center mb-4">
+                      <h3 class="text-xl font-bold text-teal-600">🍽️ Chọn Bàn Của Bạn</h3>
+                      <button onclick="closeTableSelectionModal()" class="text-gray-500 hover:text-gray-700">
+                          <i data-lucide="x" class="w-6 h-6"></i>
+                      </button>
+                  </div>
+
+                  <div class="mb-4">
+                      <p class="text-gray-600 mb-4">Vui lòng chọn bàn mà bạn đang ngồi để chúng tôi phục vụ tốt nhất:</p>
+                  </div>
+
+                  <div class="flex justify-between items-center mb-4">
+                      <p class="text-sm text-gray-600">Danh sách bàn trống:</p>
+                      <div class="flex gap-2">
+                          <button onclick="loadTablesOnce().then(() => showTableSelectionModal())" class="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded">
+                              🔄 Tải lại
+                          </button>
+                          <span class="text-xs text-gray-500 self-center">${tables.length} bàn</span>
+                      </div>
+                  </div>
+
+                  <div id="table-selection-content" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      <!-- Tables will be loaded here -->
+                  </div>
+
+                  <div class="flex gap-3 mt-6">
+                      <button onclick="closeTableSelectionModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                          Hủy
+                      </button>
+                      <div class="text-sm text-gray-500 self-center">
+                          Chọn bàn để tiếp tục đặt hàng
+                      </div>
                   </div>
               </div>
           </div>
