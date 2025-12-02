@@ -178,6 +178,12 @@
             const item = menuItems.find(i => i.id === itemId);
             if (!item) return;
 
+            const wasEmpty = Object.keys(cart).length === 0;
+            const previousQty = cart[itemId]?.quantity || 0;
+            
+            // Lưu trạng thái giỏ hàng trước khi render lại
+            const cartWasOpen = !document.getElementById('cart-sidebar')?.classList.contains('translate-x-full');
+
             if (cart[itemId]) {
                 cart[itemId].quantity += change;
             } else if (change > 0) {
@@ -188,8 +194,50 @@
                 delete cart[itemId];
             }
 
+            // Tự động đóng giỏ hàng CHỈ KHI xóa hết món
+            if (Object.keys(cart).length === 0 && !wasEmpty) {
+                closeCart();
+                showMessage("Giỏ hàng trống", 'info');
+            }
+
+            // Hiện thông báo khi thêm món từ menu (không từ giỏ hàng)
+            if (change > 0 && cart[itemId] && !cartWasOpen) {
+                showMessage(`✅ Đã thêm "${item.name}" vào giỏ hàng!`, 'success');
+            }
+
             localStorage.setItem('cart', JSON.stringify(cart));
             renderApp();
+            
+            // Giữ nguyên trạng thái giỏ hàng sau khi render
+            if (cartWasOpen && Object.keys(cart).length > 0) {
+                openCart();
+            }
+        }
+        
+        // Đóng giỏ hàng
+        function closeCart() {
+            const cartSidebar = document.getElementById('cart-sidebar');
+            const cartOverlay = document.getElementById('cart-overlay');
+            
+            if (cartSidebar) {
+                cartSidebar.classList.add('translate-x-full');
+            }
+            if (cartOverlay) {
+                cartOverlay.classList.add('hidden');
+            }
+        }
+        
+        // Mở giỏ hàng
+        function openCart() {
+            const cartSidebar = document.getElementById('cart-sidebar');
+            const cartOverlay = document.getElementById('cart-overlay');
+            
+            if (cartSidebar) {
+                cartSidebar.classList.remove('translate-x-full');
+            }
+            if (cartOverlay) {
+                cartOverlay.classList.remove('hidden');
+            }
         }
 
         // --- Quản lý State View ---
@@ -582,13 +630,14 @@
                 </button>
             ` : '';
             
-            // Ẩn giỏ hàng khi admin ở mode admin (không preview)
-            const cartButton = (isAdmin && !isPreviewMode) ? '' : `
-                <button onclick="document.getElementById('cart-sidebar').classList.remove('translate-x-full')" class="relative p-2 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-md">
-                    <i data-lucide="shopping-cart" class="w-6 h-6"></i>
-                    ${Object.keys(cart).length > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">${Object.values(cart).reduce((sum, item) => sum + item.quantity, 0)}</span>` : ''}
-                </button>
-            `;
+             // Ẩn giỏ hàng khi admin ở mode admin (không preview)
+             const totalItemsInCart = Object.values(cart).reduce((sum, item) => sum + item.quantity, 0);
+             const cartButton = (isAdmin && !isPreviewMode) ? '' : `
+                 <button onclick="openCart()" class="relative p-2 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-md">
+                     <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+                     ${totalItemsInCart > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full animate-pulse">${totalItemsInCart}</span>` : ''}
+                 </button>
+             `;
 
             return `
                 <header class="sticky top-0 z-20 bg-amber-100/90 backdrop-blur-sm shadow-md border-b border-yellow-700/50">
@@ -1323,15 +1372,16 @@
                 : ''; // Giữ trạng thái ẩn/hiện dựa trên click
 
             return `
-                <!-- Nền đen mờ -->
-                <div id="cart-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300 ${document.getElementById('cart-sidebar')?.classList.contains('translate-x-full') ? 'hidden' : ''}" onclick="document.getElementById('cart-sidebar').classList.add('translate-x-full')"></div>
+                <!-- Nền đen mờ (overlay) - click để đóng giỏ hàng -->
+                <div id="cart-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300 hidden" onclick="closeCart()"></div>
             
-                <div id="cart-sidebar" class="fixed top-0 right-0 w-full md:w-96 h-full bg-white shadow-2xl z-40 transform transition-transform duration-300 ${cartClasses}">
+                <div id="cart-sidebar" class="fixed top-0 right-0 w-full md:w-96 h-full bg-white shadow-2xl z-40 transform transition-transform duration-300 translate-x-full">
                     <div class="flex justify-between items-center p-4 border-b border-amber-200 bg-amber-50">
                         <h3 class="text-xl font-bold text-amber-900 flex items-center">
                             <i data-lucide="shopping-basket" class="w-6 h-6 mr-2"></i> Giỏ Hàng
+                            ${Object.keys(cart).length > 0 ? `<span class="ml-2 px-2 py-1 bg-red-600 text-white text-xs rounded-full">${Object.values(cart).reduce((sum, item) => sum + item.quantity, 0)}</span>` : ''}
                         </h3>
-                        <button onclick="document.getElementById('cart-sidebar').classList.add('translate-x-full')" class="p-2 rounded-full hover:bg-gray-100 text-amber-800">
+                        <button onclick="closeCart()" class="p-2 rounded-full hover:bg-gray-100 text-amber-800">
                             <i data-lucide="x" class="w-6 h-6"></i>
                         </button>
                     </div>
@@ -2201,6 +2251,8 @@
 
             initFirebase();
             window.updateCart = updateCart;
+            window.openCart = openCart;
+            window.closeCart = closeCart;
             window.setView = setView;
             window.setCategory = setCategory;
             window.handleLogin = handleLogin;
