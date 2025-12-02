@@ -4,29 +4,62 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quán Trà Sữa & Đồ Ăn - Single Page App</title>
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CSS via CDN (for development) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+    /* Custom Tailwind config for production */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+        font-family: 'Inter', sans-serif;
+        background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+    }
+
+    /* Hide scrollbar for webkit browsers */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #fef3c7; }
+    ::-webkit-scrollbar-thumb { background: #d97706; border-radius: 10px; }
+
+    /* Custom utilities */
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    </style>
     <!-- Lucide Icons for nice, clean icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, getDocs, where, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // Cấu hình Firebase và Khởi tạo
         setLogLevel('Debug');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const __initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const appId = 'order-app'; // App ID cho quán trà sữa
 
-        let app, db, auth, userId;
+        // Firebase config cho project order-d8a0c
+        const firebaseConfig = {
+            apiKey: "AIzaSyCGs3xD2uC153yGlV7IpRftllAKx-NHt88",
+            authDomain: "order-d8a0c.firebaseapp.com",
+            projectId: "order-d8a0c",
+            storageBucket: "order-d8a0c.firebasestorage.app",
+            messagingSenderId: "559568129038",
+            appId: "1:559568129038:web:dd1ebcefb23f7cf03dc05f"
+        };
+        const __initial_auth_token = null; // For Canvas environment - set to null for direct usage
+
+        let app, db, auth, storage, userId;
         let menuItems = [];
         let cart = {}; // { itemId: { item, quantity } }
-        let currentView = 'customer'; // 'customer', 'login', 'admin'
+        let currentView = 'customer'; // 'customer', 'login', 'admin', 'preview'
         let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
         let isAdmin = false;
+        let isPreviewMode = false; // Admin đang xem như khách hàng
 
         // --- Hàm hỗ trợ chung ---
         function renderLucideIcons() {
@@ -161,7 +194,10 @@
             currentView = viewName;
             renderApp();
             if (viewName !== 'login') {
-                document.getElementById('login-form').reset();
+                const loginForm = document.getElementById('login-form');
+                if (loginForm) {
+                    loginForm.reset();
+                }
             }
         }
 
@@ -172,7 +208,15 @@
 
         function toggleAdminMode() {
             if (isAdmin) {
-                currentView = currentView === 'customer' ? 'admin' : 'customer';
+                if (currentView === 'admin') {
+                    // Chuyển sang preview mode (xem như khách)
+                    isPreviewMode = true;
+                    currentView = 'customer';
+                } else {
+                    // Quay về admin dashboard
+                    isPreviewMode = false;
+                    currentView = 'admin';
+                }
                 renderApp();
             }
         }
@@ -182,45 +226,99 @@
         }
 
         // --- Quản lý Dữ liệu Firebase ---
-        const PUBLIC_DATA_PATH = `artifacts/${appId}/public/data/menuItems`;
-        const PRIVATE_SALES_PATH = `artifacts/${appId}/users/${userId}/sales`;
+        const PUBLIC_DATA_PATH = `menuItems`; // Đơn giản hóa path cho development
+        const PRIVATE_SALES_PATH = `sales/${userId}`;
 
         function setupMenuListener() {
-            if (!db) return;
+            if (!db) {
+                console.warn("❌ DB chưa được khởi tạo");
+                return;
+            }
             const q = query(collection(db, PUBLIC_DATA_PATH));
+            console.log("🔄 Setting up menu listener for path:", PUBLIC_DATA_PATH);
 
             onSnapshot(q, (snapshot) => {
                 menuItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("✅ Loaded menu items:", menuItems.length, "items");
+                console.log("📋 Menu items:", menuItems);
+                console.log("🔍 Raw snapshot:", snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
                 renderApp();
             }, (error) => {
-                console.error("Lỗi khi nghe thay đổi menu:", error);
+                console.error("❌ Lỗi khi nghe thay đổi menu:", error);
+                console.error("❌ Error details:", error.code, error.message);
+                // Fallback: thử load một lần
+                loadMenuItemsOnce();
             });
+        }
+
+        async function loadMenuItemsOnce() {
+            try {
+                console.log("🔄 Loading menu items once...");
+                const querySnapshot = await getDocs(collection(db, PUBLIC_DATA_PATH));
+                menuItems = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("✅ Loaded menu items (once):", menuItems.length, "items");
+                renderApp();
+            } catch (error) {
+                console.error("❌ Failed to load menu items:", error);
+            }
         }
         
         async function saveItem(item) {
             const isNew = !item.id;
-            const itemToSave = {
-                name: item.name,
-                description: item.description,
-                price: parseFloat(item.price),
-                category: item.category,
-                imageUrl: item.imageUrl || `https://placehold.co/150x150/f0d48f/8b542f?text=${encodeURIComponent(item.name.substring(0, 10))}`,
-                updatedAt: new Date(),
-            };
 
             try {
+                let imageUrl = item.imageUrl;
+
+                // Handle file upload - Convert to Data URL
+                const fileInput = document.getElementById('admin-form-image-file');
+                if (fileInput && fileInput.files && fileInput.files[0]) {
+                    console.log("📸 Processing image...");
+                    showMessage("Đang xử lý ảnh...", "info");
+                    
+                    try {
+                        imageUrl = await uploadImage(fileInput.files[0]);
+                        showMessage("✅ Ảnh đã sẵn sàng!", "success");
+                        console.log("✅ Image ready for save");
+                    } catch (error) {
+                        showMessage("❌ Lỗi xử lý ảnh: " + error.message, "error");
+                        throw error;
+                    }
+                }
+
+                // Fallback to placeholder if no image provided
+                if (!imageUrl || imageUrl.trim() === '') {
+                    imageUrl = `https://via.placeholder.com/400x300/f0d48f/8b542f?text=${encodeURIComponent(item.name.substring(0, 10))}`;
+                    console.log("📝 Using placeholder image");
+                }
+
+                const itemToSave = {
+                    name: item.name,
+                    description: item.description,
+                    price: parseFloat(item.price),
+                    category: item.category,
+                    status: item.status || 'active',
+                    imageUrl: imageUrl,
+                    updatedAt: new Date(),
+                };
+
                 if (isNew) {
                     await addDoc(collection(db, PUBLIC_DATA_PATH), itemToSave);
                     console.log("Thêm món thành công");
+                    showMessage("Thêm món thành công!", "success");
                 } else {
                     const itemRef = doc(db, PUBLIC_DATA_PATH, item.id);
                     await updateDoc(itemRef, itemToSave);
                     console.log("Cập nhật món thành công");
+                    showMessage("Cập nhật món thành công!", "success");
                 }
+
+                // Clear file input
+                if (fileInput) fileInput.value = '';
+
                 setView('admin'); // Trở về trang quản lý
             } catch (e) {
                 console.error("Lỗi khi lưu món:", e);
-                // Hiển thị thông báo lỗi trên UI nếu cần
+                showMessage("Lỗi khi lưu món: " + e.message, "error");
             }
         }
         
@@ -228,9 +326,78 @@
             if (!confirm("Bạn có chắc chắn muốn xóa món này?")) return;
             try {
                 await deleteDoc(doc(db, PUBLIC_DATA_PATH, id));
-                console.log("Xóa món thành công");
+                console.log("✅ Xóa món thành công");
+                showMessage("Xóa món thành công!", "success");
             } catch (e) {
-                console.error("Lỗi khi xóa món:", e);
+                console.error("❌ Lỗi khi xóa món:", e);
+                showMessage("Lỗi khi xóa món: " + e.message, "error");
+            }
+        }
+
+        // Convert image to Base64 Data URL (lưu trực tiếp trong database)
+        async function uploadImage(file) {
+            if (!file) return null;
+
+            try {
+                console.log("📸 Converting image to Data URL...");
+                console.log("📁 File:", file.name, "Size:", (file.size / 1024).toFixed(2), "KB");
+
+                // Check file size (max 1MB recommended for Data URL)
+                if (file.size > 1024 * 1024) {
+                    throw new Error("Ảnh quá lớn! Vui lòng chọn ảnh nhỏ hơn 1MB");
+                }
+
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const dataURL = e.target.result;
+                        console.log("✅ Image converted successfully!");
+                        console.log("📊 Data URL length:", dataURL.length);
+                        resolve(dataURL);
+                    };
+                    
+                    reader.onerror = function(error) {
+                        console.error("❌ Error reading file:", error);
+                        reject(error);
+                    };
+                    
+                    reader.readAsDataURL(file);
+                });
+            } catch (error) {
+                console.error("❌ Error processing image:", error);
+                throw error;
+            }
+        }
+
+        // Thay đổi mật khẩu
+        async function changePassword(currentPassword, newPassword) {
+            try {
+                const user = auth.currentUser;
+                if (!user) throw new Error("Không có user đăng nhập");
+
+                // Re-authenticate với password hiện tại
+                const credential = EmailAuthProvider.credential(user.email, currentPassword);
+                await reauthenticateWithCredential(user, credential);
+
+                // Update password mới
+                await updatePassword(user, newPassword);
+                console.log("Password changed successfully");
+
+                showMessage("Đổi mật khẩu thành công!", "success");
+                return true;
+            } catch (error) {
+                console.error("Error changing password:", error);
+                let errorMessage = "Lỗi khi đổi mật khẩu";
+
+                if (error.code === 'auth/wrong-password') {
+                    errorMessage = "Mật khẩu hiện tại không đúng";
+                } else if (error.code === 'auth/weak-password') {
+                    errorMessage = "Mật khẩu mới quá yếu";
+                }
+
+                showMessage(errorMessage, "error");
+                return false;
             }
         }
 
@@ -239,43 +406,89 @@
             e.preventDefault();
             const email = e.target.email.value;
             const password = e.target.password.value;
-            
-            // Đây là Logic Đăng nhập/Đăng ký đơn giản. Trong thực tế, bạn cần một cơ chế Admin cụ thể hơn.
-            // Để đơn giản, tôi sẽ cho phép đăng nhập qua Email/Password
+
+            console.log("🔐 Attempting login with email:", email);
+
             try {
-                await signInWithEmailAndPassword(auth, email, password);
+                showMessage("Đang đăng nhập...", "info");
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                
+                console.log("✅ Login successful!");
+                console.log("👤 User:", userCredential.user.email);
+                console.log("🆔 UID:", userCredential.user.uid);
+                
+                // Check if admin
+                const adminEmails = ['binhbiinshop@admin.com', 'duong3112@gmail.com'];
+                const isAdminUser = adminEmails.includes(userCredential.user.email);
+                
+                console.log("👑 Is Admin:", isAdminUser);
+                
+                if (isAdminUser) {
+                    showMessage("✅ Đăng nhập Admin thành công! Chuyển đến Dashboard...", "success");
+                    console.log("🚀 Redirecting to Admin Dashboard");
+                } else {
+                    showMessage("✅ Đăng nhập thành công! Nhưng tài khoản không có quyền Admin.", "info");
+                    console.log("⚠️ User is not admin, staying in customer view");
+                }
+                
                 // AuthStateChanged sẽ lo việc chuyển view
             } catch (error) {
-                console.error("Lỗi đăng nhập:", error.code, error.message);
-                document.getElementById('login-message').textContent = "Đăng nhập thất bại. Vui lòng kiểm tra email/mật khẩu hoặc đăng ký.";
+                console.error("❌ Login failed:", error.code, error.message);
+                let errorMessage = "Đăng nhập thất bại.";
+
+                if (error.code === 'auth/user-not-found') {
+                    errorMessage = "❌ Tài khoản không tồn tại.";
+                } else if (error.code === 'auth/wrong-password') {
+                    errorMessage = "❌ Mật khẩu không đúng.";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = "❌ Email không hợp lệ.";
+                } else if (error.code === 'auth/invalid-credential') {
+                    errorMessage = "❌ Email hoặc mật khẩu không đúng.";
+                }
+
+                document.getElementById('login-message').textContent = errorMessage;
+                showMessage(errorMessage, "error");
+                console.log("❌ Error details:", error);
             }
         }
         
         async function handleLogout() {
             try {
+                console.log("🔓 Logging out...");
                 await signOut(auth);
+                console.log("✅ Logout successful");
+                showMessage("Đã đăng xuất thành công!", "success");
+                isPreviewMode = false;
                 // AuthStateChanged sẽ lo việc chuyển view
             } catch (error) {
-                console.error("Lỗi đăng xuất:", error);
+                console.error("❌ Logout error:", error);
+                showMessage("Lỗi khi đăng xuất", "error");
             }
         }
 
         // --- Khởi tạo và Quản lý Auth ---
         function initFirebase() {
             try {
+                console.log("🚀 Initializing Firebase with config:", firebaseConfig);
                 if (Object.keys(firebaseConfig).length > 0) {
                     app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
+                    storage = getStorage(app);
+                    console.log("✅ Firebase initialized successfully");
                 } else {
-                    console.warn("Firebase Config không tồn tại. Dùng chế độ Demo.");
+                    console.warn("❌ Firebase Config không tồn tại. Dùng chế độ Demo.");
                 }
 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
-                        // Giả định: nếu user có email/password (đã đăng nhập) thì là Admin
-                        isAdmin = user.email !== null;
+                        // Check if user is admin (multiple admin emails supported)
+                        const adminEmails = ['binhbiinshop@admin.com', 'duong3112@gmail.com'];
+                        isAdmin = adminEmails.includes(user.email);
+                        
+                        console.log("👤 User authenticated:", user.email);
+                        console.log("👑 Is Admin:", isAdmin);
                         
                         if (__initial_auth_token && user.isAnonymous) {
                             // Đây là logic đặc biệt cho môi trường Canvas, dùng token ban đầu
@@ -289,8 +502,11 @@
                         
                         // Chuyển về trạng thái Khách hàng nếu không phải Admin
                         if (isAdmin && currentView === 'login') {
+                           console.log("🚀 Switching to Admin Dashboard");
                            setView('admin');
+                           showMessage("Chào mừng Admin! 👑", "success");
                         } else if (!isAdmin && currentView === 'login') {
+                           console.log("👤 Switching to Customer view");
                            setView('customer');
                         }
                     } else {
@@ -298,8 +514,9 @@
                         isAdmin = false;
                         userId = crypto.randomUUID(); // Dùng ID ngẫu nhiên cho khách ẩn danh
                         if (db) {
-                            // Đăng nhập ẩn danh để có quyền đọc/ghi theo Rules (nếu chưa có auth token)
-                            if (!__initial_auth_token) await signInAnonymously(auth);
+                            // Tạm thời bỏ anonymous auth để tránh lỗi config
+                            // if (!__initial_auth_token) await signInAnonymously(auth);
+                            console.log("🔄 Setting up menu listener without auth...");
                             setupMenuListener();
                         }
                         setView('customer');
@@ -314,15 +531,32 @@
 
         // --- Render UI ---
         function renderHeader() {
-            const loginButton = isAdmin 
-                ? `<button onclick="handleLogout()" class="px-4 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition duration-150">Đăng Xuất</button>`
-                : `<button onclick="setView('login')" class="px-4 py-2 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition duration-150">Đăng Nhập</button>`;
+            const loginButton = isAdmin
+                ? `<button onclick="handleLogout()" class="px-4 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition duration-150 flex items-center space-x-2">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span>Đăng Xuất</span>
+                </button>`
+                : `<button onclick="setView('login')" class="px-4 py-2 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition duration-150">Đăng Nhập Admin</button>`;
 
             const adminToggle = isAdmin 
-                ? `<button onclick="toggleAdminMode()" class="flex items-center space-x-2 px-4 py-2 rounded-full bg-yellow-500 text-brown-900 font-semibold hover:bg-yellow-600 transition duration-150">
-                    <i data-lucide="${currentView === 'admin' ? 'store' : 'settings'}" class="w-5 h-5"></i>
-                    <span>Xem ${currentView === 'admin' ? 'Khách Hàng' : 'Admin'}</span>
+                ? `<button onclick="toggleAdminMode()" class="flex items-center space-x-2 px-4 py-2 rounded-full ${currentView === 'admin' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white font-semibold transition duration-150">
+                    <i data-lucide="${currentView === 'admin' ? 'eye' : 'settings'}" class="w-5 h-5"></i>
+                    <span>${currentView === 'admin' ? '👁️ Xem Trang Khách' : '👑 Quản Lý Admin'}</span>
                 </button>` : '';
+            
+            const adminBadge = isAdmin && !isPreviewMode
+                ? `<span class="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full">👑 ADMIN</span>`
+                : isPreviewMode
+                ? `<span class="px-3 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">👁️ PREVIEW</span>`
+                : '';
+            
+            // Ẩn giỏ hàng khi admin ở mode admin (không preview)
+            const cartButton = (isAdmin && !isPreviewMode) ? '' : `
+                <button onclick="document.getElementById('cart-sidebar').classList.remove('translate-x-full')" class="relative p-2 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-md">
+                    <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+                    ${Object.keys(cart).length > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">${Object.values(cart).reduce((sum, item) => sum + item.quantity, 0)}</span>` : ''}
+                </button>
+            `;
 
             return `
                 <header class="sticky top-0 z-20 bg-amber-100/90 backdrop-blur-sm shadow-md border-b border-yellow-700/50">
@@ -335,15 +569,13 @@
                         
                         <!-- Liên hệ & Đăng nhập -->
                         <div class="flex items-center space-x-4">
+                            ${adminBadge}
                             ${adminToggle}
                             <a href="#" class="text-amber-800 hover:text-orange-600 transition duration-150 hidden sm:block">
                                 <i data-lucide="phone" class="w-5 h-5 inline mr-1"></i> Liên Hệ
                             </a>
                             ${loginButton}
-                            <button onclick="document.getElementById('cart-sidebar').classList.remove('translate-x-full')" class="relative p-2 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-md">
-                                <i data-lucide="shopping-cart" class="w-6 h-6"></i>
-                                ${Object.keys(cart).length > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">${Object.values(cart).reduce((sum, item) => sum + item.quantity, 0)}</span>` : ''}
-                            </button>
+                            ${cartButton}
                         </div>
                     </div>
                 </header>
@@ -364,56 +596,97 @@
         }
         
         function renderCustomerMenu() {
-            const filteredItems = menuItems.filter(item => item.category === currentCategory);
+            const filteredItems = menuItems.filter(item => {
+                // Ẩn món đã xóa cho khách hàng
+                if (!isAdmin && item.status === 'deleted') return false;
+                return item.category === currentCategory;
+            });
+            
+            // Kiểm tra xem có phải admin đang ở mode admin không (ẩn nút +)
+            const showAddButton = !isAdmin || isPreviewMode;
             
             if (currentCategory === 'Đồ Uống') {
                 // Layout Đồ Uống: 1 món/hàng, ảnh trái
-                return filteredItems.map(item => `
-                    <div class="flex items-center bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-4 border border-amber-200">
+                return filteredItems.map(item => {
+                    const statusBadge = getStatusBadge(item.status);
+                    const isOutOfStock = item.status === 'out_of_stock';
+                    
+                    return `
+                    <div class="flex items-center bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-4 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
                         <img src="${item.imageUrl}" alt="${item.name}" class="w-24 h-24 object-cover rounded-lg mr-4 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
                         <div class="flex-grow">
-                            <h3 class="text-lg font-semibold text-amber-900">${item.name}</h3>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-lg font-semibold text-amber-900">${item.name}</h3>
+                                ${statusBadge}
+                            </div>
                             <p class="text-sm text-gray-500 mb-2">${item.description}</p>
                             <p class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</p>
                         </div>
-                        <button onclick="updateCart('${item.id}', 1)" class="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-md">
-                            <i data-lucide="plus" class="w-6 h-6"></i>
-                        </button>
+                        ${showAddButton && !isOutOfStock ? `
+                            <button onclick="updateCart('${item.id}', 1)" class="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-md">
+                                <i data-lucide="plus" class="w-6 h-6"></i>
+                            </button>
+                        ` : ''}
                     </div>
-                `).join('');
+                `}).join('');
             } else {
                 // Layout Đồ Ăn/Đồ Nhậu: 2 món/hàng, khung vuông
                 return `
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 p-4 sm:p-6">
-                        ${filteredItems.map(item => `
-                            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-300 flex flex-col hover:shadow-xl transition duration-300">
-                                <img src="${item.imageUrl}" alt="${item.name}" class="w-full h-32 sm:h-40 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x160/f0d48f/8b542f?text=Món+Ăn'">
+                        ${filteredItems.map(item => {
+                            const statusBadge = getStatusBadge(item.status);
+                            const isOutOfStock = item.status === 'out_of_stock';
+                            
+                            return `
+                            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-300 flex flex-col hover:shadow-xl transition duration-300 ${isOutOfStock ? 'opacity-60' : ''}">
+                                <div class="relative">
+                                    <img src="${item.imageUrl}" alt="${item.name}" class="w-full h-32 sm:h-40 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x160/f0d48f/8b542f?text=Món+Ăn'">
+                                    <div class="absolute top-2 right-2">
+                                        ${statusBadge}
+                                    </div>
+                                </div>
                                 <div class="p-4 flex flex-col flex-grow">
                                     <h3 class="text-lg font-bold text-amber-900 mb-1">${item.name}</h3>
                                     <p class="text-xs text-gray-500 line-clamp-2 mb-3">${item.description}</p>
                                     <div class="mt-auto flex justify-between items-center">
                                         <p class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</p>
-                                        <button onclick="updateCart('${item.id}', 1)" class="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 shadow-md">
-                                            <i data-lucide="plus" class="w-5 h-5"></i>
-                                        </button>
+                                        ${showAddButton && !isOutOfStock ? `
+                                            <button onclick="updateCart('${item.id}', 1)" class="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 shadow-md">
+                                                <i data-lucide="plus" class="w-5 h-5"></i>
+                                            </button>
+                                        ` : ''}
                                     </div>
                                 </div>
                             </div>
-                        `).join('')}
+                        `}).join('')}
                     </div>
                 `;
             }
+        }
+
+        function getStatusBadge(status) {
+            if (!status || status === 'active') return '';
+            
+            const badges = {
+                'hot': '<span class="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-full">🔥 BÁN CHẠY</span>',
+                'new': '<span class="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full">🆕 MỚI</span>',
+                'out_of_stock': '<span class="px-2 py-1 bg-gray-500 text-white text-xs font-bold rounded-full">❌ HẾT HÀNG</span>',
+                'coming_soon': '<span class="px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">⏳ SẮP CÓ</span>',
+                'deleted': '<span class="px-2 py-1 bg-black text-white text-xs font-bold rounded-full">🗑️ ĐÃ XÓA</span>'
+            };
+            
+            return badges[status] || '';
         }
         
         function renderLoginView() {
             return `
                 <div class="flex justify-center items-center py-20 bg-amber-50 min-h-screen">
                     <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl border border-yellow-700/50">
-                        <h2 class="text-3xl font-bold text-center text-amber-900 mb-6">Đăng Nhập Admin</h2>
+                        <h2 class="text-3xl font-bold text-center text-amber-900 mb-6">👑 Đăng Nhập Admin</h2>
                         <form id="login-form" onsubmit="handleLogin(event)">
                             <div class="mb-4">
-                                <label for="email" class="block text-amber-800 font-semibold mb-2">Email</label>
-                                <input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="admin@quan.vn">
+                                <label for="email" class="block text-amber-800 font-semibold mb-2">Email Admin</label>
+                                <input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="binhbiinshop@admin.com">
                             </div>
                             <div class="mb-6">
                                 <label for="password" class="block text-amber-800 font-semibold mb-2">Mật khẩu</label>
@@ -458,7 +731,33 @@
                             <p class="text-3xl font-extrabold text-amber-900 mt-1">${menuItems.length}</p>
                         </div>
                     </div>
-                    
+
+                    <!-- Phần Thay đổi Mật khẩu -->
+                    <div class="bg-blue-50 p-6 rounded-xl shadow-lg mb-8">
+                        <h3 class="text-2xl font-bold text-blue-600 mb-4">🔐 Thay đổi Mật khẩu</h3>
+                        <form id="change-password-form" onsubmit="event.preventDefault(); handleChangePassword()">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Mật khẩu hiện tại</label>
+                                    <input type="password" id="current-password" required class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Mật khẩu mới</label>
+                                    <input type="password" id="new-password" required minlength="6" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Xác nhận mật khẩu mới</label>
+                                    <input type="password" id="confirm-password" required minlength="6" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md shadow-lg text-sm font-medium hover:bg-blue-700">
+                                    🔄 Đổi Mật khẩu
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
                     <!-- Phần Quản lý Món ăn -->
                     <div class="bg-white p-6 rounded-xl shadow-2xl mb-8">
                         <h3 class="text-2xl font-bold text-orange-600 mb-4">${itemToEdit ? 'Chỉnh Sửa Món' : 'Thêm Món Mới'}</h3>
@@ -482,8 +781,21 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">URL Ảnh</label>
-                                    <input type="url" id="admin-form-image" value="${itemToEdit ? itemToEdit.imageUrl : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                    <label class="block text-sm font-medium text-gray-700">Trạng Thái</label>
+                                    <select id="admin-form-status" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                        <option value="active" ${!itemToEdit || itemToEdit.status === 'active' ? 'selected' : ''}>✅ Đang bán</option>
+                                        <option value="hot" ${itemToEdit && itemToEdit.status === 'hot' ? 'selected' : ''}>🔥 Bán chạy</option>
+                                        <option value="new" ${itemToEdit && itemToEdit.status === 'new' ? 'selected' : ''}>🆕 Món mới</option>
+                                        <option value="out_of_stock" ${itemToEdit && itemToEdit.status === 'out_of_stock' ? 'selected' : ''}>❌ Hết hàng</option>
+                                        <option value="coming_soon" ${itemToEdit && itemToEdit.status === 'coming_soon' ? 'selected' : ''}>⏳ Sắp có</option>
+                                        <option value="deleted" ${itemToEdit && itemToEdit.status === 'deleted' ? 'selected' : ''}>🗑️ Đã xóa</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Ảnh</label>
+                                    <input type="file" id="admin-form-image-file" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+                                    <p class="mt-1 text-xs text-gray-500">Hoặc nhập URL trực tiếp:</p>
+                                    <input type="url" id="admin-form-image" value="${itemToEdit ? itemToEdit.imageUrl : ''}" placeholder="https://..." class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
                                 </div>
                             </div>
                             <div class="mt-4">
@@ -508,15 +820,17 @@
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
                                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     ${menuItems.map(item => `
-                                        <tr>
+                                        <tr class="${item.status === 'deleted' ? 'bg-gray-100' : ''}">
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-amber-900">${item.name}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.category}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">${formatCurrency(item.price)}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                                 <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
@@ -545,6 +859,7 @@
                 document.getElementById('admin-form-name').value = item.name;
                 document.getElementById('admin-form-price').value = item.price;
                 document.getElementById('admin-form-category').value = item.category;
+                document.getElementById('admin-form-status').value = item.status || 'active';
                 document.getElementById('admin-form-image').value = item.imageUrl || '';
                 document.getElementById('admin-form-description').value = item.description || '';
                 renderApp(); // Force re-render để cập nhật tiêu đề form
@@ -557,10 +872,32 @@
                 name: document.getElementById('admin-form-name').value,
                 price: parseFloat(document.getElementById('admin-form-price').value),
                 category: document.getElementById('admin-form-category').value,
+                status: document.getElementById('admin-form-status').value,
                 imageUrl: document.getElementById('admin-form-image').value,
                 description: document.getElementById('admin-form-description').value,
             };
             saveItem(item);
+        }
+
+        async function handleChangePassword() {
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+
+            if (newPassword !== confirmPassword) {
+                showMessage("Mật khẩu xác nhận không khớp!", "error");
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showMessage("Mật khẩu mới phải có ít nhất 6 ký tự!", "error");
+                return;
+            }
+
+            const success = await changePassword(currentPassword, newPassword);
+            if (success) {
+                document.getElementById('change-password-form').reset();
+            }
         }
 
 
@@ -682,6 +1019,12 @@
             const appContainer = document.getElementById('app-container');
             if (!appContainer) return;
 
+            // Hide loading screen
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) {
+                loadingScreen.style.display = 'none';
+            }
+
             // Render Header
             document.getElementById('header-container').innerHTML = renderHeader();
 
@@ -690,7 +1033,7 @@
 
             // Render Cart Sidebar
             document.getElementById('cart-container').innerHTML = renderCartSidebar();
-            
+
             // Xử lý giỏ hàng ban đầu (khi user mở app)
             const storedCart = localStorage.getItem('cart');
             if (storedCart) {
@@ -702,11 +1045,44 @@
                 }
             }
 
+            // Update debug info
+            updateDebugInfo();
+
             renderLucideIcons();
+        }
+
+        function updateDebugInfo() {
+            const statusText = document.getElementById('status-text');
+            const itemCount = document.getElementById('item-count');
+            const firebaseStatus = document.getElementById('firebase-status');
+            const userStatus = document.getElementById('user-status');
+            const roleStatus = document.getElementById('role-status');
+            const viewStatus = document.getElementById('view-status');
+
+            if (statusText) statusText.textContent = 'Loaded';
+            if (itemCount) itemCount.textContent = menuItems.length;
+            if (firebaseStatus) firebaseStatus.textContent = db ? 'Connected ✅' : 'Disconnected ❌';
+            
+            if (userStatus) {
+                const user = auth?.currentUser;
+                userStatus.textContent = user ? user.email : 'Not logged in';
+            }
+            
+            if (roleStatus) {
+                roleStatus.textContent = isAdmin ? '👑 Admin' : '👤 Customer';
+            }
+            
+            if (viewStatus) {
+                let viewText = currentView;
+                if (isPreviewMode) viewText += ' (Preview)';
+                viewStatus.textContent = viewText;
+            }
         }
 
         // --- Khởi tạo Ứng dụng ---
         window.onload = function() {
+            console.log("🌟 Ứng dụng Quán Trà Đồ khởi động...");
+
             initFirebase();
             window.updateCart = updateCart;
             window.setView = setView;
@@ -718,9 +1094,21 @@
             window.saveItem = saveItem;
             window.deleteItem = deleteItem;
             window.handleSaveItem = handleSaveItem;
+            window.handleChangePassword = handleChangePassword;
             window.loadItemForEdit = loadItemForEdit;
             window.clearAdminForm = clearAdminForm;
             window.speak = speak;
+            window.loadMenuItemsOnce = loadMenuItemsOnce;
+
+            // Fallback: Hide loading after 10 seconds if Firebase fails
+            setTimeout(() => {
+                const loadingScreen = document.getElementById('loading-screen');
+                if (loadingScreen && loadingScreen.style.display !== 'none') {
+                    console.warn("⚠️ Firebase load timeout - showing app anyway");
+                    loadingScreen.style.display = 'none';
+                    updateDebugInfo();
+                }
+            }, 10000);
 
             renderApp(); // Render lần đầu
         }
@@ -751,6 +1139,16 @@
             <!-- Header sẽ được render tại đây -->
         </div>
 
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="fixed inset-0 bg-amber-50 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600 mx-auto mb-4"></div>
+                <h2 class="text-2xl font-bold text-amber-900 mb-2">Quán Trà Đồ</h2>
+                <p class="text-amber-700">Đang tải menu...</p>
+                <p class="text-sm text-amber-600 mt-2">💡 Nếu load lâu, thử enable Authentication trong Firebase Console</p>
+            </div>
+        </div>
+
         <div id="main-content-container">
             <!-- Nội dung chính (Menu, Login, Admin) sẽ được render tại đây -->
         </div>
@@ -761,6 +1159,17 @@
         
         <!-- Hộp thông báo tùy chỉnh (thay thế alert) -->
         <div id="message-box" style="opacity: 0; pointer-events: none;" class="p-3 rounded-lg border fixed top-4 left-1/2 -translate-x-1/2 z-50 shadow-lg transition-opacity duration-300"></div>
+
+        <!-- Debug Info -->
+        <div id="debug-info" class="fixed bottom-4 right-4 bg-black bg-opacity-80 text-white p-3 rounded-lg text-xs max-w-xs z-50">
+            <div class="font-bold mb-2 text-green-400">🔍 Debug Panel</div>
+            <div>🔄 Status: <span id="status-text">Loading...</span></div>
+            <div>📊 Items: <span id="item-count">0</span></div>
+            <div>🔗 Firebase: <span id="firebase-status">Connecting...</span></div>
+            <div>👤 User: <span id="user-status">Not logged in</span></div>
+            <div>👑 Role: <span id="role-status">Customer</span></div>
+            <div>📺 View: <span id="view-status">customer</span></div>
+        </div>
 
         <!-- Footer đơn giản -->
         <footer class="bg-amber-900 text-white p-4 mt-8 text-center text-sm">

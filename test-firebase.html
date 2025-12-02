@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Firebase Connection</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #cce7ff; color: #004085; }
+        button { background: #007bff; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Firebase Firestore Connection</h1>
+
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="listCollections()">List Collections</button>
+    <button onclick="readMenuItems()">Read menuItems</button>
+    <button onclick="addTestItem()">Add Test Item</button>
+
+    <div id="results"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, addDoc, getDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCGs3xD2uC153yGlV7IpRftllAKx-NHt88",
+            authDomain: "order-d8a0c.firebaseapp.com",
+            projectId: "order-d8a0c",
+            storageBucket: "order-d8a0c.firebasestorage.app",
+            messagingSenderId: "559568129038",
+            appId: "1:559568129038:web:dd1ebcefb23f7cf03dc05f"
+        };
+
+        let db;
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            results.innerHTML += `<div class="result ${type}">${message}</div>`;
+        }
+
+        window.testConnection = async function() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                addResult('✅ Firebase connected successfully!', 'success');
+            } catch (error) {
+                addResult('❌ Connection failed: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+
+        window.listCollections = async function() {
+            if (!db) {
+                addResult('❌ Please test connection first', 'error');
+                return;
+            }
+
+            try {
+                // Note: Firestore doesn't have a direct listCollections method in web SDK
+                // We'll try to read from known collections
+                const collections = ['menuItems', 'sales'];
+                addResult('🔍 Testing known collections...', 'info');
+
+                for (const colName of collections) {
+                    try {
+                        const querySnapshot = await getDocs(collection(db, colName));
+                        addResult(`✅ Collection '${colName}': ${querySnapshot.size} documents`, 'success');
+                    } catch (error) {
+                        addResult(`❌ Collection '${colName}': ${error.message}`, 'error');
+                    }
+                }
+            } catch (error) {
+                addResult('❌ Failed to list collections: ' + error.message, 'error');
+            }
+        };
+
+        window.readMenuItems = async function() {
+            if (!db) {
+                addResult('❌ Please test connection first', 'error');
+                return;
+            }
+
+            try {
+                const querySnapshot = await getDocs(collection(db, 'menuItems'));
+                addResult(`📋 Found ${querySnapshot.size} items in menuItems:`, 'info');
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    addResult(`🔸 ${doc.id}: ${data.name || 'No name'} - ${data.price || 'No price'}`, 'info');
+                    console.log('Document:', doc.id, data);
+                });
+
+                if (querySnapshot.size === 0) {
+                    addResult('⚠️ No items found in menuItems collection', 'error');
+                }
+            } catch (error) {
+                addResult('❌ Failed to read menuItems: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+
+        window.addTestItem = async function() {
+            if (!db) {
+                addResult('❌ Please test connection first', 'error');
+                return;
+            }
+
+            try {
+                const testItem = {
+                    name: "Test Item from Tool",
+                    description: "Added via test tool",
+                    price: 99999,
+                    category: "Test",
+                    imageUrl: "https://via.placeholder.com/150",
+                    updatedAt: new Date()
+                };
+
+                const docRef = await addDoc(collection(db, 'menuItems'), testItem);
+                addResult(`✅ Added test item with ID: ${docRef.id}`, 'success');
+            } catch (error) {
+                addResult('❌ Failed to add test item: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+    </script>
+</body>
+</html>

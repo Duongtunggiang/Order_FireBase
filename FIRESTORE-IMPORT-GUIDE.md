@@ -6,6 +6,15 @@
 
 ## ⚠️ Lỗi Thường Gặp & Cách Sửa
 
+### Lỗi: "Firebase: Error (auth/configuration-not-found)"
+**Nguyên nhân:** Authentication chưa được enable
+**Cách sửa:**
+1. Vào Firebase Console > Authentication
+2. Click **"Get started"**
+3. Chọn **"Email/Password"** và **"Anonymous"**
+4. Click **"Enable"** cho cả hai provider
+5. Trong **Settings** > **Authorized domains**: thêm `localhost` và domain Netlify
+
 ### Lỗi: "Missing or insufficient permissions"
 **Nguyên nhân:** Firestore Rules chưa được setup đúng
 **Cách sửa:**
