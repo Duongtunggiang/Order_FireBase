@@ -60,7 +60,7 @@
           let cart = {}; // { itemId: { item, quantity } }
           let orders = []; // Danh sách orders cho admin
           let tables = []; // Danh sách bàn ăn
-          let currentView = 'customer'; // 'customer', 'login', 'admin', 'preview'
+          let currentView = 'customer'; // 'customer', 'login', 'admin', 'admin-orders', 'admin-stats', 'admin-tables', 'admin-menu', 'preview'
           let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
           let currentTableNumber = null; // Số bàn hiện tại (từ QR code)
           let userRole = 'guest'; // 'guest', 'customer', 'admin'
@@ -248,6 +248,12 @@
         // --- Quản lý State View ---
         function setView(viewName) {
             currentView = viewName;
+
+            // Setup specific page data
+            if (viewName === 'admin-orders') {
+                setupOrdersPage();
+            }
+
             renderApp();
             if (viewName !== 'login') {
                 const loginForm = document.getElementById('login-form');
@@ -264,14 +270,14 @@
 
         function toggleAdminMode() {
             if (isAdmin) {
-                if (currentView === 'admin') {
+                if (currentView.startsWith('admin')) {
                     // Chuyển sang preview mode (xem như khách)
                     isPreviewMode = true;
                     currentView = 'customer';
                 } else {
                     // Quay về admin dashboard
                     isPreviewMode = false;
-                    currentView = 'admin';
+                    currentView = 'admin-stats'; // Default admin view
                 }
                 renderApp();
             }
@@ -550,7 +556,8 @@
             };
 
             const expirationTime = new Date();
-            expirationTime.setTime(expirationTime.getTime() + (2 * 60 * 60 * 1000)); // 2 giờ
+            // expirationTime.setTime(expirationTime.getTime() + (2 * 60 * 60 * 1000)); // 2 giờ (production)
+            expirationTime.setTime(expirationTime.getTime() + (1 * 60 * 1000)); // 1 phút (để test)
 
             document.cookie = `guest_session=${JSON.stringify(sessionData)}; expires=${expirationTime.toUTCString()}; path=/`;
 
@@ -566,9 +573,17 @@
                     try {
                         const sessionData = JSON.parse(decodeURIComponent(value));
 
-                        // Kiểm tra xem session có còn hợp lệ không (chưa quá 2 giờ)
+                        // Kiểm tra xem session có còn hợp lệ không (1 phút)
                         const sessionAge = Date.now() - new Date(sessionData.createdAt).getTime();
-                        const maxAge = 2 * 60 * 60 * 1000; // 2 giờ
+                        const maxAge = 1 * 60 * 1000; // 1 phút (để test)
+
+                        console.log('🍪 Cookie check:', {
+                            sessionAge: Math.round(sessionAge / 1000) + 's',
+                            maxAge: Math.round(maxAge / 1000) + 's',
+                            isExpired: sessionAge >= maxAge,
+                            createdAt: new Date(sessionData.createdAt).toLocaleTimeString(),
+                            now: new Date().toLocaleTimeString()
+                        });
 
                         if (sessionAge < maxAge) {
                             currentSessionId = sessionData.sessionId;
@@ -658,7 +673,12 @@
                     tables = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     console.log("🍽️ Tables updated:", tables.length);
                     
-                    // Re-render nếu đang ở admin view hoặc có modal chọn bàn mở
+                    // Re-render nếu đang ở admin tables view
+                    if (isAdmin && currentView === 'admin-tables') {
+                        renderApp();
+                    }
+
+                    // Re-render nếu đang ở admin view (for backward compatibility)
                     if (isAdmin && currentView === 'admin') {
                         renderApp();
                     }
@@ -673,10 +693,10 @@
                             const availableTables = tables.filter(table => !table.status || table.status === 'available');
                             console.log("✅ Available tables for modal:", availableTables);
                             content.innerHTML = availableTables.map(table => `
-                                <button onclick="selectTable('${table.tableNumber}')" class="p-4 border-2 border-teal-200 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition duration-150 flex flex-col items-center space-y-2">
-                                    <i data-lucide="table-2" class="w-8 h-8 text-teal-600"></i>
-                                    <span class="font-semibold text-gray-800">Bàn ${table.tableNumber}</span>
-                                    <span class="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">${table.status || 'Trống'}</span>
+                                <button onclick="selectTable('${table.tableNumber}')" class="p-2 sm:p-3 lg:p-4 border-2 border-teal-200 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition duration-150 flex flex-col items-center space-y-1 sm:space-y-2 active:scale-95">
+                                    <i data-lucide="table-2" class="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-teal-600"></i>
+                                    <span class="font-semibold text-gray-800 text-sm sm:text-base">Bàn ${table.tableNumber}</span>
+                                    <span class="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full">${table.status || 'Trống'}</span>
                                 </button>
                             `).join('');
                             renderLucideIcons();
@@ -816,6 +836,9 @@
         
         function initFirebase() {
             try {
+                // Debug: Check current cookies
+                console.log('🍪 Current cookies:', document.cookie);
+
                 // Load session từ cookie trước
                 loadSessionFromCookie();
 
@@ -858,6 +881,7 @@
                             // Setup listeners for admin
                             if (isAdmin) {
                                 setupOrdersListener();
+                                setupTablesListener(); // Always setup for admin tables view
                             }
                         }
                         
@@ -902,10 +926,9 @@
             // Đếm đơn hàng chờ nhận (chỉ admin thấy)
             const pendingOrdersCount = isAdmin ? orders.filter(o => o.status === 'ordered').length : 0;
             
-            const adminToggle = isAdmin 
-                ? `<button onclick="toggleAdminMode()" class="flex items-center space-x-2 px-4 py-2 rounded-full ${currentView === 'admin' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white font-semibold transition duration-150">
+            const adminToggle = isAdmin
+                ? `<button onclick="toggleAdminMode()" class="flex items-center justify-center w-10 h-10 rounded-full ${currentView === 'admin' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white font-semibold transition duration-150" title="${currentView === 'admin' ? 'Xem Trang Khách' : 'Quản Lý Admin'}">
                     <i data-lucide="${currentView === 'admin' ? 'eye' : 'settings'}" class="w-5 h-5"></i>
-                    <span>${currentView === 'admin' ? '👁️ Xem Trang Khách' : '👑 Quản Lý Admin'}</span>
                 </button>` : '';
             
             const adminBadge = isAdmin && !isPreviewMode
@@ -913,18 +936,43 @@
                 : isPreviewMode
                 ? `<span class="px-3 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">👁️ PREVIEW</span>`
                 : '';
+
+            // Admin page title
+            const adminPageTitle = isAdmin && currentView.startsWith('admin') ? (() => {
+                const titles = {
+                    'admin-stats': '📊 Thống Kê',
+                    'admin-orders': '📋 Đơn Hàng',
+                    'admin-tables': '🍽️ Bàn Ăn',
+                    'admin-menu': '🍽️ Menu'
+                };
+                return titles[currentView] || '👑 Admin';
+            })() : '';
             
-            // Badge thông báo đơn hàng mới cho admin
-            const orderNotificationBadge = isAdmin ? `
-                <button onclick="showOrdersManagement()" class="relative flex items-center space-x-2 px-4 py-2 rounded-full bg-purple-500 hover:bg-purple-600 text-white font-semibold transition duration-150 shadow-lg">
-                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
-                    <span>Đơn Hàng</span>
-                    ${pendingOrdersCount > 0 ? `
-                        <span class="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform bg-red-600 rounded-full animate-pulse">
-                            ${pendingOrdersCount}
-                        </span>
-                    ` : ''}
-                </button>
+            // Admin navigation buttons
+            const adminNavButtons = isAdmin ? `
+                <div class="flex items-center space-x-2">
+                    <button onclick="setView('admin-stats')" class="flex items-center space-x-2 px-4 py-2 rounded-full ${currentView === 'admin-stats' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white font-semibold transition duration-150 shadow-lg">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                        <span class="hidden lg:inline">Thống Kê</span>
+                    </button>
+                    <button onclick="setView('admin-orders')" class="relative flex items-center space-x-2 px-4 py-2 rounded-full ${currentView === 'admin-orders' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-500 hover:bg-purple-600'} text-white font-semibold transition duration-150 shadow-lg">
+                        <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                        <span class="hidden lg:inline">Đơn Hàng</span>
+                        ${pendingOrdersCount > 0 ? `
+                            <span class="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform bg-red-600 rounded-full animate-pulse">
+                                ${pendingOrdersCount}
+                            </span>
+                        ` : ''}
+                    </button>
+                    <button onclick="setView('admin-tables')" class="flex items-center space-x-2 px-4 py-2 rounded-full ${currentView === 'admin-tables' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-teal-500 hover:bg-teal-600'} text-white font-semibold transition duration-150 shadow-lg">
+                        <i data-lucide="table-2" class="w-5 h-5"></i>
+                        <span class="hidden lg:inline">Bàn Ăn</span>
+                    </button>
+                    <button onclick="setView('admin-menu')" class="flex items-center space-x-2 px-4 py-2 rounded-full ${currentView === 'admin-menu' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-orange-500 hover:bg-orange-600'} text-white font-semibold transition duration-150 shadow-lg">
+                        <i data-lucide="coffee" class="w-5 h-5"></i>
+                        <span class="hidden lg:inline">Menu</span>
+                    </button>
+                </div>
             ` : '';
             
              // Ẩn giỏ hàng khi admin ở mode admin (không preview)
@@ -938,48 +986,116 @@
 
             return `
                 <header class="sticky top-0 z-20 bg-amber-100/90 backdrop-blur-sm shadow-md border-b border-yellow-700/50">
-                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
                         <!-- Logo Quán + Số Bàn -->
-                        <div class="flex items-center space-x-3">
-                            <i data-lucide="coffee" class="text-amber-800 w-8 h-8"></i>
-                            <div>
-                                <h1 class="text-2xl font-bold text-amber-900 font-serif">Quán Trà Đồ</h1>
-                                ${currentTableNumber ? `
-                                    <div class="flex items-center gap-2">
-                                        <p class="text-sm text-teal-600 font-semibold flex items-center gap-1">
-                                            <i data-lucide="table-2" class="w-4 h-4"></i>
-                                            Bàn ${currentTableNumber}
-                                        </p>
-                                        ${guestOrders.length > 0 ? `
-                                            <span class="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full">
-                                                ${guestOrders.length} đơn
-                                            </span>
-                                        ` : ''}
-                                    </div>
-                                ` : ''}
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                                <i data-lucide="coffee" class="text-amber-800 w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0"></i>
+                                <div class="min-w-0 flex-1">
+                                    <a href="/" onclick="setView('customer')" class="block">
+                                        <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-amber-900 font-serif truncate">Chill Coffee</h1>
+                                    </a>
+                                    ${adminPageTitle ? `
+                                        <div class="mt-0.5">
+                                            <p class="text-xs sm:text-sm text-red-600 font-semibold truncate">${adminPageTitle}</p>
+                                        </div>
+                                    ` : currentTableNumber ? `
+                                        <div class="flex items-center gap-1 sm:gap-2 mt-0.5">
+                                            <p class="text-xs sm:text-sm text-teal-600 font-semibold flex items-center gap-1 truncate">
+                                                <i data-lucide="table-2" class="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0"></i>
+                                                <span class="truncate">Bàn ${currentTableNumber}</span>
+                                            </p>
+                                            ${guestOrders.length > 0 ? `
+                                                <span class="text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full flex-shrink-0">
+                                                    ${guestOrders.length} đơn
+                                                </span>
+                                            ` : ''}
+                                        </div>
+                                    ` : ''}
+                                </div>
                             </div>
-                        </div>
-                        
-                        <!-- Liên hệ & Đăng nhập -->
-                        <div class="flex items-center space-x-4">
+
+                        <!-- Mobile Menu Button -->
+                        <button onclick="toggleMobileMenu()" class="md:hidden p-2 rounded-lg hover:bg-amber-200 transition duration-150" id="mobile-menu-btn">
+                            <i data-lucide="menu" class="w-5 h-5 text-amber-800"></i>
+                        </button>
+
+                        <!-- Desktop Navigation -->
+                        <div class="hidden md:flex items-center space-x-2 lg:space-x-3">
                               ${adminBadge}
-                              ${adminToggle}
-                              ${orderNotificationBadge}
-                              ${!isAdmin ? `
-                                  <button onclick="showMyOrders()" class="text-blue-600 hover:text-blue-800 transition duration-150 hidden sm:block text-sm">
-                                      <i data-lucide="clipboard" class="w-4 h-4 inline mr-1"></i> Đơn Hàng Của Tôi
+                              ${isAdmin ? adminNavButtons : `
+                                  <button onclick="showMyOrders()" class="text-blue-600 hover:text-blue-800 transition duration-150 text-sm whitespace-nowrap">
+                                      <i data-lucide="clipboard" class="w-4 h-4 inline mr-1"></i>
+                                      <span class="hidden lg:inline">Đơn Hàng Của Tôi</span>
+                                      <span class="lg:hidden">Đơn</span>
                                   </button>
                                   ${!currentTableNumber ? `
-                                      <button onclick="showTableSelectionModal()" class="text-teal-600 hover:text-teal-800 transition duration-150 hidden sm:block text-sm">
-                                          <i data-lucide="table-2" class="w-4 h-4 inline mr-1"></i> Chọn Bàn
+                                      <button onclick="showTableSelectionModal()" class="text-teal-600 hover:text-teal-800 transition duration-150 text-sm whitespace-nowrap">
+                                          <i data-lucide="table-2" class="w-4 h-4 inline mr-1"></i>
+                                          <span class="hidden lg:inline">Chọn Bàn</span>
+                                          <span class="lg:hidden">Bàn</span>
                                       </button>
                                   ` : ''}
-                              ` : ''}
-                              <a href="#" class="text-amber-800 hover:text-orange-600 transition duration-150 hidden sm:block">
-                                  <i data-lucide="phone" class="w-5 h-5 inline mr-1"></i> Liên Hệ
-                              </a>
+                                  <a href="#" class="text-amber-800 hover:text-orange-600 transition duration-150 hidden lg:flex items-center text-sm">
+                                      <i data-lucide="phone" class="w-4 h-4 inline mr-1"></i> Liên Hệ
+                                  </a>
+                              `}
+                              ${adminToggle}
                             ${loginButton}
                             ${cartButton}
+                        </div>
+
+                        <!-- Mobile Menu Dropdown -->
+                        <div id="mobile-menu" class="absolute top-full left-0 right-0 bg-amber-50 shadow-lg border-t border-amber-200 hidden md:hidden z-30">
+                            <div class="px-4 py-3 space-y-2">
+                                ${isAdmin ? `
+                                    <!-- Admin Mobile Menu -->
+                                    <button onclick="setView('admin-stats'); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150 ${currentView === 'admin-stats' ? 'bg-blue-100' : ''}">
+                                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-600"></i>
+                                        <span class="text-blue-600 font-medium">📊 Thống Kê</span>
+                                    </button>
+                                    <button onclick="setView('admin-orders'); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150 ${currentView === 'admin-orders' ? 'bg-purple-100' : ''}">
+                                        <i data-lucide="clipboard-list" class="w-5 h-5 text-purple-600"></i>
+                                        <span class="text-purple-600 font-medium">📋 Đơn Hàng</span>
+                                        ${pendingOrdersCount > 0 ? `<span class="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">${pendingOrdersCount}</span>` : ''}
+                                    </button>
+                                    <button onclick="setView('admin-tables'); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150 ${currentView === 'admin-tables' ? 'bg-teal-100' : ''}">
+                                        <i data-lucide="table-2" class="w-5 h-5 text-teal-600"></i>
+                                        <span class="text-teal-600 font-medium">🍽️ Bàn Ăn</span>
+                                    </button>
+                                    <button onclick="setView('admin-menu'); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150 ${currentView === 'admin-menu' ? 'bg-orange-100' : ''}">
+                                        <i data-lucide="coffee" class="w-5 h-5 text-orange-600"></i>
+                                        <span class="text-orange-600 font-medium">🍽️ Menu</span>
+                                    </button>
+                                    <div class="border-t border-amber-200 pt-2 mt-3">
+                                        <button onclick="handleChangePassword(); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150">
+                                            <i data-lucide="lock" class="w-5 h-5 text-purple-600"></i>
+                                            <span class="text-purple-600 font-medium">🔐 Đổi Mật Khẩu</span>
+                                        </button>
+                                        ${loginButton.replace('px-4 py-2 rounded-full', 'w-full px-3 py-2 rounded-lg mt-2').replace('Đăng Nhập Admin', '👨‍💼 Đăng Nhập Admin').replace('Đăng Xuất', '🚪 Đăng Xuất')}
+                                    </div>
+                                ` : `
+                                    <!-- Guest Mobile Menu -->
+                                    <button onclick="showMyOrders(); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150">
+                                        <i data-lucide="clipboard" class="w-5 h-5 text-blue-600"></i>
+                                        <span class="text-blue-600 font-medium">Đơn Hàng Của Tôi</span>
+                                    </button>
+                                    ${!currentTableNumber ? `
+                                        <button onclick="showTableSelectionModal(); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150">
+                                            <i data-lucide="table-2" class="w-5 h-5 text-teal-600"></i>
+                                            <span class="text-teal-600 font-medium">Chọn Bàn</span>
+                                        </button>
+                                    ` : ''}
+                                    <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150">
+                                        <i data-lucide="phone" class="w-5 h-5 text-amber-600"></i>
+                                        <span class="text-amber-600 font-medium">Liên Hệ</span>
+                                    </a>
+                                    <div class="border-t border-amber-200 pt-2 mt-3">
+                                        ${loginButton.replace('px-4 py-2 rounded-full', 'w-full px-3 py-2 rounded-lg').replace('Đăng Nhập Admin', '👨‍💼 Đăng Nhập Admin').replace('Đăng Xuất', '🚪 Đăng Xuất')}
+                                    </div>
+                                `}
+                                ${adminToggle && !isAdmin ? `<div class="border-t border-amber-200 pt-2 mt-2">${adminToggle.replace('px-4 py-2 rounded-full', 'w-full px-3 py-2 rounded-lg')}</div>` : ''}
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -988,12 +1104,14 @@
 
         function renderMenuSelection() {
             return `
-                <div class="flex justify-center space-x-2 p-4 bg-amber-50 shadow-inner sticky top-[68px] z-10">
-                    ${categories.map(cat => `
-                        <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-semibold py-2 px-6 rounded-full transition duration-150">
-                            ${cat}
-                        </button>
-                    `).join('')}
+                <div class="flex justify-center p-3 sm:p-4 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
+                    <div class="flex space-x-2 sm:space-x-3 min-w-max">
+                        ${categories.map(cat => `
+                            <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-semibold py-2 px-4 sm:px-6 rounded-full transition duration-150 text-sm sm:text-base whitespace-nowrap active:scale-95">
+                                ${cat}
+                            </button>
+                        `).join('')}
+                    </div>
                 </div>
             `;
         }
@@ -1015,34 +1133,41 @@
                     const isOutOfStock = item.status === 'out_of_stock';
                     
                     return `
-                    <div class="flex items-center bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-4 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
-                        <img src="${item.imageUrl}" alt="${item.name}" class="w-24 h-24 object-cover rounded-lg mr-4 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
-                        <div class="flex-grow">
-                            <div class="flex items-center gap-2">
-                                <h3 class="text-lg font-semibold text-amber-900">${item.name} ${item.size ? `<span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">${item.size}</span>` : ''}</h3>
+                    <div class="flex items-center bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-3 sm:p-4 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
+                        <img src="${item.imageUrl}" alt="${item.name}" class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 object-cover rounded-lg mr-3 sm:mr-4 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
+                        <div class="flex-grow min-w-0">
+                            <div class="flex items-start justify-between gap-2 mb-1">
+                                <h3 class="text-base sm:text-lg font-semibold text-amber-900 truncate">${item.name}</h3>
+                                ${showAddButton && !isOutOfStock ? `
+                                    <button onclick="updateCart('${item.id}', 1)" class="p-2 sm:p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-md active:scale-95">
+                                        <i data-lucide="plus" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                            <div class="flex items-center gap-2 mb-2">
+                                ${item.size ? `<span class="text-xs sm:text-sm bg-blue-100 text-blue-800 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded whitespace-nowrap">${item.size}</span>` : ''}
                                 ${statusBadge}
                             </div>
-                            <p class="text-sm text-gray-500 mb-2">${item.description}</p>
-                            <div class="flex items-center gap-2">
-                                ${item.newPrice ?
-                                    (parseFloat(item.newPrice) >= parseFloat(item.price) ?
-                                        // Giá mới >= giá cũ: chỉ hiện giá mới
-                                        `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
-                                        // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
-                                        `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
-                                         <span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>`
-                                    ) :
-                                    // Không có giá mới: chỉ hiện giá cũ
-                                    `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
-                                }
-                                ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">💰</button>` : ''}
+                            <p class="text-xs sm:text-sm text-gray-500 mb-2 line-clamp-2">${item.description}</p>
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    ${item.newPrice ?
+                                        (parseFloat(item.newPrice) >= parseFloat(item.price) ?
+                                            // Giá mới >= giá cũ: chỉ hiện giá mới
+                                            `<span class="text-lg sm:text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
+                                            // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
+                                            `<div class="flex items-center gap-2">
+                                                <span class="text-sm sm:text-base text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                                <span class="text-lg sm:text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>
+                                             </div>`
+                                        ) :
+                                        // Không có giá mới: chỉ hiện giá cũ
+                                        `<span class="text-lg sm:text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
+                                    }
+                                </div>
+                                ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150">💰</button>` : ''}
                             </div>
                         </div>
-                        ${showAddButton && !isOutOfStock ? `
-                            <button onclick="updateCart('${item.id}', 1)" class="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-md">
-                                <i data-lucide="plus" class="w-6 h-6"></i>
-                            </button>
-                        ` : ''}
                     </div>
                 `}).join('');
             } else {
@@ -1366,129 +1491,276 @@
             `;
         }
         
-        function renderAdminDashboard() {
-            const totalRevenue = 15000000; // Mock data
-            const totalOrders = 120; // Mock data
-            
+        // ==================== ADMIN DASHBOARD COMPONENTS ====================
+
+        function renderAdminStats() {
+            const totalRevenue = 15000000; // Mock data - will be replaced with real stats
+            const totalOrders = orders.length;
+            const activeItems = menuItems.filter(item => item.status !== 'deleted').length;
+            const pendingOrders = orders.filter(o => o.status === 'ordered').length;
+
+            return `
+                <div class="p-6 md:p-10 bg-gray-50 min-h-screen">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-amber-900">📊 Thống Kê Tổng Quan</h2>
+                        <div class="flex gap-2">
+                            <button onclick="setView('admin-orders')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                                <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+                                Đơn Hàng (${pendingOrders})
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Thống kê chính -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500">Doanh Thu Tháng</p>
+                                    <p class="text-3xl font-extrabold text-amber-900 mt-1">${formatCurrency(totalRevenue)}</p>
+                                </div>
+                                <i data-lucide="dollar-sign" class="w-8 h-8 text-orange-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500">Tổng Đơn Hàng</p>
+                                    <p class="text-3xl font-extrabold text-amber-900 mt-1">${totalOrders}</p>
+                                </div>
+                                <i data-lucide="shopping-bag" class="w-8 h-8 text-blue-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500">Số Món Đang Bán</p>
+                                    <p class="text-3xl font-extrabold text-amber-900 mt-1">${activeItems}</p>
+                                </div>
+                                <i data-lucide="coffee" class="w-8 h-8 text-green-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-purple-500">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500">Đơn Chờ Xử Lý</p>
+                                    <p class="text-3xl font-extrabold text-amber-900 mt-1">${pendingOrders}</p>
+                                </div>
+                                <i data-lucide="clock" class="w-8 h-8 text-purple-500"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Thống kê theo trạng thái đơn hàng -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow-lg">
+                            <h3 class="text-xl font-bold text-gray-900 mb-4">📈 Trạng Thái Đơn Hàng</h3>
+                            <div class="space-y-3">
+                                ${[
+                                    { status: 'ordered', label: 'Chờ nhận', color: 'blue', count: orders.filter(o => o.status === 'ordered').length },
+                                    { status: 'preparing', label: 'Đang làm', color: 'yellow', count: orders.filter(o => o.status === 'preparing').length },
+                                    { status: 'completed', label: 'Hoàn thành', color: 'green', count: orders.filter(o => o.status === 'completed').length },
+                                    { status: 'cancelled', label: 'Đã hủy', color: 'red', count: orders.filter(o => o.status === 'cancelled').length }
+                                ].map(stat => `
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-700">${stat.label}</span>
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-24 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-${stat.color}-500 h-2 rounded-full" style="width: ${orders.length > 0 ? (stat.count / orders.length * 100) : 0}%"></div>
+                                            </div>
+                                            <span class="text-sm font-semibold text-${stat.color}-600 min-w-[2rem]">${stat.count}</span>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-xl shadow-lg">
+                            <h3 class="text-xl font-bold text-gray-900 mb-4">📊 Thống Kê Món Ăn</h3>
+                            <div class="space-y-3">
+                                ${categories.map(cat => {
+                                    const count = menuItems.filter(item => item.category === cat && item.status !== 'deleted').length;
+                                    return `
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-gray-700">${getCategoryIcon(cat)} ${cat}</span>
+                                            <span class="text-sm font-semibold text-orange-600">${count} món</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                                <hr class="my-3">
+                                <div class="flex justify-between items-center font-bold">
+                                    <span class="text-gray-900">Tổng cộng</span>
+                                    <span class="text-orange-600">${activeItems} món</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Đơn hàng gần đây -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-gray-900">🕒 Đơn Hàng Gần Đây</h3>
+                            <button onclick="setView('admin-orders')" class="text-blue-600 hover:text-blue-800 text-sm">Xem tất cả →</button>
+                        </div>
+                        <div class="space-y-3">
+                            ${orders.slice(0, 5).map(order => `
+                                <div class="flex justify-between items-center p-3 border rounded-lg hover:bg-gray-50">
+                                    <div>
+                                        <p class="font-semibold text-gray-900">Order #${order.id.slice(-6).toUpperCase()}</p>
+                                        <p class="text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="font-semibold text-orange-600">${formatCurrency(order.total)}</p>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(order.status)}">
+                                            ${getStatusText(order.status)}
+                                        </span>
+                                    </div>
+                                </div>
+                            `).join('')}
+
+                            ${orders.length === 0 ? '<p class="text-center text-gray-500 py-8">Chưa có đơn hàng nào</p>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdminOrders() {
+            // Load orders management content after a short delay to ensure DOM is ready
+            setTimeout(() => {
+                renderOrdersManagementList();
+            }, 100);
+
+            return `
+                <div class="p-6 md:p-10 bg-gray-50 min-h-screen">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-purple-900">📋 Quản Lý Đơn Hàng</h2>
+                        <div class="flex gap-2">
+                            <button onclick="loadOrders()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                Tải Lại
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="orders-management-content">
+                        <!-- Orders management will be loaded here -->
+                        <div class="text-center py-12">
+                            <i data-lucide="loader" class="w-8 h-8 mx-auto mb-4 text-purple-500 animate-spin"></i>
+                            <p class="text-gray-600">Đang tải đơn hàng...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdminTables() {
+            return `
+                <div class="p-6 md:p-10 bg-gray-50 min-h-screen">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-teal-900">🍽️ Quản Lý Bàn Ăn</h2>
+                        <div class="flex gap-2">
+                            <button onclick="openAddTableModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Thêm Bàn Mới
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Thống kê bàn -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500">Bàn Trống</p>
+                                    <p class="text-3xl font-extrabold text-green-600 mt-1">${tables.filter(t => !t.status || t.status === 'available').length}</p>
+                                </div>
+                                <i data-lucide="check-circle" class="w-8 h-8 text-green-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-red-500">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500">Bàn Đang Dùng</p>
+                                    <p class="text-3xl font-extrabold text-red-600 mt-1">${tables.filter(t => t.status === 'occupied').length}</p>
+                                </div>
+                                <i data-lucide="users" class="w-8 h-8 text-red-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500">Tổng Số Bàn</p>
+                                    <p class="text-3xl font-extrabold text-blue-600 mt-1">${tables.length}</p>
+                                </div>
+                                <i data-lucide="table-2" class="w-8 h-8 text-blue-500"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Danh sách bàn -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-bold text-gray-900 mb-6">Danh Sách Bàn Ăn</h3>
+
+                        ${tables.length === 0 ? `
+                            <div class="text-center py-12">
+                                <i data-lucide="table-2" class="w-16 h-16 mx-auto mb-4 text-gray-300"></i>
+                                <p class="text-gray-500 text-lg">Chưa có bàn nào</p>
+                                <p class="text-gray-400 text-sm mt-2">Click "Thêm Bàn Mới" để bắt đầu</p>
+                            </div>
+                        ` : `
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                ${tables.map(table => `
+                                    <div class="bg-white p-4 rounded-lg border-2 ${table.status === 'occupied' ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'} shadow-sm hover:shadow-md transition duration-150">
+                                        <div class="flex justify-between items-start mb-3">
+                                            <div>
+                                                <h4 class="text-lg font-bold text-gray-800">Bàn ${table.tableNumber}</h4>
+                                                <span class="text-xs px-2 py-1 rounded-full ${table.status === 'occupied' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                                                    ${table.status === 'occupied' ? '🔴 Đang dùng' : '🟢 Trống'}
+                                                </span>
+                                            </div>
+                                            <div class="flex gap-1">
+                                                <button onclick="showTableQR('${table.id}', '${table.tableNumber}')" class="p-2 bg-blue-500 text-white rounded hover:bg-blue-600" title="Xem QR Code">
+                                                    <i data-lucide="qr-code" class="w-4 h-4"></i>
+                                                </button>
+                                                <button onclick="deleteTable('${table.id}')" class="p-2 bg-red-500 text-white rounded hover:bg-red-600" title="Xóa bàn">
+                                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-gray-600">
+                                            <p>Tạo: ${table.createdAt ? new Date(table.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdminMenu() {
             const itemToEdit = menuItems.find(i => i.id === (document.getElementById('admin-form-id')?.value || null));
 
             return `
                 <div class="p-6 md:p-10 bg-gray-50 min-h-screen">
-                    <h2 class="text-3xl font-bold text-amber-900 mb-6">Bảng Điều Khiển Quản Trị (Admin)</h2>
-                    
-                    <!-- Thống kê doanh thu tháng (Mock) -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500">
-                            <p class="text-sm text-gray-500">Doanh Thu Tháng (Mock)</p>
-                            <p class="text-3xl font-extrabold text-amber-900 mt-1">${formatCurrency(totalRevenue)}</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-yellow-500">
-                            <p class="text-sm text-gray-500">Tổng Đơn Hàng (Mock)</p>
-                            <p class="text-3xl font-extrabold text-amber-900 mt-1">${totalOrders}</p>
-                        </div>
-                         <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-amber-500">
-                            <p class="text-sm text-gray-500">Số Món Đang Bán</p>
-                            <p class="text-3xl font-extrabold text-amber-900 mt-1">${menuItems.length}</p>
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-orange-900">🍽️ Quản Lý Menu</h2>
+                        <div class="flex gap-2">
+                            <button onclick="openCategoryModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+                                <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                                Thêm Danh Mục
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Phần Thay đổi Mật khẩu -->
-                    <div class="bg-blue-50 p-6 rounded-xl shadow-lg mb-8">
-                        <h3 class="text-2xl font-bold text-blue-600 mb-4">🔐 Thay đổi Mật khẩu</h3>
-                        <form id="change-password-form" onsubmit="event.preventDefault(); handleChangePassword()">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Mật khẩu hiện tại</label>
-                                    <input type="password" id="current-password" required class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Mật khẩu mới</label>
-                                    <input type="password" id="new-password" required minlength="6" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Xác nhận mật khẩu mới</label>
-                                    <input type="password" id="confirm-password" required minlength="6" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md shadow-lg text-sm font-medium hover:bg-blue-700">
-                                    🔄 Đổi Mật khẩu
-                                </button>
-                            </div>
-                          </form>
-                      </div>
-
-                      <!-- Phần Quản Lý Bàn Ăn -->
-                      <div class="bg-teal-50 p-6 rounded-xl shadow-lg mb-8">
-                          <h3 class="text-2xl font-bold text-teal-600 mb-4">🍽️ Quản Lý Bàn Ăn</h3>
-
-                          <div class="mb-4 flex gap-2">
-                              <button onclick="openAddTableModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2">
-                                  <i data-lucide="plus" class="w-4 h-4"></i>
-                                  Thêm Bàn Mới
-                              </button>
-                              <span class="text-sm text-gray-600 self-center">Tổng: ${tables.length} bàn</span>
-                          </div>
-
-                          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              ${tables.length === 0 ? `
-                                  <p class="text-gray-500 col-span-full text-center py-8">Chưa có bàn nào. Click "Thêm Bàn Mới" để bắt đầu.</p>
-                              ` : tables.map(table => `
-                                  <div class="bg-white p-4 rounded-lg border-2 ${table.status === 'occupied' ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'} shadow-sm">
-                                      <div class="flex justify-between items-start mb-3">
-                                          <div>
-                                              <h4 class="text-lg font-bold text-gray-800">Bàn ${table.tableNumber}</h4>
-                                              <span class="text-xs px-2 py-1 rounded-full ${table.status === 'occupied' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
-                                                  ${table.status === 'occupied' ? '🔴 Đang dùng' : '🟢 Trống'}
-                                              </span>
-                                          </div>
-                                          <div class="flex gap-1">
-                                              <button onclick="showTableQR('${table.id}', '${table.tableNumber}')" class="p-1.5 bg-blue-500 text-white rounded hover:bg-blue-600" title="Xem QR Code">
-                                                  <i data-lucide="qr-code" class="w-4 h-4"></i>
-                                              </button>
-                                              <button onclick="deleteTable('${table.id}')" class="p-1.5 bg-red-500 text-white rounded hover:bg-red-600" title="Xóa bàn">
-                                                  <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                              </button>
-                                          </div>
-                                      </div>
-                                      <div class="text-xs text-gray-600">
-                                          <p>Tạo: ${table.createdAt ? new Date(table.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : 'N/A'}</p>
-                                      </div>
-                                  </div>
-                              `).join('')}
-                          </div>
-                      </div>
-
-                      <!-- Phần Quản Lý Đơn Hàng -->
-                      <div class="bg-purple-50 p-6 rounded-xl shadow-lg mb-8">
-                          <h3 class="text-2xl font-bold text-purple-600 mb-4">📋 Quản Lý Đơn Hàng</h3>
-
-                          <div class="mb-4 flex gap-2">
-                              <button onclick="loadOrders()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
-                                  <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-1"></i> Tải Đơn Hàng
-                              </button>
-                              <span class="text-sm text-gray-600 self-center">Tổng: <span id="order-count">0</span> đơn</span>
-                          </div>
-
-                          <div id="orders-list" class="space-y-4">
-                              <!-- Orders will be loaded here -->
-                          </div>
-                      </div>
-
-                      <!-- Phần Quản Lý Danh Mục -->
-                    <div class="bg-indigo-50 p-6 rounded-xl shadow-lg mb-8">
-                        <h3 class="text-2xl font-bold text-indigo-600 mb-4">📂 Quản Lý Danh Mục</h3>
-
-                        <div class="mb-4">
-                            <button onclick="openCategoryModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
-                                <i data-lucide="plus" class="w-4 h-4"></i>
-                                Thêm Danh Mục Mới
-                            </button>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Danh mục -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+                        <h3 class="text-xl font-bold text-indigo-900 mb-4">📂 Danh Mục Món Ăn</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                             ${categories.map((cat, index) => `
-                                <div class="bg-white p-4 rounded-lg border border-indigo-200 flex justify-between items-center">
+                                <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200 flex justify-between items-center">
                                     <div class="flex items-center gap-2">
                                         <span class="text-lg">${getCategoryIcon(cat)}</span>
                                         <span class="font-medium text-gray-800">${cat}</span>
@@ -1502,22 +1774,21 @@
                                                 <i data-lucide="edit" class="w-4 h-4"></i>
                                             </button>
                                             <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1" title="Xóa">
-                                                <i data-lucide="trash" class="w-4 h-4"></i>
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </div>
                                     ` : ''}
                                 </div>
                             `).join('')}
                         </div>
-
-                        <div class="mt-4 text-sm text-gray-600">
+                        <div class="text-sm text-gray-600">
                             <strong>Lưu ý:</strong> 3 danh mục đầu tiên (Đồ Uống, Đồ Ăn, Đồ Nhậu) không thể xóa. Các danh mục khác có thể sửa/xóa.
                         </div>
                     </div>
 
-                    <!-- Phần Quản lý Món ăn -->
-                    <div class="bg-white p-6 rounded-xl shadow-2xl mb-8">
-                        <h3 class="text-2xl font-bold text-orange-600 mb-4">${itemToEdit ? 'Chỉnh Sửa Món' : 'Thêm Món Mới'}</h3>
+                    <!-- Form thêm/sửa món -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+                        <h3 class="text-xl font-bold text-orange-900 mb-4">${itemToEdit ? '✏️ Chỉnh Sửa Món' : '➕ Thêm Món Mới'}</h3>
                         <form id="admin-item-form" onsubmit="event.preventDefault(); handleSaveItem()">
                             <input type="hidden" id="admin-form-id" value="${itemToEdit ? itemToEdit.id : ''}">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1532,9 +1803,7 @@
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Danh Mục</label>
                                     <select id="admin-form-category" required class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                                        <option value="Đồ Uống" ${itemToEdit && itemToEdit.category === 'Đồ Uống' ? 'selected' : ''}>Đồ Uống</option>
-                                        <option value="Đồ Ăn" ${itemToEdit && itemToEdit.category === 'Đồ Ăn' ? 'selected' : ''}>Đồ Ăn</option>
-                                        <option value="Đồ Nhậu" ${itemToEdit && itemToEdit.category === 'Đồ Nhậu' ? 'selected' : ''}>Đồ Nhậu</option>
+                                        ${categories.map(cat => `<option value="${cat}" ${itemToEdit && itemToEdit.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div>
@@ -1578,9 +1847,9 @@
                         </form>
                     </div>
 
-                    <!-- Danh sách Món ăn -->
-                    <div class="bg-white p-6 rounded-xl shadow-2xl">
-                        <h3 class="text-2xl font-bold text-amber-900 mb-4">Danh Sách Món Ăn/Đồ Uống (${menuItems.length})</h3>
+                    <!-- Danh sách món -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-bold text-amber-900 mb-4">📋 Danh Sách Món Ăn/Đồ Uống (${menuItems.length})</h3>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-amber-50">
@@ -1610,8 +1879,9 @@
                                                 }
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                                <button onclick="openPriceModal('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-2">💰</button>
                                                 <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
-                                                <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900">Xóa</button>
+                                                <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900 ml-2">Xóa</button>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -1705,14 +1975,20 @@
             switch (currentView) {
                 case 'login':
                     return renderLoginView();
-                case 'admin':
-                    return isAdmin ? renderAdminDashboard() : renderLoginView();
+                case 'admin-stats':
+                    return isAdmin ? renderAdminStats() : renderLoginView();
+                case 'admin-orders':
+                    return isAdmin ? renderAdminOrders() : renderLoginView();
+                case 'admin-tables':
+                    return isAdmin ? renderAdminTables() : renderLoginView();
+                case 'admin-menu':
+                    return isAdmin ? renderAdminMenu() : renderLoginView();
                 case 'customer':
                 default:
-                    const menuHtml = currentCategory === 'Đồ Uống' 
+                    const menuHtml = currentCategory === 'Đồ Uống'
                         ? `<div class="max-w-7xl mx-auto p-4 md:p-6 space-y-4">${renderCustomerMenu()}</div>`
                         : `<div class="max-w-7xl mx-auto">${renderCustomerMenu()}</div>`;
-                    
+
                     return `
                         ${renderMenuSelection()}
                         <main class="bg-amber-50">
@@ -1875,8 +2151,8 @@
                           renderLucideIcons();
                       }
                       
-                      // Chỉ render nếu đang ở trang orders management
-                      if (window.ordersManagementOpen) {
+                      // Render nếu đang ở trang admin orders
+                      if (currentView === 'admin-orders') {
                           renderOrdersManagementList();
                       }
                       
@@ -1911,21 +2187,10 @@
               }
           }
           
-          // Hiển thị trang quản lý đơn hàng
-          function showOrdersManagement() {
-              if (!isAdmin) return;
-              
-              window.ordersManagementOpen = true;
+          // Setup mặc định cho trang quản lý đơn hàng
+          function setupOrdersPage() {
               currentOrderFilter = 'ordered'; // Mặc định hiển thị đơn chờ
               currentDateFilter = 'today';
-              
-              document.getElementById('orders-management-modal').classList.remove('hidden');
-              renderOrdersManagementList();
-          }
-          
-          function closeOrdersManagement() {
-              window.ordersManagementOpen = false;
-              document.getElementById('orders-management-modal').classList.add('hidden');
           }
           
           function setOrderFilter(filter) {
@@ -1940,7 +2205,10 @@
           
           function renderOrdersManagementList() {
               const container = document.getElementById('orders-management-content');
-              if (!container) return;
+              if (!container) {
+                  console.log('Container not found, skipping render');
+                  return;
+              }
               
               // Filter orders
               let filteredOrders = [...orders];
@@ -2684,6 +2952,36 @@
         }
 
 
+        // ==================== MOBILE MENU ====================
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+            const icon = btn.querySelector('i');
+
+            if (menu.classList.contains('hidden')) {
+                menu.classList.remove('hidden');
+                icon.setAttribute('data-lucide', 'x');
+            } else {
+                menu.classList.add('hidden');
+                icon.setAttribute('data-lucide', 'menu');
+            }
+            renderLucideIcons();
+        }
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+
+            if (!btn.contains(event.target) && !menu.contains(event.target)) {
+                menu.classList.add('hidden');
+                const icon = btn.querySelector('i');
+                if (icon) icon.setAttribute('data-lucide', 'menu');
+                renderLucideIcons();
+            }
+        });
+
         // ==================== TABLE SELECTION MODAL ====================
 
         // Hiển thị modal chọn bàn
@@ -2818,8 +3116,6 @@
             window.handleOrder = handleOrder;
             window.showMyOrders = showMyOrders;
             window.closeMyOrdersModal = closeMyOrdersModal;
-            window.showOrdersManagement = showOrdersManagement;
-            window.closeOrdersManagement = closeOrdersManagement;
             window.setOrderFilter = setOrderFilter;
             window.setDateFilter = setDateFilter;
             window.addTable = addTable;
@@ -2832,6 +3128,7 @@
             window.showTableSelectionModal = showTableSelectionModal;
             window.closeTableSelectionModal = closeTableSelectionModal;
             window.selectTable = selectTable;
+            window.toggleMobileMenu = toggleMobileMenu;
 
               // Fallback: Hide loading after 10 seconds if Firebase fails
             setTimeout(() => {
@@ -2875,7 +3172,7 @@
         <div id="loading-screen" class="fixed inset-0 bg-amber-50 flex items-center justify-center z-50">
             <div class="text-center">
                 <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600 mx-auto mb-4"></div>
-                <h2 class="text-2xl font-bold text-amber-900 mb-2">Quán Trà Đồ</h2>
+                <h2 class="text-2xl font-bold text-amber-900 mb-2">Chill Coffee</h2>
                 <p class="text-amber-700">Đang tải menu...</p>
                 <p class="text-sm text-amber-600 mt-2">💡 Nếu load lâu, thử enable Authentication trong Firebase Console</p>
             </div>
@@ -2924,25 +3221,10 @@
               </div>
           </div>
           
-          <!-- Orders Management Modal (Admin) -->
-          <div id="orders-management-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-              <div class="bg-white p-6 rounded-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                  <div class="flex justify-between items-center mb-4">
-                      <h3 class="text-2xl font-bold text-purple-600">📋 Quản Lý Đơn Hàng</h3>
-                      <button onclick="closeOrdersManagement()" class="text-gray-500 hover:text-gray-700">
-                          <i data-lucide="x" class="w-6 h-6"></i>
-                      </button>
-                  </div>
-
-                  <div id="orders-management-content">
-                      <!-- Orders management will be loaded here -->
-                  </div>
-              </div>
-          </div>
 
           <!-- Table Selection Modal (Guest) -->
-          <div id="table-selection-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-              <div class="bg-white p-6 rounded-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+          <div id="table-selection-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden p-4">
+              <div class="bg-white rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
                   <div class="flex justify-between items-center mb-4">
                       <h3 class="text-xl font-bold text-teal-600">🍽️ Chọn Bàn Của Bạn</h3>
                       <button onclick="closeTableSelectionModal()" class="text-gray-500 hover:text-gray-700">
@@ -2950,29 +3232,30 @@
                       </button>
                   </div>
 
-                  <div class="mb-4">
-                      <p class="text-gray-600 mb-4">Vui lòng chọn bàn mà bạn đang ngồi để chúng tôi phục vụ tốt nhất:</p>
-                  </div>
-
-                  <div class="flex justify-between items-center mb-4">
-                      <p class="text-sm text-gray-600">Danh sách bàn trống:</p>
-                      <div class="flex gap-2">
-                          <button onclick="loadTablesOnce().then(() => showTableSelectionModal())" class="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded">
-                              🔄 Tải lại
-                          </button>
-                          <span class="text-xs text-gray-500 self-center">${tables.length} bàn</span>
+                  <div class="p-4 sm:p-6">
+                      <div class="mb-4">
+                          <p class="text-gray-600 text-sm sm:text-base mb-4">Vui lòng chọn bàn mà bạn đang ngồi để chúng tôi phục vụ tốt nhất:</p>
                       </div>
-                  </div>
 
-                  <div id="table-selection-content" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      <div class="flex justify-between items-center mb-4">
+                          <p class="text-sm text-gray-600">Danh sách bàn trống:</p>
+                          <div class="flex gap-1 sm:gap-2">
+                              <button onclick="loadTablesOnce().then(() => showTableSelectionModal())" class="px-2 py-1 sm:px-3 sm:py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition duration-150">
+                                  🔄 Tải lại
+                              </button>
+                              <span class="text-xs text-gray-500 self-center hidden sm:inline">${tables.length} bàn</span>
+                          </div>
+                      </div>
+
+                      <div id="table-selection-content" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
                       <!-- Tables will be loaded here -->
                   </div>
 
-                  <div class="flex gap-3 mt-6">
-                      <button onclick="closeTableSelectionModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  <div class="flex gap-3 mt-4 sm:mt-6 px-4 sm:px-6 pb-4 sm:pb-6">
+                      <button onclick="closeTableSelectionModal()" class="flex-1 px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm sm:text-base transition duration-150">
                           Hủy
                       </button>
-                      <div class="text-sm text-gray-500 self-center">
+                      <div class="text-xs sm:text-sm text-gray-500 self-center px-2">
                           Chọn bàn để tiếp tục đặt hàng
                       </div>
                   </div>
