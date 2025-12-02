@@ -333,6 +333,32 @@
                 renderApp();
             }
         }
+
+        function previewAsCustomer() {
+            if (isAdmin) {
+                isPreviewMode = true;
+                setView('customer');
+                showMessage("Đang xem dưới dạng khách hàng", "info");
+            }
+        }
+
+        function handleLogoClick() {
+            if (isAdmin) {
+                if (isPreviewMode) {
+                    // Admin đang ở chế độ preview → thoát preview và về admin
+                    isPreviewMode = false;
+                    setView('admin-stats');
+                    showMessage("Đã thoát chế độ xem khách hàng", "info");
+                } else {
+                    // Admin đang ở trang admin → về trang thống kê
+                    setView('admin-stats');
+                }
+            } else {
+                // Khách hàng → về trang khách
+                setView('customer');
+            }
+            return false; // Prevent default link behavior
+        }
         
         function formatCurrency(amount) {
             return amount.toLocaleString('vi-VN') + ' ₫';
@@ -1022,11 +1048,15 @@
                         // Chuyển về trạng thái Khách hàng nếu không phải Admin
                         if (isAdmin && currentView === 'login') {
                            console.log("🚀 Switching to Admin Dashboard");
-                           setView('admin');
+                           setView('admin-stats');
                            showMessage("Chào mừng Admin! 👑", "success");
                         } else if (!isAdmin && currentView === 'login') {
                            console.log("👤 Switching to Customer view");
                            setView('customer');
+                        } else if (isAdmin && currentView === 'customer' && !isPreviewMode) {
+                           // Admin đăng nhập nhưng đang ở trang customer → chuyển về admin
+                           console.log("🚀 Admin logged in, redirecting to admin dashboard");
+                           setView('admin-stats');
                         }
                     } else {
                         // User đã đăng xuất
@@ -1121,10 +1151,10 @@
                         <!-- Logo Quán + Số Bàn -->
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                                <a href="/" class="block"><img src="logo.png" alt="Logo" class="w-10 h-10 border-2 border-amber-200 rounded-full sm:w-6 sm:h-6 lg:w-8 lg:h-8 flex-shrink-0 object-contain"></a>
+                                <a href="#" onclick="handleLogoClick()" class="block"><img src="logo.png" alt="Logo" class="w-10 h-10 border-2 border-amber-200 rounded-full sm:w-6 sm:h-6 lg:w-8 lg:h-8 flex-shrink-0 object-contain"></a>
                                 <div class="min-w-0 flex-1">
                                     
-                                        <h1 class="text-sm sm:text-lg lg:text-xl font-bold text-amber-900 font-serif truncate"><a href="/"  class="block">Chill Coffee</a></h1>
+                                        <h1 class="text-sm sm:text-lg lg:text-xl font-bold text-amber-900 font-serif truncate"><a href="#" onclick="handleLogoClick()" class="block">Chill Coffee</a></h1>
                                     
                                     ${adminPageTitle ? `
                                         <div class="mt-0.5">
@@ -1221,6 +1251,10 @@
                                     <button onclick="setView('admin-trash'); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150 ${currentView === 'admin-trash' ? 'bg-gray-100' : ''}">
                                         <i data-lucide="trash-2" class="w-5 h-5 text-gray-600"></i>
                                         <span class="text-gray-600 font-medium">🗑️ Thùng Rác</span>
+                                    </button>
+                                    <button onclick="previewAsCustomer(); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150">
+                                        <i data-lucide="eye" class="w-5 h-5 text-green-600"></i>
+                                        <span class="text-green-600 font-medium">👁️ Xem Phía Khách</span>
                                     </button>
                                     <div class="border-t border-amber-200 pt-2 mt-3">
                                         <button onclick="handleChangePassword(); toggleMobileMenu()" class="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-amber-100 transition duration-150">
@@ -4140,6 +4174,8 @@
             window.applyDateFilter = applyDateFilter;
             window.clearDateFilter = clearDateFilter;
             window.resetDateFilter = resetDateFilter;
+            window.previewAsCustomer = previewAsCustomer;
+            window.handleLogoClick = handleLogoClick;
             window.setItemsPerPage = setItemsPerPage;
             window.setPage = setPage;
             window.nextPage = nextPage;
