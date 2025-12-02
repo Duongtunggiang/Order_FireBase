@@ -2266,7 +2266,7 @@
                                 <span class="hidden sm:inline">Thêm Danh Mục</span>
                             </button>
                         </div>
-                        <div class="space-y-2 max-h-48 overflow-y-auto">
+                        <div class="space-y-2 ${categories.length > 6 ? 'max-h-80 overflow-y-auto' : ''}">
                             ${categories.map((cat, index) => `
                                 <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-200 flex justify-between items-center active:scale-[0.98] transition">
                                     <div class="flex items-center gap-2 flex-1 min-w-0">
