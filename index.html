@@ -60,6 +60,8 @@
         let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
         let isAdmin = false;
         let isPreviewMode = false; // Admin đang xem như khách hàng
+        let categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Danh sách categories có thể thêm
+        let drinkSizes = ['S', 'M', 'L', 'Big Size']; // Size cho đồ uống
 
         // --- Hàm hỗ trợ chung ---
         function renderLucideIcons() {
@@ -583,7 +585,6 @@
         }
 
         function renderMenuSelection() {
-            const categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
             return `
                 <div class="flex justify-center space-x-2 p-4 bg-amber-50 shadow-inner sticky top-[68px] z-10">
                     ${categories.map(cat => `
@@ -616,11 +617,18 @@
                         <img src="${item.imageUrl}" alt="${item.name}" class="w-24 h-24 object-cover rounded-lg mr-4 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
                         <div class="flex-grow">
                             <div class="flex items-center gap-2">
-                                <h3 class="text-lg font-semibold text-amber-900">${item.name}</h3>
+                                <h3 class="text-lg font-semibold text-amber-900">${item.name} ${item.size ? `<span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">${item.size}</span>` : ''}</h3>
                                 ${statusBadge}
                             </div>
                             <p class="text-sm text-gray-500 mb-2">${item.description}</p>
-                            <p class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</p>
+                            <div class="flex items-center gap-2">
+                                ${item.newPrice ?
+                                    `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                     <span class="text-xl font-bold text-red-600">${formatCurrency(item.newPrice)}</span>` :
+                                    `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
+                                }
+                                ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">💰</button>` : ''}
+                            </div>
                         </div>
                         ${showAddButton && !isOutOfStock ? `
                             <button onclick="updateCart('${item.id}', 1)" class="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-md">
@@ -646,10 +654,17 @@
                                     </div>
                                 </div>
                                 <div class="p-4 flex flex-col flex-grow">
-                                    <h3 class="text-lg font-bold text-amber-900 mb-1">${item.name}</h3>
+                                    <h3 class="text-lg font-bold text-amber-900 mb-1">${item.name} ${item.size ? `<span class="text-sm bg-blue-100 text-blue-800 px-1 py-0.5 rounded ml-1">${item.size}</span>` : ''}</h3>
                                     <p class="text-xs text-gray-500 line-clamp-2 mb-3">${item.description}</p>
                                     <div class="mt-auto flex justify-between items-center">
-                                        <p class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</p>
+                                        <div class="flex items-center gap-2">
+                                            ${item.newPrice ?
+                                                `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                                 <span class="text-xl font-bold text-red-600">${formatCurrency(item.newPrice)}</span>` :
+                                                `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
+                                            }
+                                            ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="ml-1 px-1 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">💰</button>` : ''}
+                                        </div>
                                         ${showAddButton && !isOutOfStock ? `
                                             <button onclick="updateCart('${item.id}', 1)" class="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 shadow-md">
                                                 <i data-lucide="plus" class="w-5 h-5"></i>
@@ -666,16 +681,230 @@
 
         function getStatusBadge(status) {
             if (!status || status === 'active') return '';
-            
+
             const badges = {
                 'hot': '<span class="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-full">🔥 BÁN CHẠY</span>',
                 'new': '<span class="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full">🆕 MỚI</span>',
+                'sale': '<span class="px-2 py-1 bg-purple-500 text-white text-xs font-bold rounded-full">💰 SALE</span>',
+                'best_seller': '<span class="px-2 py-1 bg-yellow-500 text-black text-xs font-bold rounded-full">⭐ BEST SELLER</span>',
                 'out_of_stock': '<span class="px-2 py-1 bg-gray-500 text-white text-xs font-bold rounded-full">❌ HẾT HÀNG</span>',
                 'coming_soon': '<span class="px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">⏳ SẮP CÓ</span>',
                 'deleted': '<span class="px-2 py-1 bg-black text-white text-xs font-bold rounded-full">🗑️ ĐÃ XÓA</span>'
             };
-            
+
             return badges[status] || '';
+        }
+
+        function getCategoryIcon(category) {
+            const icons = {
+                'Đồ Uống': '☕',
+                'Đồ Ăn': '🍽️',
+                'Đồ Nhậu': '🍺'
+            };
+            return icons[category] || '📂';
+        }
+
+        // Category Management Functions
+        let editingCategory = null;
+
+        function editCategory(categoryName) {
+            editingCategory = categoryName;
+            document.getElementById('new-category-name').value = categoryName;
+            document.getElementById('category-modal').classList.remove('hidden');
+            document.getElementById('category-modal').querySelector('h3').textContent = '✏️ Sửa Danh Mục';
+            document.querySelector('button[onclick="addNewCategory()"]').textContent = 'Cập Nhật';
+            document.querySelector('button[onclick="addNewCategory()"]').onclick = () => updateCategory();
+        }
+
+        function updateCategory() {
+            const newName = document.getElementById('new-category-name').value.trim();
+            if (!newName) {
+                showMessage("Vui lòng nhập tên danh mục!", "error");
+                return;
+            }
+
+            if (newName !== editingCategory && categories.includes(newName)) {
+                showMessage("Danh mục này đã tồn tại!", "error");
+                return;
+            }
+
+            const index = categories.indexOf(editingCategory);
+            if (index > -1) {
+                categories[index] = newName;
+
+                // Update all items in this category
+                menuItems.forEach(item => {
+                    if (item.category === editingCategory) {
+                        // Update in Firestore
+                        updateDoc(doc(db, PUBLIC_DATA_PATH, item.id), {
+                            category: newName,
+                            updatedAt: new Date()
+                        });
+                    }
+                });
+
+                showMessage(`Đã cập nhật danh mục: ${editingCategory} → ${newName}`, "success");
+                closeCategoryModal();
+                renderApp();
+            }
+        }
+
+        function deleteCategory(categoryName) {
+            const index = categories.indexOf(categoryName);
+            if (index < 3) {
+                showMessage("Không thể xóa 3 danh mục mặc định!", "error");
+                return;
+            }
+
+            const itemsInCategory = menuItems.filter(item => item.category === categoryName);
+            if (itemsInCategory.length > 0) {
+                const confirmDelete = confirm(`Danh mục "${categoryName}" có ${itemsInCategory.length} món. Bạn có chắc muốn xóa?\n\nTất cả món sẽ được chuyển sang "Đồ Ăn".`);
+                if (!confirmDelete) return;
+
+                // Move items to default category
+                itemsInCategory.forEach(item => {
+                    updateDoc(doc(db, PUBLIC_DATA_PATH, item.id), {
+                        category: 'Đồ Ăn',
+                        updatedAt: new Date()
+                    });
+                });
+            }
+
+            categories.splice(index, 1);
+            showMessage(`Đã xóa danh mục: ${categoryName}`, "success");
+            renderApp();
+        }
+
+        // Price Update Modal
+        let currentPriceUpdateItem = null;
+
+        function openPriceModal(itemId) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            currentPriceUpdateItem = item;
+
+            const modalContent = document.getElementById('price-modal-content');
+            const oldPrice = item.price;
+            const newPrice = item.newPrice || '';
+
+            modalContent.innerHTML = `
+                <div class="mb-4">
+                    <h4 class="font-semibold text-amber-900 mb-2">${item.name}</h4>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Giá Hiện Tại</label>
+                            <div class="text-lg font-bold text-gray-600 ${newPrice ? 'line-through' : ''}">
+                                ${formatCurrency(oldPrice)}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Giá Mới (Có Thể Bỏ Trống)</label>
+                            <input type="number" id="new-price-input" value="${newPrice}" placeholder="Nhập giá mới..."
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+
+                        ${newPrice ? `
+                            <div class="p-3 bg-green-50 rounded-lg">
+                                <div class="text-sm text-green-800">
+                                    <strong>Giá mới:</strong> ${formatCurrency(parseFloat(newPrice))}
+                                    ${parseFloat(newPrice) > oldPrice ? '📈 (Tăng)' : parseFloat(newPrice) < oldPrice ? '📉 (Giảm)' : '➡️ (Giữ nguyên)'}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('price-modal').classList.remove('hidden');
+        }
+
+        function closePriceModal() {
+            document.getElementById('price-modal').classList.add('hidden');
+            currentPriceUpdateItem = null;
+        }
+
+        async function savePriceUpdate() {
+            if (!currentPriceUpdateItem) return;
+
+            const newPriceInput = document.getElementById('new-price-input');
+            const newPriceValue = newPriceInput.value.trim();
+
+            try {
+                const updateData = {
+                    id: currentPriceUpdateItem.id,
+                    name: currentPriceUpdateItem.name,
+                    description: currentPriceUpdateItem.description,
+                    price: currentPriceUpdateItem.price,
+                    category: currentPriceUpdateItem.category,
+                    status: currentPriceUpdateItem.status,
+                    imageUrl: currentPriceUpdateItem.imageUrl,
+                    size: currentPriceUpdateItem.size,
+                    updatedAt: new Date()
+                };
+
+                if (newPriceValue === '') {
+                    // Xóa giá mới, chỉ giữ giá cũ
+                    delete updateData.newPrice;
+                } else {
+                    // Cập nhật giá mới
+                    const newPriceNum = parseFloat(newPriceValue);
+                    if (newPriceNum <= 0) {
+                        showMessage("Giá phải lớn hơn 0!", "error");
+                        return;
+                    }
+                    updateData.newPrice = newPriceNum;
+                }
+
+                await updateDoc(doc(db, PUBLIC_DATA_PATH, currentPriceUpdateItem.id), updateData);
+                showMessage("Cập nhật giá thành công!", "success");
+
+                closePriceModal();
+                // Refresh data
+                loadMenuItemsOnce();
+
+            } catch (error) {
+                console.error("Error updating price:", error);
+                showMessage("Lỗi khi cập nhật giá: " + error.message, "error");
+            }
+        }
+
+        // Category Management
+        function openCategoryModal() {
+            document.getElementById('category-modal').classList.remove('hidden');
+            document.getElementById('new-category-name').focus();
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('category-modal').classList.add('hidden');
+            document.getElementById('new-category-name').value = '';
+            resetCategoryModal();
+        }
+
+        function addNewCategory() {
+            const categoryName = document.getElementById('new-category-name').value.trim();
+            if (!categoryName) {
+                showMessage("Vui lòng nhập tên danh mục!", "error");
+                return;
+            }
+
+            if (categories.includes(categoryName)) {
+                showMessage("Danh mục này đã tồn tại!", "error");
+                return;
+            }
+
+            categories.push(categoryName);
+            showMessage(`Đã thêm danh mục: ${categoryName}`, "success");
+            closeCategoryModal();
+            renderApp(); // Re-render để cập nhật menu selection
+        }
+
+        function resetCategoryModal() {
+            editingCategory = null;
+            document.getElementById('category-modal').querySelector('h3').textContent = '➕ Thêm Danh Mục Mới';
+            document.querySelector('button[onclick*="addNewCategory"]').textContent = 'Thêm';
+            document.querySelector('button[onclick*="addNewCategory"]').onclick = () => addNewCategory();
         }
         
         function renderLoginView() {
@@ -758,6 +987,46 @@
                         </form>
                     </div>
 
+                    <!-- Phần Quản Lý Danh Mục -->
+                    <div class="bg-indigo-50 p-6 rounded-xl shadow-lg mb-8">
+                        <h3 class="text-2xl font-bold text-indigo-600 mb-4">📂 Quản Lý Danh Mục</h3>
+
+                        <div class="mb-4">
+                            <button onclick="openCategoryModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Thêm Danh Mục Mới
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${categories.map((cat, index) => `
+                                <div class="bg-white p-4 rounded-lg border border-indigo-200 flex justify-between items-center">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-lg">${getCategoryIcon(cat)}</span>
+                                        <span class="font-medium text-gray-800">${cat}</span>
+                                        <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">
+                                            ${menuItems.filter(item => item.category === cat && item.status !== 'deleted').length} món
+                                        </span>
+                                    </div>
+                                    ${index >= 3 ? `
+                                        <div class="flex gap-1">
+                                            <button onclick="editCategory('${cat}')" class="text-blue-600 hover:text-blue-800 p-1" title="Sửa">
+                                                <i data-lucide="edit" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1" title="Xóa">
+                                                <i data-lucide="trash" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="mt-4 text-sm text-gray-600">
+                            <strong>Lưu ý:</strong> 3 danh mục đầu tiên (Đồ Uống, Đồ Ăn, Đồ Nhậu) không thể xóa. Các danh mục khác có thể sửa/xóa.
+                        </div>
+                    </div>
+
                     <!-- Phần Quản lý Món ăn -->
                     <div class="bg-white p-6 rounded-xl shadow-2xl mb-8">
                         <h3 class="text-2xl font-bold text-orange-600 mb-4">${itemToEdit ? 'Chỉnh Sửa Món' : 'Thêm Món Mới'}</h3>
@@ -786,9 +1055,19 @@
                                         <option value="active" ${!itemToEdit || itemToEdit.status === 'active' ? 'selected' : ''}>✅ Đang bán</option>
                                         <option value="hot" ${itemToEdit && itemToEdit.status === 'hot' ? 'selected' : ''}>🔥 Bán chạy</option>
                                         <option value="new" ${itemToEdit && itemToEdit.status === 'new' ? 'selected' : ''}>🆕 Món mới</option>
+                                        <option value="sale" ${itemToEdit && itemToEdit.status === 'sale' ? 'selected' : ''}>💰 Sale</option>
+                                        <option value="best_seller" ${itemToEdit && itemToEdit.status === 'best_seller' ? 'selected' : ''}>⭐ Best Seller</option>
                                         <option value="out_of_stock" ${itemToEdit && itemToEdit.status === 'out_of_stock' ? 'selected' : ''}>❌ Hết hàng</option>
                                         <option value="coming_soon" ${itemToEdit && itemToEdit.status === 'coming_soon' ? 'selected' : ''}>⏳ Sắp có</option>
                                         <option value="deleted" ${itemToEdit && itemToEdit.status === 'deleted' ? 'selected' : ''}>🗑️ Đã xóa</option>
+                                    </select>
+                                </div>
+
+                                <div id="size-field" style="display: ${itemToEdit && itemToEdit.category === 'Đồ Uống' ? 'block' : 'none'};">
+                                    <label class="block text-sm font-medium text-gray-700">Size (Đồ Uống)</label>
+                                    <select id="admin-form-size" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                        <option value="" ${!itemToEdit || !itemToEdit.size ? 'selected' : ''}>Không chọn size</option>
+                                        ${drinkSizes.map(size => `<option value="${size}" ${itemToEdit && itemToEdit.size === size ? 'selected' : ''}>${size}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div>
@@ -820,6 +1099,7 @@
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
                                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
@@ -830,8 +1110,9 @@
                                         <tr class="${item.status === 'deleted' ? 'bg-gray-100' : ''}">
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-amber-900">${item.name}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.category}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">${item.size || '-'}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">${formatCurrency(item.price)}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">${formatCurrency(item.price)}${item.newPrice ? ` → ${formatCurrency(item.newPrice)}` : ''}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                                 <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
                                                 <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900">Xóa</button>
@@ -860,11 +1141,33 @@
                 document.getElementById('admin-form-price').value = item.price;
                 document.getElementById('admin-form-category').value = item.category;
                 document.getElementById('admin-form-status').value = item.status || 'active';
+                document.getElementById('admin-form-size').value = item.size || '';
                 document.getElementById('admin-form-image').value = item.imageUrl || '';
                 document.getElementById('admin-form-description').value = item.description || '';
+
+                // Show/hide size field based on category
+                toggleSizeField(item.category);
+
                 renderApp(); // Force re-render để cập nhật tiêu đề form
             }
         }
+
+        function toggleSizeField(category) {
+            const sizeField = document.getElementById('size-field');
+            if (sizeField) {
+                sizeField.style.display = category === 'Đồ Uống' ? 'block' : 'none';
+            }
+        }
+
+        // Add event listener for category change
+        document.addEventListener('DOMContentLoaded', function() {
+            const categorySelect = document.getElementById('admin-form-category');
+            if (categorySelect) {
+                categorySelect.addEventListener('change', function(e) {
+                    toggleSizeField(e.target.value);
+                });
+            }
+        });
         
         function handleSaveItem() {
             const item = {
@@ -873,6 +1176,7 @@
                 price: parseFloat(document.getElementById('admin-form-price').value),
                 category: document.getElementById('admin-form-category').value,
                 status: document.getElementById('admin-form-status').value,
+                size: document.getElementById('admin-form-size').value || null,
                 imageUrl: document.getElementById('admin-form-image').value,
                 description: document.getElementById('admin-form-description').value,
             };
@@ -1099,6 +1403,14 @@
             window.clearAdminForm = clearAdminForm;
             window.speak = speak;
             window.loadMenuItemsOnce = loadMenuItemsOnce;
+            window.openPriceModal = openPriceModal;
+            window.closePriceModal = closePriceModal;
+            window.savePriceUpdate = savePriceUpdate;
+            window.openCategoryModal = openCategoryModal;
+            window.closeCategoryModal = closeCategoryModal;
+            window.addNewCategory = addNewCategory;
+            window.editCategory = editCategory;
+            window.deleteCategory = deleteCategory;
 
             // Fallback: Hide loading after 10 seconds if Firebase fails
             setTimeout(() => {
@@ -1160,8 +1472,41 @@
         <!-- Hộp thông báo tùy chỉnh (thay thế alert) -->
         <div id="message-box" style="opacity: 0; pointer-events: none;" class="p-3 rounded-lg border fixed top-4 left-1/2 -translate-x-1/2 z-50 shadow-lg transition-opacity duration-300"></div>
 
+        <!-- Price Update Modal -->
+        <div id="price-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold text-amber-900 mb-4">💰 Cập Nhật Giá</h3>
+
+                <div id="price-modal-content">
+                    <!-- Content sẽ được render bởi JavaScript -->
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button onclick="closePriceModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                    <button onclick="savePriceUpdate()" class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Lưu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Category Modal -->
+        <div id="category-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold text-amber-900 mb-4">➕ Thêm Danh Mục Mới</h3>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tên Danh Mục</label>
+                    <input type="text" id="new-category-name" placeholder="Ví dụ: Đồ Chay" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="closeCategoryModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                    <button onclick="addNewCategory()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Thêm</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Debug Info -->
-        <div id="debug-info" class="fixed bottom-4 right-4 bg-black bg-opacity-80 text-white p-3 rounded-lg text-xs max-w-xs z-50">
+        <div id="debug-info" class="fixed bottom-4 right-4 bg-black bg-opacity-80 text-white p-3 rounded-lg text-xs max-w-xs z-40">
             <div class="font-bold mb-2 text-green-400">🔍 Debug Panel</div>
             <div>🔄 Status: <span id="status-text">Loading...</span></div>
             <div>📊 Items: <span id="item-count">0</span></div>
