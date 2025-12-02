@@ -1064,10 +1064,10 @@
                         <!-- Logo Quán + Số Bàn -->
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                                <i data-lucide="coffee" class="text-amber-800 w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0"></i>
+                                <i data-lucide="coffee" class="text-amber-800 w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 flex-shrink-0"></i>
                                 <div class="min-w-0 flex-1">
                                     <a href="/" onclick="setView('customer')" class="block">
-                                        <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-amber-900 font-serif truncate">Chill Coffee</h1>
+                                        <h1 class="text-sm sm:text-lg lg:text-xl font-bold text-amber-900 font-serif truncate">Chill Coffee</h1>
                                     </a>
                                     ${adminPageTitle ? `
                                         <div class="mt-0.5">
@@ -1090,20 +1090,20 @@
                             </div>
 
                             <!-- Always Visible Actions (Cart & Contact) -->
-                            <div class="flex items-center space-x-1 sm:space-x-2">
+                            <div class="flex items-center space-x-0.5 sm:space-x-1">
                                 ${!isAdmin || isPreviewMode ? `
-                                    <button onclick="openCart()" class="relative p-1.5 sm:p-2 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-md">
-                                        <i data-lucide="shopping-cart" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                                        ${totalItemsInCart > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full animate-pulse">${totalItemsInCart}</span>` : ''}
+                                    <button onclick="openCart()" class="relative p-1 sm:p-1.5 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-sm">
+                                        <i data-lucide="shopping-cart" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                                        ${totalItemsInCart > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-1 py-0.5 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full animate-pulse">${totalItemsInCart}</span>` : ''}
                                     </button>
                                 ` : ''}
                                 ${!isAdmin ? `
-                                    <a href="#" class="hidden sm:flex items-center text-amber-800 hover:text-orange-600 transition duration-150 text-sm whitespace-nowrap">
-                                        <i data-lucide="phone" class="w-4 h-4 inline mr-1"></i>
+                                    <a href="#" class="hidden sm:flex items-center text-amber-800 hover:text-orange-600 transition duration-150 text-xs whitespace-nowrap">
+                                        <i data-lucide="phone" class="w-3 h-3 inline mr-0.5"></i>
                                         <span class="hidden lg:inline">Liên Hệ</span>
                                     </a>
-                                    <a href="#" class="sm:hidden p-1.5 rounded-full text-amber-800 hover:text-orange-600 transition duration-150">
-                                        <i data-lucide="phone" class="w-5 h-5"></i>
+                                    <a href="#" class="sm:hidden p-1 rounded-full text-amber-800 hover:text-orange-600 transition duration-150">
+                                        <i data-lucide="phone" class="w-4 h-4"></i>
                                     </a>
                                 ` : ''}
                             </div>
@@ -1198,10 +1198,10 @@
             );
 
             return `
-                <div class="flex justify-center p-3 sm:p-4 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
-                    <div class="flex space-x-2 sm:space-x-3 min-w-max">
+                <div class="flex justify-center p-2 sm:p-3 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
+                    <div class="flex space-x-1 sm:space-x-2 min-w-max">
                         ${activeCategories.map(cat => `
-                            <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-semibold py-2 px-4 sm:px-6 rounded-full transition duration-150 text-sm sm:text-base whitespace-nowrap active:scale-95">
+                            <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-medium py-1.5 px-3 sm:px-4 rounded-full transition duration-150 text-xs sm:text-sm whitespace-nowrap active:scale-95">
                                 ${cat}
                             </button>
                         `).join('')}
@@ -1229,36 +1229,36 @@
                     const isOutOfStock = item.status === 'out_of_stock';
                     
                     return `
-                    <div class="flex items-center bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-3 sm:p-4 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
-                        <img src="${item.imageUrl}" alt="${item.name}" class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 object-cover rounded-lg mr-3 sm:mr-4 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
+                    <div class="flex items-center bg-white rounded-lg shadow-md hover:shadow-lg transition duration-300 p-2 sm:p-3 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
+                        <img src="${item.imageUrl}" alt="${item.name}" class="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 object-cover rounded-md mr-2 sm:mr-3 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
                         <div class="flex-grow min-w-0">
-                            <div class="flex items-start justify-between gap-2 mb-1">
-                                <h3 class="text-base sm:text-lg font-semibold text-amber-900 truncate">${item.name}</h3>
+                            <div class="flex items-start justify-between gap-1 sm:gap-2 mb-1">
+                                <h3 class="text-sm sm:text-base font-medium text-amber-900 truncate">${item.name}</h3>
                                 ${showAddButton && !isOutOfStock ? `
-                                    <button onclick="updateCart('${item.id}', 1)" class="p-2 sm:p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-md active:scale-95">
-                                        <i data-lucide="plus" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                                    <button onclick="updateCart('${item.id}', 1)" class="p-1.5 sm:p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-sm active:scale-95">
+                                        <i data-lucide="plus" class="w-3 h-3 sm:w-4 sm:h-4"></i>
                                     </button>
                                 ` : ''}
                             </div>
-                            <div class="flex items-center gap-2 mb-2">
-                                ${item.size ? `<span class="text-xs sm:text-sm bg-blue-100 text-blue-800 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded whitespace-nowrap">${item.size}</span>` : ''}
+                            <div class="flex items-center gap-1 sm:gap-2 mb-1">
+                                ${item.size ? `<span class="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded whitespace-nowrap">${item.size}</span>` : ''}
                                 ${statusBadge}
                             </div>
-                            <p class="text-xs sm:text-sm text-gray-500 mb-2 line-clamp-2">${item.description}</p>
-                            <div class="flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-2">
+                            <p class="text-xs text-gray-500 mb-1 line-clamp-2">${item.description}</p>
+                            <div class="flex items-center justify-between gap-1 sm:gap-2">
+                                <div class="flex items-center gap-1 sm:gap-2">
                                     ${item.newPrice ?
                                         (parseFloat(item.newPrice) >= parseFloat(item.price) ?
                                             // Giá mới >= giá cũ: chỉ hiện giá mới
-                                            `<span class="text-lg sm:text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
+                                            `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
                                             // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
-                                            `<div class="flex items-center gap-2">
-                                                <span class="text-sm sm:text-base text-gray-500 line-through">${formatCurrency(item.price)}</span>
-                                                <span class="text-lg sm:text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>
+                                            `<div class="flex items-center gap-1">
+                                                <span class="text-xs sm:text-sm text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                                <span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>
                                              </div>`
                                         ) :
                                         // Không có giá mới: chỉ hiện giá cũ
-                                        `<span class="text-lg sm:text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
+                                        `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.price)}</span>`
                                     }
                                 </div>
                                 ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150">💰</button>` : ''}
@@ -1269,40 +1269,40 @@
             } else {
                 // Layout Đồ Ăn/Đồ Nhậu: 2 món/hàng, khung vuông
                 return `
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 p-4 sm:p-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4">
                         ${filteredItems.map(item => {
                             const statusBadge = getStatusBadge(item.status);
                             const isOutOfStock = item.status === 'out_of_stock';
                             
                             return `
-                            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-300 flex flex-col hover:shadow-xl transition duration-300 ${isOutOfStock ? 'opacity-60' : ''}">
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden border border-amber-300 flex flex-col hover:shadow-lg transition duration-300 ${isOutOfStock ? 'opacity-60' : ''}">
                                 <div class="relative">
-                                    <img src="${item.imageUrl}" alt="${item.name}" class="w-full h-32 sm:h-40 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x160/f0d48f/8b542f?text=Món+Ăn'">
-                                    <div class="absolute top-2 right-2">
+                                    <img src="${item.imageUrl}" alt="${item.name}" class="w-full h-24 sm:h-32 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x160/f0d48f/8b542f?text=Món+Ăn'">
+                                    <div class="absolute top-1 right-1 sm:top-2 sm:right-2">
                                         ${statusBadge}
                                     </div>
                                 </div>
-                                <div class="p-4 flex flex-col flex-grow">
-                                    <h3 class="text-lg font-bold text-amber-900 mb-1">${item.name} ${item.size ? `<span class="text-sm bg-blue-100 text-blue-800 px-1 py-0.5 rounded ml-1">${item.size}</span>` : ''}</h3>
-                                    <p class="text-xs text-gray-500 line-clamp-2 mb-3">${item.description}</p>
+                                <div class="p-3 flex flex-col flex-grow">
+                                    <h3 class="text-sm sm:text-base font-semibold text-amber-900 mb-1">${item.name} ${item.size ? `<span class="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded ml-1">${item.size}</span>` : ''}</h3>
+                                    <p class="text-xs text-gray-500 line-clamp-2 mb-2">${item.description}</p>
                                     <div class="mt-auto flex justify-between items-center">
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-1 sm:gap-2">
                                             ${item.newPrice ?
                                                 (parseFloat(item.newPrice) >= parseFloat(item.price) ?
                                                     // Giá mới >= giá cũ: chỉ hiện giá mới
-                                                    `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
+                                                    `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
                                                     // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
-                                                    `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
-                                                     <span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>`
+                                                    `<span class="text-sm text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                                     <span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>`
                                                 ) :
                                                 // Không có giá mới: chỉ hiện giá cũ
-                                                `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
+                                                `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.price)}</span>`
                                             }
                                             ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="ml-1 px-1 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">💰</button>` : ''}
                                         </div>
                                         ${showAddButton && !isOutOfStock ? `
-                                            <button onclick="updateCart('${item.id}', 1)" class="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 shadow-md">
-                                                <i data-lucide="plus" class="w-5 h-5"></i>
+                                            <button onclick="updateCart('${item.id}', 1)" class="p-1.5 sm:p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 shadow-sm">
+                                                <i data-lucide="plus" class="w-3 h-3 sm:w-4 sm:h-4"></i>
                                             </button>
                                         ` : ''}
                                     </div>
@@ -4084,7 +4084,7 @@
     </div>
 
     <!-- Footer đơn giản -->
-    <footer class="bg-amber-700 text-white p-2 text-center text-xs fixed bottom-0 left-0 right-0 z-50">
+    <footer class="bg-amber-700 text-white p-2 mt-6 text-center text-xs fixed bottom-0 left-0 right-0 z-50">
         &copy; 2025 by GTD Fry. Chill Coffee
     </footer>
 </body>
