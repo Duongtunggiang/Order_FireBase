@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="logo.ico">
     <title>Quán Trà Sữa & Đồ Ăn - Single Page App</title>
     <!-- Tailwind CSS via CDN (for development) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -1114,11 +1115,11 @@
                         <!-- Logo Quán + Số Bàn -->
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                                <i data-lucide="coffee" class="text-amber-800 w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 flex-shrink-0"></i>
+                                <a href="/" class="block"><img src="logo.png" alt="Logo" class="w-10 h-10 border-2 border-amber-200 rounded-full sm:w-6 sm:h-6 lg:w-8 lg:h-8 flex-shrink-0 object-contain"></a>
                                 <div class="min-w-0 flex-1">
-                                    <a href="/" onclick="setView('customer')" class="block">
-                                        <h1 class="text-sm sm:text-lg lg:text-xl font-bold text-amber-900 font-serif truncate">Chill Coffee</h1>
-                                    </a>
+                                    
+                                        <h1 class="text-sm sm:text-lg lg:text-xl font-bold text-amber-900 font-serif truncate"><a href="/"  class="block">Chill Coffee</a></h1>
+                                    
                                     ${adminPageTitle ? `
                                         <div class="mt-0.5">
                                             <p class="text-xs sm:text-sm text-red-600 font-semibold truncate">${adminPageTitle}</p>
