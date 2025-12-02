@@ -344,49 +344,62 @@
 
         function showItemContextMenu(event, itemId) {
             event.preventDefault();
+            event.stopPropagation();
+
+            // Hide any existing menu first
+            hideContextMenu();
+
             const menu = document.getElementById('item-context-menu');
             window.currentContextItemId = itemId;
 
             const menuHeight = 120; // Approximate height of context menu
             const windowHeight = window.innerHeight;
-            const scrollY = window.scrollY;
 
-            // Check if there's enough space below the click position
-            const spaceBelow = windowHeight - (event.clientY + menuHeight);
-            const spaceAbove = event.clientY;
+            // Determine position based on click location
+            const isClickInUpperHalf = event.clientY < windowHeight / 2;
 
-            let topPosition;
-            if (spaceBelow < 20 && spaceAbove > spaceBelow) {
-                // Show above if not enough space below and more space above
-                topPosition = event.pageY - menuHeight - 10;
+            let topPosition, leftPosition;
+
+            if (isClickInUpperHalf) {
+                // Click in upper half - show menu to the right of click position
+                topPosition = event.pageY - 20; // Slight offset from click position
+                leftPosition = event.pageX + 15; // Show to the right
+
+                // Ensure menu doesn't go off-screen horizontally
+                const menuWidth = 150;
+                if (leftPosition + menuWidth > window.innerWidth) {
+                    leftPosition = event.pageX - menuWidth - 15; // Show to the left instead
+                }
             } else {
-                // Show below (default behavior)
-                topPosition = event.pageY + 10;
-            }
+                // Click in lower half - show menu above to avoid footer
+                topPosition = event.pageY - menuHeight - 10;
+                leftPosition = event.pageX;
 
-            // Ensure menu doesn't go off-screen horizontally
-            let leftPosition = event.pageX;
-            const menuWidth = 150; // Approximate width
-            if (leftPosition + menuWidth > window.innerWidth) {
-                leftPosition = window.innerWidth - menuWidth - 10;
+                // Ensure menu doesn't go off-screen horizontally
+                const menuWidth = 150;
+                if (leftPosition + menuWidth > window.innerWidth) {
+                    leftPosition = window.innerWidth - menuWidth - 10;
+                }
+                if (leftPosition < 10) {
+                    leftPosition = 10;
+                }
             }
 
             menu.style.left = leftPosition + 'px';
             menu.style.top = topPosition + 'px';
             menu.classList.remove('hidden');
 
-            // Hide menu when clicking outside
+            // Hide menu when clicking outside - use a more reliable approach
             setTimeout(() => {
                 const handleClickOutside = (e) => {
-                    const menu = document.getElementById('item-context-menu');
-                    // Don't hide if clicking on menu items
-                    if (menu.contains(e.target)) {
-                        return;
+                    // Only hide if clicking outside the menu
+                    if (!menu.contains(e.target)) {
+                        hideContextMenu();
                     }
-                    hideContextMenu();
-                    document.removeEventListener('click', handleClickOutside);
                 };
-                document.addEventListener('click', handleClickOutside);
+
+                // Use capture phase to ensure we get the event before other handlers
+                document.addEventListener('click', handleClickOutside, { capture: true, once: true });
             }, 1);
         }
 
