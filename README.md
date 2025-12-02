@@ -64,6 +64,46 @@ Một ứng dụng web đơn trang cho quán trà sữa và đồ ăn, được 
 
 5. **Truy cập**: `http://localhost:8000` hoặc mở file HTML
 
+## 🚀 Deployment
+
+### Deploy lên GitHub + Netlify (Free)
+
+1. **Tạo GitHub Repository**:
+   ```bash
+   # Đã có sẵn Git repo, chỉ cần push lên GitHub
+   # Tạo repo mới trên GitHub: https://github.com/new
+   # Tên: quan-tra-do-spa
+
+   git remote add origin https://github.com/YOUR_USERNAME/quan-tra-do-spa.git
+   git branch -M main
+   git push -u origin main
+   ```
+
+2. **Deploy lên Netlify**:
+   - Vào [Netlify](https://netlify.com)
+   - "Add new site" > "Import an existing project"
+   - Connect to GitHub > Chọn repo `quan-tra-do-spa`
+   - **Build settings**:
+     - Build command: `echo "No build required"`
+     - Publish directory: `./` (root folder)
+   - Click "Deploy site"
+
+3. **Cập nhật Firebase Config** (tùy chọn):
+   - Sau khi deploy, cập nhật domain Netlify vào Firebase Console
+   - Authorized domains trong Authentication settings
+
+### 🌟 Live Demo
+Sau khi deploy thành công, bạn sẽ có URL miễn phí từ Netlify!
+
+### 📁 Files được deploy:
+- ✅ `index.html` - Ứng dụng chính
+- ✅ `README.md` - Tài liệu
+- ✅ `_redirects` - Netlify redirects
+- ✅ `netlify.toml` - Netlify config
+- ❌ `data.json` - Chỉ dùng để import Firebase (không deploy)
+- ❌ `import-data.js` - Chỉ dùng development (không deploy)
+- ❌ `package.json` - Chỉ dùng development (không deploy)
+
 ## Cấu trúc file
 
 ```
