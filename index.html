@@ -1163,6 +1163,12 @@
                                     <i data-lucide="clipboard" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                                 </button>
                                 ` : ''}
+                                ${isAdmin ? `
+                                <button onclick="setView('admin-orders')" class="md:hidden relative p-1 sm:p-1.5 rounded-full bg-purple-500 text-white hover:bg-purple-600 transition duration-150 shadow-sm active:scale-95" title="Đơn hàng">
+                                    <i data-lucide="clipboard-list" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                                    ${pendingOrdersCount > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-1 py-0.5 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full animate-pulse">${pendingOrdersCount}</span>` : ''}
+                                </button>
+                                ` : ''}
                                 ${!isAdmin || isPreviewMode ? `
                                     <button onclick="openCart()" class="relative p-1 sm:p-1.5 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-sm">
                                         <i data-lucide="shopping-cart" class="w-4 h-4 sm:w-5 sm:h-5"></i>
