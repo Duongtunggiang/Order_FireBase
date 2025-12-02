@@ -630,8 +630,8 @@
                             <p class="text-sm text-gray-500 mb-2">${item.description}</p>
                             <div class="flex items-center gap-2">
                                 ${item.newPrice ?
-                                    (parseFloat(item.newPrice) > parseFloat(item.price) ?
-                                        // Giá mới > giá cũ: chỉ hiện giá mới
+                                    (parseFloat(item.newPrice) >= parseFloat(item.price) ?
+                                        // Giá mới >= giá cũ: chỉ hiện giá mới
                                         `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
                                         // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
                                         `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
@@ -672,8 +672,8 @@
                                     <div class="mt-auto flex justify-between items-center">
                                         <div class="flex items-center gap-2">
                                             ${item.newPrice ?
-                                                (parseFloat(item.newPrice) > parseFloat(item.price) ?
-                                                    // Giá mới > giá cũ: chỉ hiện giá mới
+                                                (parseFloat(item.newPrice) >= parseFloat(item.price) ?
+                                                    // Giá mới >= giá cũ: chỉ hiện giá mới
                                                     `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
                                                     // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
                                                     `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
@@ -829,11 +829,9 @@
                             <div class="p-3 rounded-lg bg-amber-50 border border-amber-200">
                                 <div class="text-sm text-amber-800">
                                     <strong>Preview hiển thị:</strong><br>
-                                    ${parseFloat(newPrice) > oldPrice ?
+                                    ${parseFloat(newPrice) >= oldPrice ?
                                         `Chỉ hiện: ${formatCurrency(parseFloat(newPrice))}` :
-                                    parseFloat(newPrice) < oldPrice ?
-                                        `Gạch ${formatCurrency(oldPrice)} → ${formatCurrency(parseFloat(newPrice))}` :
-                                        `Sẽ chỉ hiện 1 giá: ${formatCurrency(oldPrice)}`
+                                        `Gạch ${formatCurrency(oldPrice)} → ${formatCurrency(parseFloat(newPrice))}`
                                     }
                                 </div>
                             </div>
@@ -883,14 +881,9 @@
                         return;
                     }
 
-                    // Nếu giá mới bằng giá cũ, xóa newPrice
-                    if (newPriceNum === parseFloat(currentPriceUpdateItem.price)) {
-                        // Firestore sẽ xóa field newPrice nếu không include
-                        showMessage("Giá mới giống giá cũ, đã cập nhật thành 1 giá!", "info");
-                    } else {
-                        updateData.newPrice = newPriceNum;
-                        showMessage("Cập nhật giá thành công!", "success");
-                    }
+                    // Luôn luôn cập nhật newPrice
+                    updateData.newPrice = newPriceNum;
+                    showMessage("Cập nhật giá thành công!", "success");
                 }
 
                 // Filter out undefined values to prevent Firestore errors
@@ -1157,7 +1150,7 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">
                                                 ${item.newPrice ?
-                                                    (parseFloat(item.newPrice) > parseFloat(item.price) ?
+                                                    (parseFloat(item.newPrice) >= parseFloat(item.price) ?
                                                         formatCurrency(item.newPrice) :
                                                         `${formatCurrency(item.price)} → ${formatCurrency(item.newPrice)}`
                                                     ) :
