@@ -833,20 +833,22 @@
 
             try {
                 const updateData = {
-                    id: currentPriceUpdateItem.id,
                     name: currentPriceUpdateItem.name,
                     description: currentPriceUpdateItem.description,
                     price: currentPriceUpdateItem.price,
                     category: currentPriceUpdateItem.category,
                     status: currentPriceUpdateItem.status,
                     imageUrl: currentPriceUpdateItem.imageUrl,
-                    size: currentPriceUpdateItem.size,
                     updatedAt: new Date()
                 };
 
+                // Only add size if it exists and is not null/undefined
+                if (currentPriceUpdateItem.size && currentPriceUpdateItem.size.trim() !== '') {
+                    updateData.size = currentPriceUpdateItem.size;
+                }
+
                 if (newPriceValue === '') {
-                    // Xóa giá mới, chỉ giữ giá cũ
-                    delete updateData.newPrice;
+                    // Xóa giá mới, chỉ giữ giá cũ (Firestore sẽ xóa field nếu không có trong update)
                 } else {
                     // Cập nhật giá mới
                     const newPriceNum = parseFloat(newPriceValue);
@@ -856,6 +858,13 @@
                     }
                     updateData.newPrice = newPriceNum;
                 }
+
+                // Filter out undefined values to prevent Firestore errors
+                Object.keys(updateData).forEach(key => {
+                    if (updateData[key] === undefined) {
+                        delete updateData[key];
+                    }
+                });
 
                 await updateDoc(doc(db, PUBLIC_DATA_PATH, currentPriceUpdateItem.id), updateData);
                 showMessage("Cập nhật giá thành công!", "success");
