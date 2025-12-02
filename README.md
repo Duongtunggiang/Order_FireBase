@@ -66,23 +66,16 @@ Một ứng dụng web đơn trang cho quán trà sữa và đồ ăn, được 
 
 ## 🚀 Deployment
 
-### Deploy lên GitHub + Netlify (Free)
+### ✅ Đã Deploy lên GitHub + Netlify (Free)
 
-1. **Tạo GitHub Repository**:
-   ```bash
-   # Đã có sẵn Git repo, chỉ cần push lên GitHub
-   # Tạo repo mới trên GitHub: https://github.com/new
-   # Tên: quan-tra-do-spa
+**GitHub Repository**: https://github.com/Duongtunggiang/Order_FireBase
 
-   git remote add origin https://github.com/YOUR_USERNAME/quan-tra-do-spa.git
-   git branch -M main
-   git push -u origin main
-   ```
+1. **Code đã được push lên GitHub thành công** ✨
 
-2. **Deploy lên Netlify**:
+2. **Deploy lên Netlify** (3 phút):
    - Vào [Netlify](https://netlify.com)
    - "Add new site" > "Import an existing project"
-   - Connect to GitHub > Chọn repo `quan-tra-do-spa`
+   - Connect to GitHub > Tìm và chọn repo `Duongtunggiang/Order_FireBase`
    - **Build settings**:
      - Build command: `echo "No build required"`
      - Publish directory: `./` (root folder)
@@ -94,6 +87,7 @@ Một ứng dụng web đơn trang cho quán trà sữa và đồ ăn, được 
 
 ### 🌟 Live Demo
 Sau khi deploy thành công, bạn sẽ có URL miễn phí từ Netlify!
+**Ví dụ**: `https://your-app-name.netlify.app`
 
 ### 📁 Files được deploy:
 - ✅ `index.html` - Ứng dụng chính
