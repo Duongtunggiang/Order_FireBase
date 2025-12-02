@@ -360,29 +360,64 @@
 
             let topPosition, leftPosition;
 
-            if (isClickInUpperHalf) {
-                // Click in upper half - show menu to the right of click position
-                topPosition = event.pageY - 20; // Slight offset from click position
-                leftPosition = event.pageX + 15; // Show to the right
+            const menuWidth = 150;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
 
-                // Ensure menu doesn't go off-screen horizontally
-                const menuWidth = 150;
-                if (leftPosition + menuWidth > window.innerWidth) {
-                    leftPosition = event.pageX - menuWidth - 15; // Show to the left instead
+            if (isClickInUpperHalf) {
+                // Click in upper half - prefer showing below the click position
+                topPosition = event.pageY + 10;
+                leftPosition = event.pageX - menuWidth / 2; // Center horizontally on click
+
+                // Ensure menu stays in viewport horizontally
+                if (leftPosition < scrollX + 10) {
+                    leftPosition = scrollX + 10;
+                }
+                if (leftPosition + menuWidth > viewportWidth + scrollX) {
+                    leftPosition = viewportWidth + scrollX - menuWidth - 10;
+                }
+
+                // If not enough space below, show above
+                if (topPosition + menuHeight > viewportHeight + scrollY) {
+                    topPosition = event.pageY - menuHeight - 10;
                 }
             } else {
                 // Click in lower half - show menu above to avoid footer
                 topPosition = event.pageY - menuHeight - 10;
-                leftPosition = event.pageX;
+                leftPosition = event.pageX - menuWidth / 2; // Center horizontally on click
 
-                // Ensure menu doesn't go off-screen horizontally
-                const menuWidth = 150;
-                if (leftPosition + menuWidth > window.innerWidth) {
-                    leftPosition = window.innerWidth - menuWidth - 10;
+                // Ensure menu stays in viewport horizontally
+                if (leftPosition < scrollX + 10) {
+                    leftPosition = scrollX + 10;
                 }
-                if (leftPosition < 10) {
-                    leftPosition = 10;
+                if (leftPosition + menuWidth > viewportWidth + scrollX) {
+                    leftPosition = viewportWidth + scrollX - menuWidth - 10;
                 }
+
+                // If not enough space above, try showing below (but ensure it's not too close to footer)
+                if (topPosition < scrollY + 10) {
+                    topPosition = event.pageY + 10;
+                    // Make sure it doesn't go too close to footer
+                    if (topPosition + menuHeight > viewportHeight + scrollY - 60) {
+                        topPosition = viewportHeight + scrollY - menuHeight - 60;
+                    }
+                }
+            }
+
+            // Final safety checks to ensure menu is fully visible
+            if (topPosition < scrollY + 10) {
+                topPosition = scrollY + 10;
+            }
+            if (topPosition + menuHeight > viewportHeight + scrollY) {
+                topPosition = viewportHeight + scrollY - menuHeight - 10;
+            }
+            if (leftPosition < scrollX + 10) {
+                leftPosition = scrollX + 10;
+            }
+            if (leftPosition + menuWidth > viewportWidth + scrollX) {
+                leftPosition = viewportWidth + scrollX - menuWidth - 10;
             }
 
             menu.style.left = leftPosition + 'px';
