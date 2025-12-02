@@ -2114,55 +2114,61 @@
         function renderAdminMenu() {
             const itemToEdit = menuItems.find(i => i.id === (document.getElementById('admin-form-id')?.value || null));
 
+            // Debug: Check menu items
+            const totalItems = menuItems.length;
+            const deletedItems = menuItems.filter(item => item.status === 'deleted').length;
+            const activeItems = menuItems.filter(item => item.status !== 'deleted').length;
+            console.log(`📊 Menu Items: Total=${totalItems}, Active=${activeItems}, Deleted=${deletedItems}`);
+
             return `
-                <div class="p-6 md:p-10 bg-gray-50 min-h-screen pb-16 sm:pb-20">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-3xl font-bold text-orange-900">🍽️ Quản Lý Menu</h2>
+                <div class="p-3 sm:p-6 md:p-10 bg-gray-50 min-h-screen pb-16 sm:pb-20">
+                    <div class="flex justify-between items-center mb-4 sm:mb-6">
+                        <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-orange-900">🍽️ Quản Lý Menu</h2>
                         <div class="flex gap-2">
-                            <button onclick="document.getElementById('category-modal-admin').classList.remove('hidden'); document.getElementById('new-category-name-admin').focus()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
-                                <i data-lucide="folder-plus" class="w-4 h-4"></i>
-                                Thêm Danh Mục
+                            <button onclick="document.getElementById('category-modal-admin').classList.remove('hidden'); document.getElementById('new-category-name-admin').focus()" class="bg-indigo-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
+                                <i data-lucide="folder-plus" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                                <span class="hidden sm:inline">Thêm Danh Mục</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Danh mục -->
-                    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
-                        <h3 class="text-xl font-bold text-indigo-900 mb-4">📂 Danh Mục Món Ăn</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                    <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg mb-6 sm:mb-8">
+                        <h3 class="text-sm sm:text-base md:text-xl font-bold text-indigo-900 mb-3 sm:mb-4">📂 Danh Mục Món Ăn</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
                             ${categories.map((cat, index) => `
-                                <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200 flex justify-between items-center">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-lg">${getCategoryIcon(cat)}</span>
-                                        <span class="font-medium text-gray-800">${cat}</span>
-                                        <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">
+                                <div class="bg-indigo-50 p-3 sm:p-4 rounded-lg border border-indigo-200 flex justify-between items-center active:scale-[0.98] transition">
+                                    <div class="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                                        <span class="text-base sm:text-lg flex-shrink-0">${getCategoryIcon(cat)}</span>
+                                        <span class="font-medium text-gray-800 text-xs sm:text-sm truncate">${cat}</span>
+                                        <span class="text-[10px] sm:text-xs bg-indigo-100 text-indigo-800 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full flex-shrink-0">
                                             ${menuItems.filter(item => item.category === cat && item.status !== 'deleted').length} món
                                         </span>
                                     </div>
                                     ${index >= 3 ? `
-                                        <div class="flex gap-1">
-                                            <button onclick="openEditCategoryModalAdmin('${cat}')" class="text-blue-600 hover:text-blue-800 p-1" title="Sửa">
-                                                <i data-lucide="edit" class="w-4 h-4"></i>
+                                        <div class="flex gap-0.5 sm:gap-1 ml-1">
+                                            <button onclick="openEditCategoryModalAdmin('${cat}')" class="text-blue-600 hover:text-blue-800 p-1 active:scale-95 transition" title="Sửa">
+                                                <i data-lucide="edit" class="w-3 h-3 sm:w-4 sm:h-4"></i>
                                             </button>
-                                            <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1" title="Xóa">
-                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1 active:scale-95 transition" title="Xóa">
+                                                <i data-lucide="trash-2" class="w-3 h-3 sm:w-4 sm:h-4"></i>
                                             </button>
                                         </div>
                                     ` : ''}
                                 </div>
                             `).join('')}
                         </div>
-                        <div class="text-sm text-gray-600">
+                        <div class="text-[10px] sm:text-xs md:text-sm text-gray-600">
                             <strong>Lưu ý:</strong> 3 danh mục đầu tiên (Đồ Uống, Đồ Ăn, Đồ Nhậu) không thể xóa. Các danh mục khác có thể sửa/xóa.
                         </div>
                     </div>
 
                     <!-- Form thêm/sửa món -->
-                    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
-                        <h3 class="text-xl font-bold text-orange-900 mb-4">${itemToEdit ? '✏️ Chỉnh Sửa Món' : '➕ Thêm Món Mới'}</h3>
+                    <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg mb-6 sm:mb-8">
+                        <h3 class="text-sm sm:text-base md:text-xl font-bold text-orange-900 mb-3 sm:mb-4">${itemToEdit ? '✏️ Chỉnh Sửa Món' : '➕ Thêm Món Mới'}</h3>
                         <form id="admin-item-form" onsubmit="event.preventDefault(); handleSaveItem()">
                             <input type="hidden" id="admin-form-id" value="${itemToEdit ? itemToEdit.id : ''}">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Tên Món</label>
                                     <input type="text" id="admin-form-name" required value="${itemToEdit ? itemToEdit.name : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
@@ -2222,9 +2228,9 @@
                                 <label class="block text-sm font-medium text-gray-700">Mô Tả</label>
                                 <textarea id="admin-form-description" rows="2" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">${itemToEdit ? itemToEdit.description : ''}</textarea>
                             </div>
-                            <div class="mt-6 flex justify-end space-x-3">
-                                <button type="button" onclick="clearAdminForm()" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy/Thêm Mới</button>
-                                <button type="submit" class="px-4 py-2 bg-orange-600 text-white rounded-md shadow-lg text-sm font-medium hover:bg-orange-700">
+                            <div class="mt-4 sm:mt-6 flex justify-end space-x-2 sm:space-x-3">
+                                <button type="button" onclick="clearAdminForm()" class="px-3 py-1.5 sm:px-4 sm:py-2 border border-gray-300 rounded-md shadow-sm text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-95 transition">Hủy/Thêm Mới</button>
+                                <button type="submit" class="px-3 py-1.5 sm:px-4 sm:py-2 bg-orange-600 text-white rounded-md shadow-lg text-xs sm:text-sm font-medium hover:bg-orange-700 active:scale-95 transition">
                                     ${itemToEdit ? 'Cập Nhật Món' : 'Thêm Món'}
                                 </button>
                             </div>
@@ -2232,28 +2238,28 @@
                     </div>
 
                     <!-- Danh sách món -->
-                    <div class="bg-white p-6 rounded-xl shadow-lg">
-                        <h3 class="text-xl font-bold text-amber-900 mb-4">📋 Danh Sách Món Ăn/Đồ Uống (${menuItems.length})</h3>
+                    <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg">
+                        <h3 class="text-sm sm:text-base md:text-xl font-bold text-amber-900 mb-3 sm:mb-4">📋 Danh Sách Món Ăn/Đồ Uống (${menuItems.length})</h3>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-amber-50">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     ${menuItems.map(item => `
-                                        <tr class="${item.status === 'deleted' ? 'bg-gray-100' : ''}">
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-amber-900">${item.name}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.category}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">${item.size || '-'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">
+                                        <tr class="${item.status === 'deleted' ? 'bg-gray-100' : ''} hover:bg-gray-50 active:scale-[0.99] transition">
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-amber-900">${item.name}</td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">${item.category}</td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-blue-600">${item.size || '-'}</td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-orange-600 font-semibold">
                                                 ${item.newPrice ?
                                                     (parseFloat(item.newPrice) >= parseFloat(item.price) ?
                                                         formatCurrency(item.newPrice) :
@@ -2262,10 +2268,12 @@
                                                     formatCurrency(item.price)
                                                 }
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                                <button onclick="openPriceModal('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-2">💰</button>
-                                                <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
-                                                <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900 ml-2">Xóa</button>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-right text-xs sm:text-sm font-medium">
+                                                <div class="flex justify-end gap-1 sm:gap-2">
+                                                    <button onclick="openPriceModal('${item.id}')" class="text-blue-600 hover:text-blue-800 p-1 active:scale-95 transition" title="Chỉnh giá">💰</button>
+                                                    <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900 text-xs sm:text-sm active:scale-95 transition">Sửa</button>
+                                                    <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900 text-xs sm:text-sm active:scale-95 transition ml-1">Xóa</button>
+                                                </div>
                                             </td>
                                         </tr>
                                     `).join('')}
