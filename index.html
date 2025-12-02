@@ -2767,6 +2767,8 @@
           
           let currentOrderFilter = 'ordered'; // ordered, preparing, completed, cancelled, all, today
           let currentDateFilter = 'today'; // today, all
+          let currentPage = 1;
+          let itemsPerPage = 5; // Default 10 items per page
           
           // Setup realtime listener cho orders
           function setupOrdersListener() {
@@ -2838,19 +2840,40 @@
           
           function setDateFilter(filter) {
               currentDateFilter = filter;
+              currentPage = 1; // Reset to first page when changing filters
               renderOrdersManagementList();
           }
-          
-          function renderOrdersManagementList() {
-              const container = document.getElementById('orders-management-content');
-              if (!container) {
-                  console.log('Container not found, skipping render');
-                  return;
+
+          function setItemsPerPage(count) {
+              itemsPerPage = parseInt(count);
+              currentPage = 1; // Reset to first page when changing items per page
+              renderOrdersManagementList();
+          }
+
+          function setPage(page) {
+              currentPage = page;
+              renderOrdersManagementList();
+          }
+
+          function nextPage() {
+              const totalPages = Math.ceil(getFilteredOrders().length / itemsPerPage);
+              if (currentPage < totalPages) {
+                  currentPage++;
+                  renderOrdersManagementList();
               }
-              
+          }
+
+          function prevPage() {
+              if (currentPage > 1) {
+                  currentPage--;
+                  renderOrdersManagementList();
+              }
+          }
+
+          function getFilteredOrders() {
               // Filter orders
               let filteredOrders = [...orders];
-              
+
               // Filter theo date
               if (currentDateFilter === 'today') {
                   const today = new Date();
@@ -2862,35 +2885,54 @@
                       return orderDate.getTime() === today.getTime();
                   });
               }
-              
+
               // Filter theo status
               if (currentOrderFilter !== 'all') {
                   filteredOrders = filteredOrders.filter(order => order.status === currentOrderFilter);
               }
-              
+
               // Sort: ưu tiên đơn chờ (ordered) lên đầu, sau đó theo thời gian mới nhất
               filteredOrders.sort((a, b) => {
                   // Ưu tiên ordered
                   if (a.status === 'ordered' && b.status !== 'ordered') return -1;
                   if (a.status !== 'ordered' && b.status === 'ordered') return 1;
-                  
+
                   // Sau đó preparing
                   if (a.status === 'preparing' && b.status !== 'preparing' && b.status !== 'ordered') return -1;
                   if (a.status !== 'preparing' && b.status === 'preparing') return 1;
-                  
+
                   // Cuối cùng theo thời gian
                   const timeA = a.createdAt?.seconds || 0;
                   const timeB = b.createdAt?.seconds || 0;
                   return timeB - timeA;
               });
-              
-              // Count theo status
+
+              return filteredOrders;
+          }
+
+          function renderOrdersManagementList() {
+              const container = document.getElementById('orders-management-content');
+              if (!container) {
+                  console.log('Container not found, skipping render');
+                  return;
+              }
+
+              const filteredOrders = getFilteredOrders();
+
+              // Count theo status (tất cả orders, không filter)
               const counts = {
                   ordered: orders.filter(o => o.status === 'ordered').length,
                   preparing: orders.filter(o => o.status === 'preparing').length,
                   completed: orders.filter(o => o.status === 'completed').length,
                   cancelled: orders.filter(o => o.status === 'cancelled').length
               };
+
+              // Pagination calculations
+              const totalItems = filteredOrders.length;
+              const totalPages = Math.ceil(totalItems / itemsPerPage);
+              const startIndex = (currentPage - 1) * itemsPerPage;
+              const endIndex = startIndex + itemsPerPage;
+              const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
               
               container.innerHTML = `
                   <!-- Filter Bar -->
@@ -2933,43 +2975,43 @@
                   
                   <!-- Orders List -->
                   <div class="space-y-4">
-                      ${filteredOrders.length === 0 ? `
+                      ${paginatedOrders.length === 0 ? `
                           <p class="text-center text-gray-500 py-12">
                               <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
                               <br>Không có đơn hàng nào
                           </p>
-                      ` : filteredOrders.map(order => `
+                      ` : paginatedOrders.map(order => `
                           <div class="bg-white p-4 rounded-lg border-2 ${
                               order.status === 'cancelled' ? 'border-red-200 bg-red-50' :
                               order.status === 'completed' ? 'border-green-200 bg-green-50' :
                               order.status === 'preparing' ? 'border-yellow-200 bg-yellow-50' :
                               'border-blue-200 bg-blue-50'
                           }">
-                              <div class="flex justify-between items-start mb-3">
-                                  <div>
-                                      <h4 class="font-semibold text-purple-800 flex items-center gap-2">
-                                          Order #${order.id.slice(-6).toUpperCase()}
+                              <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
+                                  <div class="flex-1 min-w-0">
+                                      <h4 class="font-semibold text-purple-800 flex flex-wrap items-center gap-2 mb-1">
+                                          <span class="text-sm sm:text-base">Order #${order.id.slice(-6).toUpperCase()}</span>
                                           ${order.tableNumber ? `<span class="px-2 py-0.5 bg-teal-100 text-teal-700 text-xs rounded-full">🍽️ Bàn ${order.tableNumber}</span>` : ''}
                                       </h4>
-                                      <p class="text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
-                                      <p class="text-xs text-gray-500">Khách: ${order.customerEmail || order.customerId.slice(-6)}</p>
+                                      <p class="text-sm text-gray-600 mb-1">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                                      <p class="text-xs text-gray-500 truncate">Khách: ${order.customerEmail || order.customerId.slice(-6)}</p>
                                   </div>
-                                  <div class="flex items-center gap-2">
-                                      ${order.status === 'ordered' ? `
-                                          <button onclick="acceptOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm font-medium">
+                                  <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                                        ${order.status === 'ordered' ? `
+                                          <button onclick="acceptOrder('${order.id}')" class="bg-green-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-green-600 text-xs sm:text-sm font-medium whitespace-nowrap">
                                               ✅ Nhận đơn
                                           </button>
-                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
+                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-red-600 text-xs sm:text-sm font-medium whitespace-nowrap ml-1 sm:ml-2">
                                               ❌ Hủy
                                           </button>
-                                      ` : order.status === 'preparing' ? `
-                                          <button onclick="completeOrder('${order.id}')" class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-sm font-medium">
+                                        ` : order.status === 'preparing' ? `
+                                          <button onclick="completeOrder('${order.id}')" class="bg-blue-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-blue-600 text-xs sm:text-sm font-medium whitespace-nowrap">
                                               ✅ Hoàn thành
                                           </button>
-                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
+                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-red-600 text-xs sm:text-sm font-medium whitespace-nowrap ml-1 sm:ml-2">
                                               ❌ Hủy
                                           </button>
-                                      ` : `
+                                        ` : `
                                           <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(order.status)}">
                                               ${getStatusText(order.status)}
                                           </span>
@@ -3022,6 +3064,51 @@
                               </div>
                           </div>
                       `).join('')}
+
+                      <!-- Pagination Controls -->
+                      ${totalPages > 1 ? `
+                          <div class="bg-white p-4 rounded-lg border border-gray-200 mt-6">
+                              <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                                  <!-- Items per page selector -->
+                                  <div class="flex items-center gap-2">
+                                      <label class="text-sm text-gray-600">Hiển thị:</label>
+                                      <select onchange="setItemsPerPage(this.value)" class="px-3 py-1 border border-gray-300 rounded text-sm">
+                                          <option value="5" ${itemsPerPage === 5 ? 'selected' : ''}>5</option>
+                                          <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                                          <option value="20" ${itemsPerPage === 20 ? 'selected' : ''}>20</option>
+                                          <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                                      </select>
+                                      <span class="text-sm text-gray-600">đơn/trang</span>
+                                  </div>
+
+                                  <!-- Pagination info -->
+                                  <div class="text-sm text-gray-600 text-center sm:text-left">
+                                      Hiển thị ${totalItems > 0 ? startIndex + 1 : 0}-${Math.min(endIndex, totalItems)} của ${totalItems} đơn hàng
+                                  </div>
+
+                                  <!-- Page navigation -->
+                                  <div class="flex items-center gap-1 sm:gap-2">
+                                      <button onclick="setPage(1)" class="px-2 sm:px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === 1 ? 'disabled' : ''}>
+                                          <i data-lucide="chevrons-left" class="w-4 h-4"></i>
+                                      </button>
+                                      <button onclick="prevPage()" class="px-2 sm:px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === 1 ? 'disabled' : ''}>
+                                          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                      </button>
+
+                                      <span class="px-2 sm:px-3 py-1 text-sm bg-blue-50 border border-blue-200 rounded">
+                                          Trang ${currentPage} / ${totalPages}
+                                      </span>
+
+                                      <button onclick="nextPage()" class="px-2 sm:px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage >= totalPages ? 'disabled' : ''}>
+                                          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                      </button>
+                                      <button onclick="setPage(${totalPages})" class="px-2 sm:px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage >= totalPages ? 'disabled' : ''}>
+                                          <i data-lucide="chevrons-right" class="w-4 h-4"></i>
+                                      </button>
+                                  </div>
+                              </div>
+                          </div>
+                      ` : ''}
                   </div>
               `;
               
@@ -3782,6 +3869,10 @@
             window.closeMyOrdersModal = closeMyOrdersModal;
             window.setOrderFilter = setOrderFilter;
             window.setDateFilter = setDateFilter;
+            window.setItemsPerPage = setItemsPerPage;
+            window.setPage = setPage;
+            window.nextPage = nextPage;
+            window.prevPage = prevPage;
             window.addTable = addTable;
             window.deleteTable = deleteTable;
             window.showTableQR = showTableQR;
@@ -3988,12 +4079,11 @@
                 </div>
             </div>
         </div>
-
-
-        <!-- Footer đơn giản -->
-        <footer class="bg-amber-900 text-white p-4 mt-8 text-center text-sm">
-            Bản quyền &copy; 2024 Quán Trà Đồ. Phát triển bằng HTML, Tailwind & Firebase.
-        </footer>
     </div>
+
+    <!-- Footer đơn giản -->
+    <footer class="bg-amber-900 text-white p-3 text-center text-xs fixed bottom-0 left-0 right-0 z-50">
+        &copy; 2025 by GTD Fry. Phát triển bằng HTML, Tailwind & Firebase.
+    </footer>
 </body>
 </html>
