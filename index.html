@@ -34,7 +34,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, getDocs, where, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, getDocs, getDoc, setDoc, where, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
@@ -54,10 +54,11 @@
         const __initial_auth_token = null; // For Canvas environment - set to null for direct usage
 
         let app, db, auth, storage, userId;
-        let menuItems = [];
-        let cart = {}; // { itemId: { item, quantity } }
-        let currentView = 'customer'; // 'customer', 'login', 'admin', 'preview'
-        let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
+          let menuItems = [];
+          let cart = {}; // { itemId: { item, quantity } }
+          let orders = []; // Danh sách orders cho admin
+          let currentView = 'customer'; // 'customer', 'login', 'admin', 'preview'
+          let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
         let isAdmin = false;
         let isPreviewMode = false; // Admin đang xem như khách hàng
         let categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Danh sách categories có thể thêm
@@ -507,7 +508,13 @@
                             isAdmin = false;
                         }
                         
-                        if (db) setupMenuListener();
+                        if (db) {
+                            setupMenuListener();
+                            // Setup orders listener for admin
+                            if (isAdmin) {
+                                setupOrdersListener();
+                            }
+                        }
                         
                         // Chuyển về trạng thái Khách hàng nếu không phải Admin
                         if (isAdmin && currentView === 'login') {
@@ -547,6 +554,9 @@
                 </button>`
                 : `<button onclick="setView('login')" class="px-4 py-2 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition duration-150">Đăng Nhập Admin</button>`;
 
+            // Đếm đơn hàng chờ nhận (chỉ admin thấy)
+            const pendingOrdersCount = isAdmin ? orders.filter(o => o.status === 'ordered').length : 0;
+            
             const adminToggle = isAdmin 
                 ? `<button onclick="toggleAdminMode()" class="flex items-center space-x-2 px-4 py-2 rounded-full ${currentView === 'admin' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white font-semibold transition duration-150">
                     <i data-lucide="${currentView === 'admin' ? 'eye' : 'settings'}" class="w-5 h-5"></i>
@@ -558,6 +568,19 @@
                 : isPreviewMode
                 ? `<span class="px-3 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">👁️ PREVIEW</span>`
                 : '';
+            
+            // Badge thông báo đơn hàng mới cho admin
+            const orderNotificationBadge = isAdmin ? `
+                <button onclick="showOrdersManagement()" class="relative flex items-center space-x-2 px-4 py-2 rounded-full bg-purple-500 hover:bg-purple-600 text-white font-semibold transition duration-150 shadow-lg">
+                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                    <span>Đơn Hàng</span>
+                    ${pendingOrdersCount > 0 ? `
+                        <span class="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform bg-red-600 rounded-full animate-pulse">
+                            ${pendingOrdersCount}
+                        </span>
+                    ` : ''}
+                </button>
+            ` : '';
             
             // Ẩn giỏ hàng khi admin ở mode admin (không preview)
             const cartButton = (isAdmin && !isPreviewMode) ? '' : `
@@ -578,11 +601,17 @@
                         
                         <!-- Liên hệ & Đăng nhập -->
                         <div class="flex items-center space-x-4">
-                            ${adminBadge}
-                            ${adminToggle}
-                            <a href="#" class="text-amber-800 hover:text-orange-600 transition duration-150 hidden sm:block">
-                                <i data-lucide="phone" class="w-5 h-5 inline mr-1"></i> Liên Hệ
-                            </a>
+                              ${adminBadge}
+                              ${adminToggle}
+                              ${orderNotificationBadge}
+                              ${!isAdmin ? `
+                                  <button onclick="showMyOrders()" class="text-blue-600 hover:text-blue-800 transition duration-150 hidden sm:block text-sm">
+                                      <i data-lucide="clipboard" class="w-4 h-4 inline mr-1"></i> Đơn Hàng Của Tôi
+                                  </button>
+                              ` : ''}
+                              <a href="#" class="text-amber-800 hover:text-orange-600 transition duration-150 hidden sm:block">
+                                  <i data-lucide="phone" class="w-5 h-5 inline mr-1"></i> Liên Hệ
+                              </a>
                             ${loginButton}
                             ${cartButton}
                         </div>
@@ -1020,10 +1049,26 @@
                                     🔄 Đổi Mật khẩu
                                 </button>
                             </div>
-                        </form>
-                    </div>
+                          </form>
+                      </div>
 
-                    <!-- Phần Quản Lý Danh Mục -->
+                      <!-- Phần Quản Lý Đơn Hàng -->
+                      <div class="bg-purple-50 p-6 rounded-xl shadow-lg mb-8">
+                          <h3 class="text-2xl font-bold text-purple-600 mb-4">📋 Quản Lý Đơn Hàng</h3>
+
+                          <div class="mb-4 flex gap-2">
+                              <button onclick="loadOrders()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                                  <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-1"></i> Tải Đơn Hàng
+                              </button>
+                              <span class="text-sm text-gray-600 self-center">Tổng: <span id="order-count">0</span> đơn</span>
+                          </div>
+
+                          <div id="orders-list" class="space-y-4">
+                              <!-- Orders will be loaded here -->
+                          </div>
+                      </div>
+
+                      <!-- Phần Quản Lý Danh Mục -->
                     <div class="bg-indigo-50 p-6 rounded-xl shadow-lg mb-8">
                         <h3 class="text-2xl font-bold text-indigo-600 mb-4">📂 Quản Lý Danh Mục</h3>
 
@@ -1316,30 +1361,753 @@
                             <p class="text-lg font-bold text-amber-900">Tổng Cộng:</p>
                             <p class="text-2xl font-extrabold text-red-600">${formatCurrency(total)}</p>
                         </div>
-                        <button class="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition duration-150 shadow-lg" onclick="handleCheckout(${total})">
-                            <i data-lucide="check-circle" class="w-5 h-5 inline mr-2"></i> Thanh Toán
-                        </button>
+                         <button class="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition duration-150 shadow-lg" onclick="handleOrder()">
+                             <i data-lucide="shopping-bag" class="w-5 h-5 inline mr-2"></i> Order
+                         </button>
                     </div>
                 </div>
             `;
         }
 
-        function handleCheckout(total) {
-            if (total === 0) {
-                 showMessage("Giỏ hàng trống! Vui lòng chọn món.", 'warning');
-                 return;
-            }
-            // Logic Thanh toán (Mock - trong thực tế sẽ lưu vào Firestore)
-            showMessage(`Đã đặt hàng thành công! Tổng cộng: ${formatCurrency(total)}`, 'success');
-            
-            // TTS
-            speak(`Cảm ơn bạn. Đơn hàng trị giá ${total.toLocaleString('vi-VN')} đồng đã được đặt thành công.`);
+          async function handleOrder() {
+              const total = Object.values(cart).reduce((sum, entry) => sum + (entry.item.price * entry.quantity), 0);
 
-            // Xóa giỏ hàng
-            cart = {};
-            localStorage.removeItem('cart');
-            renderApp();
-        }
+              if (total === 0) {
+                  showMessage("Giỏ hàng trống! Vui lòng chọn món.", 'warning');
+                  return;
+              }
+
+              try {
+                  // Tạo order object
+                  const orderItems = Object.values(cart).map(entry => ({
+                      id: entry.item.id,
+                      name: entry.item.name,
+                      price: entry.item.price,
+                      quantity: entry.quantity,
+                      size: entry.item.size || null,
+                      category: entry.item.category
+                  }));
+
+                  const orderData = {
+                      items: orderItems,
+                      total: total,
+                      status: 'ordered', // ordered, confirmed, preparing, ready, completed, cancelled, updated
+                      customerId: userId,
+                      customerEmail: auth.currentUser?.email || 'anonymous',
+                      createdAt: new Date(),
+                      updatedAt: new Date()
+                  };
+
+                  // Lưu order vào Firestore
+                  const docRef = await addDoc(collection(db, 'orders'), orderData);
+
+                  showMessage(`🎉 Đã đặt hàng thành công! Mã đơn: #${docRef.id.slice(-6).toUpperCase()}`, 'success');
+
+                  // TTS
+                  speak(`Cảm ơn bạn. Đơn hàng trị giá ${total.toLocaleString('vi-VN')} đồng đã được đặt thành công. Mã đơn hàng là ${docRef.id.slice(-6).toUpperCase()}.`);
+
+                  // Đóng cart và xóa giỏ hàng
+                  document.getElementById('cart-sidebar').classList.add('translate-x-full');
+                  cart = {};
+                  localStorage.removeItem('cart');
+                  renderApp();
+
+              } catch (error) {
+                  console.error("Error creating order:", error);
+                  showMessage("Lỗi khi đặt hàng: " + error.message, "error");
+              }
+          }
+
+          // ==================== ORDER MANAGEMENT (ADMIN) ====================
+          
+          let currentOrderFilter = 'ordered'; // ordered, preparing, completed, cancelled, all, today
+          let currentDateFilter = 'today'; // today, all
+          
+          // Setup realtime listener cho orders
+          function setupOrdersListener() {
+              if (!db) {
+                  console.error("Database not initialized");
+                  return;
+              }
+
+              try {
+                  console.log("📡 Setting up orders realtime listener...");
+                  const ordersRef = collection(db, 'orders');
+                  
+                  onSnapshot(ordersRef, (snapshot) => {
+                      orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                      console.log("📋 Orders updated:", orders.length);
+                      
+                      // Re-render header để cập nhật badge
+                      if (isAdmin) {
+                          document.getElementById('header-container').innerHTML = renderHeader();
+                          renderLucideIcons();
+                      }
+                      
+                      // Chỉ render nếu đang ở trang orders management
+                      if (window.ordersManagementOpen) {
+                          renderOrdersManagementList();
+                      }
+                      
+                      // Thông báo nếu có đơn mới
+                      snapshot.docChanges().forEach(change => {
+                          if (change.type === 'added' && isAdmin) {
+                              const order = change.doc.data();
+                              if (order.status === 'ordered') {
+                                  showMessage(`🔔 Đơn hàng mới: #${change.doc.id.slice(-6).toUpperCase()}`, 'info');
+                                  speak(`Có đơn hàng mới`);
+                              }
+                          }
+                      });
+                  }, (error) => {
+                      console.error("Error in orders listener:", error);
+                  });
+                  
+              } catch (error) {
+                  console.error("Error setting up orders listener:", error);
+              }
+          }
+          
+          // Hiển thị trang quản lý đơn hàng
+          function showOrdersManagement() {
+              if (!isAdmin) return;
+              
+              window.ordersManagementOpen = true;
+              currentOrderFilter = 'ordered'; // Mặc định hiển thị đơn chờ
+              currentDateFilter = 'today';
+              
+              document.getElementById('orders-management-modal').classList.remove('hidden');
+              renderOrdersManagementList();
+          }
+          
+          function closeOrdersManagement() {
+              window.ordersManagementOpen = false;
+              document.getElementById('orders-management-modal').classList.add('hidden');
+          }
+          
+          function setOrderFilter(filter) {
+              currentOrderFilter = filter;
+              renderOrdersManagementList();
+          }
+          
+          function setDateFilter(filter) {
+              currentDateFilter = filter;
+              renderOrdersManagementList();
+          }
+          
+          function renderOrdersManagementList() {
+              const container = document.getElementById('orders-management-content');
+              if (!container) return;
+              
+              // Filter orders
+              let filteredOrders = [...orders];
+              
+              // Filter theo date
+              if (currentDateFilter === 'today') {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  filteredOrders = filteredOrders.filter(order => {
+                      if (!order.createdAt) return false;
+                      const orderDate = new Date(order.createdAt.seconds * 1000);
+                      orderDate.setHours(0, 0, 0, 0);
+                      return orderDate.getTime() === today.getTime();
+                  });
+              }
+              
+              // Filter theo status
+              if (currentOrderFilter !== 'all') {
+                  filteredOrders = filteredOrders.filter(order => order.status === currentOrderFilter);
+              }
+              
+              // Sort: ưu tiên đơn chờ (ordered) lên đầu, sau đó theo thời gian mới nhất
+              filteredOrders.sort((a, b) => {
+                  // Ưu tiên ordered
+                  if (a.status === 'ordered' && b.status !== 'ordered') return -1;
+                  if (a.status !== 'ordered' && b.status === 'ordered') return 1;
+                  
+                  // Sau đó preparing
+                  if (a.status === 'preparing' && b.status !== 'preparing' && b.status !== 'ordered') return -1;
+                  if (a.status !== 'preparing' && b.status === 'preparing') return 1;
+                  
+                  // Cuối cùng theo thời gian
+                  const timeA = a.createdAt?.seconds || 0;
+                  const timeB = b.createdAt?.seconds || 0;
+                  return timeB - timeA;
+              });
+              
+              // Count theo status
+              const counts = {
+                  ordered: orders.filter(o => o.status === 'ordered').length,
+                  preparing: orders.filter(o => o.status === 'preparing').length,
+                  completed: orders.filter(o => o.status === 'completed').length,
+                  cancelled: orders.filter(o => o.status === 'cancelled').length
+              };
+              
+              container.innerHTML = `
+                  <!-- Filter Bar -->
+                  <div class="bg-gray-50 p-4 rounded-lg mb-4 space-y-3">
+                      <!-- Date Filter -->
+                      <div>
+                          <label class="text-sm font-medium text-gray-700 mb-2 block">🗓️ Lọc theo ngày:</label>
+                          <div class="flex gap-2">
+                              <button onclick="setDateFilter('today')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentDateFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}">
+                                  Hôm nay
+                              </button>
+                              <button onclick="setDateFilter('all')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentDateFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}">
+                                  Tất cả
+                              </button>
+                          </div>
+                      </div>
+                      
+                      <!-- Status Filter -->
+                      <div>
+                          <label class="text-sm font-medium text-gray-700 mb-2 block">📊 Lọc theo trạng thái:</label>
+                          <div class="flex flex-wrap gap-2">
+                              <button onclick="setOrderFilter('ordered')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentOrderFilter === 'ordered' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}">
+                                  📋 Chờ nhận (${counts.ordered})
+                              </button>
+                              <button onclick="setOrderFilter('preparing')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentOrderFilter === 'preparing' ? 'bg-yellow-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}">
+                                  👨‍🍳 Đang làm (${counts.preparing})
+                              </button>
+                              <button onclick="setOrderFilter('completed')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentOrderFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}">
+                                  ✅ Hoàn thành (${counts.completed})
+                              </button>
+                              <button onclick="setOrderFilter('cancelled')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentOrderFilter === 'cancelled' ? 'bg-red-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}">
+                                  ❌ Đã hủy (${counts.cancelled})
+                              </button>
+                              <button onclick="setOrderFilter('all')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentOrderFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}">
+                                  📂 Tất cả (${orders.length})
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <!-- Orders List -->
+                  <div class="space-y-4">
+                      ${filteredOrders.length === 0 ? `
+                          <p class="text-center text-gray-500 py-12">
+                              <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                              <br>Không có đơn hàng nào
+                          </p>
+                      ` : filteredOrders.map(order => `
+                          <div class="bg-white p-4 rounded-lg border-2 ${
+                              order.status === 'cancelled' ? 'border-red-200 bg-red-50' :
+                              order.status === 'completed' ? 'border-green-200 bg-green-50' :
+                              order.status === 'preparing' ? 'border-yellow-200 bg-yellow-50' :
+                              'border-blue-200 bg-blue-50'
+                          }">
+                              <div class="flex justify-between items-start mb-3">
+                                  <div>
+                                      <h4 class="font-semibold text-purple-800">Order #${order.id.slice(-6).toUpperCase()}</h4>
+                                      <p class="text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                                      <p class="text-xs text-gray-500">Khách: ${order.customerEmail || order.customerId.slice(-6)}</p>
+                                  </div>
+                                  <div class="flex items-center gap-2">
+                                      ${order.status === 'ordered' ? `
+                                          <button onclick="acceptOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm font-medium">
+                                              ✅ Nhận đơn
+                                          </button>
+                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
+                                              ❌ Hủy
+                                          </button>
+                                      ` : order.status === 'preparing' ? `
+                                          <button onclick="completeOrder('${order.id}')" class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-sm font-medium">
+                                              ✅ Hoàn thành
+                                          </button>
+                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
+                                              ❌ Hủy
+                                          </button>
+                                      ` : `
+                                          <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(order.status)}">
+                                              ${getStatusText(order.status)}
+                                          </span>
+                                      `}
+                                  </div>
+                              </div>
+
+                              <div class="space-y-2 mb-3">
+                                  ${order.items.map(item => `
+                                      <div class="flex justify-between items-center bg-white p-2 rounded">
+                                          <div class="flex-1">
+                                              <span class="font-medium">${item.name}</span>
+                                              ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
+                                              <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                          </div>
+                                          <div class="flex items-center gap-2">
+                                              <span class="text-sm font-semibold text-orange-600">${formatCurrency(item.price * item.quantity)}</span>
+                                              ${order.status === 'preparing' ? `
+                                                  <button onclick="removeItemFromOrder('${order.id}', '${item.id}')" class="text-red-500 hover:text-red-700 p-1" title="Xóa món">
+                                                      <i data-lucide="x" class="w-4 h-4"></i>
+                                                  </button>
+                                              ` : ''}
+                                          </div>
+                                      </div>
+                                  `).join('')}
+                              </div>
+
+                              ${order.status === 'preparing' ? `
+                                  <div class="border-t pt-3 mb-3">
+                                      <p class="text-xs text-gray-600 mb-2 font-medium">🛠 Chỉnh sửa đơn hàng:</p>
+                                      <div class="flex gap-2">
+                                          <select id="add-item-${order.id}" class="flex-1 text-sm border rounded px-2 py-1">
+                                              <option value="">Chọn món thêm...</option>
+                                              ${menuItems.filter(item => item.status !== 'deleted').map(item => `
+                                                  <option value="${item.id}">${item.name} - ${formatCurrency(item.price)}</option>
+                                              `).join('')}
+                                          </select>
+                                          <button onclick="addItemToOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
+                                              <i data-lucide="plus" class="w-4 h-4"></i>
+                                          </button>
+                                      </div>
+                                  </div>
+                              ` : ''}
+
+                              <div class="flex justify-between items-center pt-2 border-t">
+                                  <span class="font-bold text-lg text-orange-600">Tổng: ${formatCurrency(order.total)}</span>
+                                  <span class="text-sm px-3 py-1 rounded-full ${getStatusBadgeClass(order.status)}">
+                                      ${getStatusText(order.status)}
+                                  </span>
+                              </div>
+                          </div>
+                      `).join('')}
+                  </div>
+              `;
+              
+              renderLucideIcons();
+          }
+
+          async function loadOrders() {
+              try {
+                  console.log("Loading orders...");
+                  const querySnapshot = await getDocs(collection(db, 'orders'));
+                  orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                  console.log("Loaded orders:", orders.length);
+                  renderOrdersList();
+
+              } catch (error) {
+                  console.error("Error loading orders:", error);
+                  showMessage("Lỗi tải đơn hàng: " + error.message, "error");
+              }
+          }
+
+          function renderOrdersList() {
+              const ordersList = document.getElementById('orders-list');
+              const orderCount = document.getElementById('order-count');
+
+              if (!ordersList || !orderCount) return;
+
+              orderCount.textContent = orders.length;
+
+              if (orders.length === 0) {
+                  ordersList.innerHTML = '<p class="text-gray-500 text-center py-8">Chưa có đơn hàng nào</p>';
+                  return;
+              }
+
+              // Sort orders by createdAt (newest first)
+              const sortedOrders = [...orders].sort((a, b) => {
+                  const timeA = a.createdAt?.seconds || 0;
+                  const timeB = b.createdAt?.seconds || 0;
+                  return timeB - timeA;
+              });
+
+              ordersList.innerHTML = sortedOrders.map(order => `
+                  <div class="bg-white p-4 rounded-lg border-2 ${
+                      order.status === 'cancelled' ? 'border-red-200 bg-red-50' :
+                      order.status === 'completed' ? 'border-green-200 bg-green-50' :
+                      order.status === 'updated' ? 'border-yellow-200 bg-yellow-50' :
+                      'border-purple-200'
+                  }">
+                      <div class="flex justify-between items-start mb-3">
+                          <div>
+                              <h4 class="font-semibold text-purple-800">Order #${order.id.slice(-6).toUpperCase()}</h4>
+                              <p class="text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                              <p class="text-xs text-gray-500">Khách: ${order.customerEmail || order.customerId.slice(-6)}</p>
+                          </div>
+                          <div class="flex items-center gap-2">
+                              ${order.status === 'ordered' ? `
+                                  <button onclick="acceptOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm font-medium">
+                                      ✅ Nhận đơn
+                                  </button>
+                                  <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
+                                      ❌ Hủy
+                                  </button>
+                              ` : order.status === 'preparing' ? `
+                                  <button onclick="completeOrder('${order.id}')" class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-sm font-medium">
+                                      ✅ Hoàn thành
+                                  </button>
+                                  <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
+                                      ❌ Hủy
+                                  </button>
+                              ` : order.status === 'completed' || order.status === 'cancelled' ? `
+                                  <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(order.status)}">
+                                      ${getStatusText(order.status)}
+                                  </span>
+                              ` : ''}
+                          </div>
+                      </div>
+
+                      <div class="space-y-2 mb-3">
+                          ${order.items.map(item => `
+                              <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                  <div class="flex-1">
+                                      <span class="font-medium">${item.name}</span>
+                                      ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
+                                      <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                  </div>
+                                  <div class="flex items-center gap-2">
+                                      <span class="text-sm font-semibold text-orange-600">${formatCurrency(item.price * item.quantity)}</span>
+                                      ${order.status === 'preparing' ? `
+                                          <button onclick="removeItemFromOrder('${order.id}', '${item.id}')" class="text-red-500 hover:text-red-700 p-1" title="Xóa món">
+                                              <i data-lucide="x" class="w-4 h-4"></i>
+                                          </button>
+                                      ` : ''}
+                                  </div>
+                              </div>
+                          `).join('')}
+                      </div>
+
+                      ${order.status === 'preparing' ? `
+                          <div class="border-t pt-3 mb-3">
+                              <p class="text-xs text-gray-600 mb-2 font-medium">🛠 Chỉnh sửa đơn hàng:</p>
+                              <div class="flex gap-2">
+                                  <select id="add-item-${order.id}" class="flex-1 text-sm border rounded px-2 py-1">
+                                      <option value="">Chọn món thêm...</option>
+                                      ${menuItems.filter(item => item.status !== 'deleted').map(item => `
+                                          <option value="${item.id}">${item.name} - ${formatCurrency(item.price)}</option>
+                                      `).join('')}
+                                  </select>
+                                  <button onclick="addItemToOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
+                                      <i data-lucide="plus" class="w-4 h-4"></i>
+                                  </button>
+                              </div>
+                          </div>
+                      ` : ''}
+
+                      <div class="flex justify-between items-center pt-2 border-t">
+                          <span class="font-bold text-lg text-orange-600">Tổng: ${formatCurrency(order.total)}</span>
+                          <span class="text-sm px-3 py-1 rounded-full ${getStatusBadgeClass(order.status)}">
+                              ${getStatusText(order.status)}
+                          </span>
+                      </div>
+                  </div>
+              `).join('');
+
+              renderLucideIcons();
+          }
+
+          function getStatusText(status) {
+              const statusMap = {
+                  'ordered': '📋 Chờ nhận',
+                  'preparing': '👨‍🍳 Đang làm',
+                  'completed': '✅ Hoàn thành',
+                  'cancelled': '❌ Đã hủy',
+                  'updated': '🔄 Đã cập nhật'
+              };
+              return statusMap[status] || status;
+          }
+
+          function getStatusBadgeClass(status) {
+              const classMap = {
+                  'ordered': 'bg-blue-100 text-blue-800',
+                  'preparing': 'bg-yellow-100 text-yellow-800',
+                  'completed': 'bg-green-200 text-green-900',
+                  'cancelled': 'bg-red-100 text-red-800',
+                  'updated': 'bg-orange-100 text-orange-800'
+              };
+              return classMap[status] || 'bg-gray-100 text-gray-800';
+          }
+
+          // Nhận đơn hàng
+          async function acceptOrder(orderId) {
+              try {
+                  await updateDoc(doc(db, 'orders', orderId), {
+                      status: 'preparing',
+                      acceptedAt: new Date(),
+                      updatedAt: new Date()
+                  });
+
+                  showMessage(`✅ Đã nhận đơn #${orderId.slice(-6).toUpperCase()}`, "success");
+                  speak("Đã nhận đơn");
+
+              } catch (error) {
+                  console.error("Error accepting order:", error);
+                  showMessage("Lỗi nhận đơn: " + error.message, "error");
+              }
+          }
+
+          // Hủy đơn hàng
+          async function cancelOrder(orderId) {
+              if (!confirm("Bạn có chắc muốn HỦY đơn hàng này?")) return;
+
+              try {
+                  await updateDoc(doc(db, 'orders', orderId), {
+                      status: 'cancelled',
+                      cancelledAt: new Date(),
+                      cancelledBy: 'admin',
+                      updatedAt: new Date()
+                  });
+
+                  showMessage(`❌ Đã hủy đơn #${orderId.slice(-6).toUpperCase()}`, "warning");
+
+              } catch (error) {
+                  console.error("Error cancelling order:", error);
+                  showMessage("Lỗi hủy đơn: " + error.message, "error");
+              }
+          }
+
+          // Hoàn thành đơn hàng và lưu thống kê
+          async function completeOrder(orderId) {
+              if (!confirm("Xác nhận HOÀN THÀNH đơn hàng này?")) return;
+
+              try {
+                  const order = orders.find(o => o.id === orderId);
+                  if (!order) return;
+
+                  const completedAt = new Date();
+                  
+                  // 1. Cập nhật trạng thái order
+                  await updateDoc(doc(db, 'orders', orderId), {
+                      status: 'completed',
+                      completedAt: completedAt,
+                      updatedAt: completedAt
+                  });
+
+                  // 2. Lưu thống kê doanh thu
+                  const year = completedAt.getFullYear();
+                  const month = completedAt.getMonth() + 1; // 1-12
+                  const statsId = `${year}-${month.toString().padStart(2, '0')}`;
+
+                  const statsRef = doc(db, 'statistics', statsId);
+                  
+                  try {
+                      // Kiểm tra xem tháng này đã có chưa
+                      const statsDoc = await getDoc(statsRef);
+                      
+                      if (statsDoc.exists()) {
+                          // Cộng dồn vào tháng hiện tại
+                          const currentData = statsDoc.data();
+                          await updateDoc(statsRef, {
+                              totalRevenue: (currentData.totalRevenue || 0) + order.total,
+                              orderCount: (currentData.orderCount || 0) + 1,
+                              updatedAt: completedAt
+                          });
+                      } else {
+                          // Tạo mới cho tháng này
+                          await setDoc(statsRef, {
+                              year: year,
+                              month: month,
+                              totalRevenue: order.total,
+                              orderCount: 1,
+                              createdAt: completedAt,
+                              updatedAt: completedAt
+                          });
+                      }
+                  } catch (statsError) {
+                      console.error("Error updating statistics:", statsError);
+                      // Vẫn tiếp tục hoàn thành đơn dù lưu thống kê lỗi
+                  }
+
+                  showMessage(`✅ Hoàn thành đơn #${orderId.slice(-6).toUpperCase()} - ${formatCurrency(order.total)}`, "success");
+                  speak("Đơn hàng hoàn thành");
+
+              } catch (error) {
+                  console.error("Error completing order:", error);
+                  showMessage("Lỗi hoàn thành đơn: " + error.message, "error");
+              }
+          }
+
+          async function addItemToOrder(orderId) {
+              const selectElement = document.getElementById(`add-item-${orderId}`);
+              const itemId = selectElement.value;
+
+              if (!itemId) {
+                  showMessage("Vui lòng chọn món!", "warning");
+                  return;
+              }
+
+              try {
+                  const order = orders.find(o => o.id === orderId);
+                  const menuItem = menuItems.find(item => item.id === itemId);
+
+                  if (!order || !menuItem) return;
+
+                  // Check if item already exists in order
+                  const existingItem = order.items.find(item => item.id === itemId);
+                  if (existingItem) {
+                      existingItem.quantity += 1;
+                  } else {
+                      order.items.push({
+                          id: menuItem.id,
+                          name: menuItem.name,
+                          price: menuItem.price,
+                          quantity: 1,
+                          size: menuItem.size || null,
+                          category: menuItem.category
+                      });
+                  }
+
+                  // Recalculate total
+                  order.total = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+                  // Update in Firestore - vẫn giữ status preparing, không đổi thành updated
+                  await updateDoc(doc(db, 'orders', orderId), {
+                      items: order.items,
+                      total: order.total,
+                      updatedAt: new Date(),
+                      updatedBy: 'admin'
+                  });
+
+                  selectElement.value = '';
+                  showMessage(`✅ Đã thêm ${menuItem.name}`, "success");
+
+              } catch (error) {
+                  console.error("Error adding item to order:", error);
+                  showMessage("Lỗi thêm món: " + error.message, "error");
+              }
+          }
+
+          async function removeItemFromOrder(orderId, itemId) {
+              if (!confirm("Xóa món này khỏi đơn hàng?")) return;
+
+              try {
+                  const order = orders.find(o => o.id === orderId);
+                  if (!order) return;
+
+                  const removedItem = order.items.find(item => item.id === itemId);
+                  
+                  // Remove item
+                  order.items = order.items.filter(item => item.id !== itemId);
+
+                  // Recalculate total
+                  order.total = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+                  // If no items left, cancel the order
+                  if (order.items.length === 0) {
+                      await updateDoc(doc(db, 'orders', orderId), {
+                          items: order.items,
+                          total: 0,
+                          status: 'cancelled',
+                          cancelledBy: 'admin-no-items',
+                          updatedAt: new Date()
+                      });
+                      showMessage("⚠️ Đơn hàng đã bị hủy (không còn món)", "warning");
+                  } else {
+                      // Update in Firestore
+                      await updateDoc(doc(db, 'orders', orderId), {
+                          items: order.items,
+                          total: order.total,
+                          updatedAt: new Date(),
+                          updatedBy: 'admin'
+                      });
+                      showMessage(`🗑️ Đã xóa ${removedItem?.name || 'món'}`, "success");
+                  }
+
+              } catch (error) {
+                  console.error("Error removing item from order:", error);
+                  showMessage("Lỗi xóa món: " + error.message, "error");
+              }
+          }
+
+          // ==================== CUSTOMER ORDER HISTORY ====================
+          async function showMyOrders() {
+              if (!auth.currentUser) {
+                  showMessage("Vui lòng đăng nhập để xem đơn hàng!", "warning");
+                  return;
+              }
+
+              try {
+                  console.log("Loading my orders...");
+                  const q = query(collection(db, 'orders'), where('customerId', '==', userId));
+                  const querySnapshot = await getDocs(q);
+                  const myOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                  console.log("Loaded my orders:", myOrders.length);
+
+                  const modalContent = document.getElementById('my-orders-content');
+
+                  if (myOrders.length === 0) {
+                      modalContent.innerHTML = '<p class="text-gray-500 text-center py-8">Bạn chưa có đơn hàng nào</p>';
+                  } else {
+                      // Sort by newest first
+                      const sortedOrders = myOrders.sort((a, b) => {
+                          const timeA = a.createdAt?.seconds || 0;
+                          const timeB = b.createdAt?.seconds || 0;
+                          return timeB - timeA;
+                      });
+
+                      modalContent.innerHTML = sortedOrders.map(order => `
+                          <div class="bg-gray-50 p-4 rounded-lg border-2 ${
+                              order.status === 'cancelled' ? 'border-red-200' :
+                              order.status === 'completed' ? 'border-green-200' :
+                              'border-blue-200'
+                          } mb-4">
+                              <div class="flex justify-between items-start mb-3">
+                                  <div>
+                                      <h4 class="font-semibold text-blue-800">Order #${order.id.slice(-6).toUpperCase()}</h4>
+                                      <p class="text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                                  </div>
+                                  <div class="text-right">
+                                      <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(order.status)}">
+                                          ${getStatusText(order.status)}
+                                      </span>
+                                  </div>
+                              </div>
+
+                              <div class="space-y-2 mb-3">
+                                  ${order.items.map(item => `
+                                      <div class="flex justify-between items-center bg-white p-2 rounded">
+                                          <div class="flex-1">
+                                              <span class="font-medium">${item.name}</span>
+                                              ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
+                                              <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                          </div>
+                                          <div class="text-right">
+                                              <span class="text-sm font-semibold text-orange-600">${formatCurrency(item.price * item.quantity)}</span>
+                                          </div>
+                                      </div>
+                                  `).join('')}
+                              </div>
+
+                              <div class="flex justify-between items-center pt-2 border-t border-gray-300">
+                                  <span class="font-bold text-lg text-orange-600">Tổng: ${formatCurrency(order.total)}</span>
+                                  <span class="text-xs font-medium ${
+                                      order.status === 'ordered' ? 'text-blue-600' :
+                                      order.status === 'preparing' ? 'text-yellow-600' :
+                                      order.status === 'cancelled' ? 'text-red-600' :
+                                      order.status === 'completed' ? 'text-green-600' :
+                                      'text-gray-600'
+                                  }">
+                                      ${order.status === 'ordered' ? '📋 Chờ nhận đơn' :
+                                        order.status === 'preparing' ? '👨‍🍳 Đang làm' :
+                                        order.status === 'cancelled' ? '❌ Đã hủy' :
+                                        order.status === 'completed' ? '✅ Hoàn thành' :
+                                        '🔄 Đang xử lý'}
+                                  </span>
+                              </div>
+
+                              ${order.updatedBy === 'admin' && order.status === 'preparing' ? `
+                                  <div class="mt-2 p-2 bg-yellow-50 rounded text-xs text-yellow-800 border border-yellow-200">
+                                      <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+                                      Admin đã chỉnh sửa đơn hàng (thêm/xóa món)
+                                  </div>
+                              ` : ''}
+                          </div>
+                      `).join('');
+                  }
+
+                  document.getElementById('my-orders-modal').classList.remove('hidden');
+                  renderLucideIcons();
+
+              } catch (error) {
+                  console.error("Error loading my orders:", error);
+                  showMessage("Lỗi tải đơn hàng: " + error.message, "error");
+              }
+          }
+
+          function closeMyOrdersModal() {
+              document.getElementById('my-orders-modal').classList.add('hidden');
+          }
         
         // --- Custom Alert/Message ---
         function showMessage(message, type = 'info') {
@@ -1438,7 +2206,6 @@
             window.handleLogin = handleLogin;
             window.handleLogout = handleLogout;
             window.toggleAdminMode = toggleAdminMode;
-            window.handleCheckout = handleCheckout;
             window.saveItem = saveItem;
             window.deleteItem = deleteItem;
             window.handleSaveItem = handleSaveItem;
@@ -1455,8 +2222,21 @@
             window.addNewCategory = addNewCategory;
             window.editCategory = editCategory;
             window.deleteCategory = deleteCategory;
+            window.loadOrders = loadOrders;
+            window.acceptOrder = acceptOrder;
+            window.cancelOrder = cancelOrder;
+            window.completeOrder = completeOrder;
+            window.addItemToOrder = addItemToOrder;
+            window.removeItemFromOrder = removeItemFromOrder;
+            window.handleOrder = handleOrder;
+            window.showMyOrders = showMyOrders;
+            window.closeMyOrdersModal = closeMyOrdersModal;
+            window.showOrdersManagement = showOrdersManagement;
+            window.closeOrdersManagement = closeOrdersManagement;
+            window.setOrderFilter = setOrderFilter;
+            window.setDateFilter = setDateFilter;
 
-            // Fallback: Hide loading after 10 seconds if Firebase fails
+              // Fallback: Hide loading after 10 seconds if Firebase fails
             setTimeout(() => {
                 const loadingScreen = document.getElementById('loading-screen');
                 if (loadingScreen && loadingScreen.style.display !== 'none') {
@@ -1529,10 +2309,42 @@
                     <button onclick="closePriceModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
                     <button onclick="savePriceUpdate()" class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Lưu</button>
                 </div>
-            </div>
-        </div>
+              </div>
+          </div>
 
-        <!-- Add Category Modal -->
+          <!-- My Orders Modal (Customer) -->
+          <div id="my-orders-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+              <div class="bg-white p-6 rounded-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+                  <div class="flex justify-between items-center mb-4">
+                      <h3 class="text-2xl font-bold text-blue-600">📋 Đơn Hàng Của Tôi</h3>
+                      <button onclick="closeMyOrdersModal()" class="text-gray-500 hover:text-gray-700">
+                          <i data-lucide="x" class="w-6 h-6"></i>
+                      </button>
+                  </div>
+
+                  <div id="my-orders-content">
+                      <!-- Orders will be loaded here -->
+                  </div>
+              </div>
+          </div>
+          
+          <!-- Orders Management Modal (Admin) -->
+          <div id="orders-management-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+              <div class="bg-white p-6 rounded-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                  <div class="flex justify-between items-center mb-4">
+                      <h3 class="text-2xl font-bold text-purple-600">📋 Quản Lý Đơn Hàng</h3>
+                      <button onclick="closeOrdersManagement()" class="text-gray-500 hover:text-gray-700">
+                          <i data-lucide="x" class="w-6 h-6"></i>
+                      </button>
+                  </div>
+
+                  <div id="orders-management-content">
+                      <!-- Orders management will be loaded here -->
+                  </div>
+              </div>
+          </div>
+
+          <!-- Add Category Modal -->
         <div id="category-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
             <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
                 <h3 class="text-xl font-bold text-amber-900 mb-4">➕ Thêm Danh Mục Mới</h3>
