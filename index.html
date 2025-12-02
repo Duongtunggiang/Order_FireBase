@@ -3203,18 +3203,18 @@
                                   </div>
                                   <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                         ${order.status === 'ordered' ? `
+                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded hover:bg-red-600 text-[11px] sm:text-xs md:text-sm font-medium whitespace-nowrap active:scale-95 transition flex-1 sm:flex-none">
+                                              ❌ Hủy
+                                          </button>
                                           <button onclick="acceptOrder('${order.id}')" class="bg-green-500 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded hover:bg-green-600 text-[11px] sm:text-xs md:text-sm font-medium whitespace-nowrap active:scale-95 transition flex-1 sm:flex-none">
                                               ✅ Nhận đơn
                                           </button>
+                                        ` : order.status === 'preparing' ? `
                                           <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded hover:bg-red-600 text-[11px] sm:text-xs md:text-sm font-medium whitespace-nowrap active:scale-95 transition flex-1 sm:flex-none">
                                               ❌ Hủy
                                           </button>
-                                        ` : order.status === 'preparing' ? `
                                           <button onclick="completeOrder('${order.id}')" class="bg-blue-500 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded hover:bg-blue-600 text-[11px] sm:text-xs md:text-sm font-medium whitespace-nowrap active:scale-95 transition flex-1 sm:flex-none">
                                               ✅ Hoàn thành
-                                          </button>
-                                          <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded hover:bg-red-600 text-[11px] sm:text-xs md:text-sm font-medium whitespace-nowrap active:scale-95 transition flex-1 sm:flex-none">
-                                              ❌ Hủy
                                           </button>
                                         ` : `
                                           <span class="px-2 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs md:text-sm font-medium ${getStatusBadgeClass(order.status)}">
@@ -3372,18 +3372,18 @@
                           </div>
                           <div class="flex items-center gap-2">
                               ${order.status === 'ordered' ? `
-                                  <button onclick="acceptOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm font-medium">
+                                  <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium">
+                                      ❌ Hủy
+                                  </button>
+                                  <button onclick="acceptOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm font-medium ml-2">
                                       ✅ Nhận đơn
                                   </button>
-                                  <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
-                                      ❌ Hủy
-                                  </button>
                               ` : order.status === 'preparing' ? `
-                                  <button onclick="completeOrder('${order.id}')" class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-sm font-medium">
-                                      ✅ Hoàn thành
-                                  </button>
-                                  <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium ml-2">
+                                  <button onclick="cancelOrder('${order.id}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm font-medium">
                                       ❌ Hủy
+                                  </button>
+                                  <button onclick="completeOrder('${order.id}')" class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-sm font-medium ml-2">
+                                      ✅ Hoàn thành
                                   </button>
                               ` : order.status === 'completed' || order.status === 'cancelled' ? `
                                   <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(order.status)}">
