@@ -2954,11 +2954,9 @@
           // Setup mặc định cho trang quản lý đơn hàng
           function setupOrdersPage() {
               currentOrderFilter = 'ordered'; // Mặc định hiển thị đơn chờ
-              // Set default date range to today
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              dateFrom = today;
-              dateTo = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1); // End of today
+              // Don't set default date range here - let user choose
+              dateFrom = null;
+              dateTo = null;
           }
 
           function setOrderFilter(filter) {
@@ -2966,7 +2964,20 @@
               renderOrdersManagementList();
           }
 
-          function setDateRangeFilter() {
+          function toggleDateFilter() {
+              const content = document.getElementById('date-filter-content');
+              const arrow = document.getElementById('date-filter-arrow');
+
+              if (content.classList.contains('hidden')) {
+                  content.classList.remove('hidden');
+                  arrow.textContent = '▲';
+              } else {
+                  content.classList.add('hidden');
+                  arrow.textContent = '▼';
+              }
+          }
+
+          function applyDateFilter() {
               const fromInput = document.getElementById('date-from');
               const toInput = document.getElementById('date-to');
 
@@ -2984,14 +2995,38 @@
 
               currentPage = 1; // Reset to first page when changing filters
               renderOrdersManagementList();
+
+              // Close the date filter after applying
+              const content = document.getElementById('date-filter-content');
+              const arrow = document.getElementById('date-filter-arrow');
+              if (content && arrow) {
+                  content.classList.add('hidden');
+                  arrow.textContent = '▼';
+              }
           }
 
           function clearDateFilter() {
+              // Clear date filter (show all orders within date range)
               dateFrom = null;
               dateTo = null;
-              document.getElementById('date-from').value = '';
-              document.getElementById('date-to').value = '';
+
               currentPage = 1; // Reset to first page when clearing filters
+              renderOrdersManagementList();
+          }
+
+          function resetDateFilter() {
+              // Reset to default: today from 00:00 to current time
+              const now = new Date();
+              const today = new Date(now);
+              today.setHours(0, 0, 0, 0); // Start of today
+              dateFrom = today;
+              dateTo = now; // Current time
+
+              // Update input values
+              document.getElementById('date-from').value = dateFrom.toISOString().slice(0, 16);
+              document.getElementById('date-to').value = dateTo.toISOString().slice(0, 16);
+
+              currentPage = 1; // Reset to first page when resetting filters
               renderOrdersManagementList();
           }
 
@@ -3071,12 +3106,12 @@
 
               const filteredOrders = getFilteredOrders();
 
-              // Count theo status (tất cả orders, không filter)
+              // Count theo status (theo kết quả đã lọc)
               const counts = {
-                  ordered: orders.filter(o => o.status === 'ordered').length,
-                  preparing: orders.filter(o => o.status === 'preparing').length,
-                  completed: orders.filter(o => o.status === 'completed').length,
-                  cancelled: orders.filter(o => o.status === 'cancelled').length
+                  ordered: filteredOrders.filter(o => o.status === 'ordered').length,
+                  preparing: filteredOrders.filter(o => o.status === 'preparing').length,
+                  completed: filteredOrders.filter(o => o.status === 'completed').length,
+                  cancelled: filteredOrders.filter(o => o.status === 'cancelled').length
               };
 
               // Pagination calculations
@@ -3091,19 +3126,30 @@
                   <div class="bg-gray-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4 space-y-2 sm:space-y-3">
                       <!-- Date Range Filter -->
                       <div>
-                          <label class="text-xs font-medium text-gray-700 mb-1 block">🗓️ Lọc theo khoảng thời gian:</label>
-                          <div class="flex gap-2">
-                              <div class="flex-1">
-                                  <label class="text-[9px] text-gray-600 block mb-0.5">Từ:</label>
-                                  <input type="datetime-local" id="date-from" onchange="setDateRangeFilter()" class="w-full px-1.5 py-1 border border-gray-300 rounded text-[11px] focus:ring-blue-500 focus:border-blue-500" value="${dateFrom ? dateFrom.toISOString().slice(0, 16) : ''}">
+                          <button onclick="toggleDateFilter()" class="w-full text-left flex items-center justify-between text-xs font-medium text-gray-700 hover:text-gray-900 transition">
+                              <span>🗓️ Lọc theo khoảng thời gian</span>
+                              <span id="date-filter-arrow" class="text-gray-400">▼</span>
+                          </button>
+                          <div id="date-filter-content" class="hidden mt-2 space-y-2">
+                              <div class="flex gap-2">
+                                  <div class="flex-1">
+                                      <label class="text-[9px] text-gray-600 block mb-0.5">Từ:</label>
+                                  <input type="datetime-local" id="date-from" class="w-full px-1.5 py-1 border border-gray-300 rounded text-[11px] focus:ring-blue-500 focus:border-blue-500">
                               </div>
                               <div class="flex-1">
                                   <label class="text-[9px] text-gray-600 block mb-0.5">Đến:</label>
-                                  <input type="datetime-local" id="date-to" onchange="setDateRangeFilter()" class="w-full px-1.5 py-1 border border-gray-300 rounded text-[11px] focus:ring-blue-500 focus:border-blue-500" value="${dateTo ? dateTo.toISOString().slice(0, 16) : ''}">
+                                  <input type="datetime-local" id="date-to" class="w-full px-1.5 py-1 border border-gray-300 rounded text-[11px] focus:ring-blue-500 focus:border-blue-500">
+                                  </div>
                               </div>
-                              <div class="flex items-end">
-                                  <button onclick="clearDateFilter()" class="px-2 py-1 bg-gray-500 text-white rounded text-[10px] hover:bg-gray-600 active:scale-95 transition whitespace-nowrap">
-                                      Xóa
+                              <div class="flex gap-2">
+                                  <button onclick="applyDateFilter()" class="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 active:scale-95 transition">
+                                      Lọc
+                                  </button>
+                                  <button onclick="clearDateFilter()" class="px-2 py-1.5 bg-gray-500 text-white rounded text-[10px] hover:bg-gray-600 active:scale-95 transition whitespace-nowrap">
+                                      Xóa bộ lọc
+                                  </button>
+                                  <button onclick="resetDateFilter()" class="px-2 py-1.5 bg-orange-500 text-white rounded text-[10px] hover:bg-orange-600 active:scale-95 transition whitespace-nowrap">
+                                      Đặt lại
                                   </button>
                               </div>
                           </div>
@@ -3126,7 +3172,7 @@
                                   ❌ Đã hủy (${counts.cancelled})
                               </button>
                               <button onclick="setOrderFilter('all')" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${currentOrderFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'} active:scale-95 transition whitespace-nowrap">
-                                  📂 Tất cả (${orders.length})
+                                  📂 Tất cả (${filteredOrders.length})
                               </button>
                           </div>
                       </div>
@@ -3270,7 +3316,9 @@
                       ` : ''}
                   </div>
               `;
-              
+
+              // Date inputs will be empty by default, user can fill them
+
               renderLucideIcons();
           }
 
@@ -4048,7 +4096,10 @@
             window.showMyOrders = showMyOrders;
             window.closeMyOrdersModal = closeMyOrdersModal;
             window.setOrderFilter = setOrderFilter;
-            window.setDateFilter = setDateFilter;
+            window.toggleDateFilter = toggleDateFilter;
+            window.applyDateFilter = applyDateFilter;
+            window.clearDateFilter = clearDateFilter;
+            window.resetDateFilter = resetDateFilter;
             window.setItemsPerPage = setItemsPerPage;
             window.setPage = setPage;
             window.nextPage = nextPage;
