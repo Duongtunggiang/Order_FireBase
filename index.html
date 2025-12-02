@@ -419,6 +419,24 @@
                     updatedAt: new Date(),
                 };
 
+                // Add size if provided (for drinks)
+                if (item.size && item.size.trim() !== '') {
+                    itemToSave.size = item.size;
+                }
+
+                // Add newPrice if provided, remove if empty/0
+                if (item.newPrice && parseFloat(item.newPrice) > 0) {
+                    itemToSave.newPrice = parseFloat(item.newPrice);
+                }
+
+                // Filter out undefined values to prevent Firestore errors
+                Object.keys(itemToSave).forEach(key => {
+                    if (itemToSave[key] === undefined || itemToSave[key] === null) {
+                        delete itemToSave[key];
+                    }
+                });
+                // Note: If newPrice is not included, Firestore will remove the field
+
                 if (isNew) {
                     await addDoc(collection(db, PUBLIC_DATA_PATH), itemToSave);
                     console.log("Thêm món thành công");
@@ -1876,8 +1894,12 @@
                                     <input type="text" id="admin-form-name" required value="${itemToEdit ? itemToEdit.name : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">Giá (VNĐ)</label>
+                                    <label class="block text-sm font-medium text-gray-700">Giá Cũ (VNĐ)</label>
                                     <input type="number" id="admin-form-price" required value="${itemToEdit ? itemToEdit.price : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Giá Mới (VNĐ) <span class="text-xs text-gray-500">(Không bắt buộc)</span></label>
+                                    <input type="number" id="admin-form-new-price" value="${itemToEdit ? itemToEdit.newPrice || '' : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Danh Mục</label>
@@ -1913,6 +1935,15 @@
                                     <input type="url" id="admin-form-image" value="${itemToEdit ? itemToEdit.imageUrl : ''}" placeholder="https://..." class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
                                 </div>
                             </div>
+
+                            <!-- Price Preview -->
+                            <div id="admin-price-preview" class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200" style="display: none;">
+                                <div class="text-sm text-amber-800">
+                                    <strong>Preview hiển thị:</strong><br>
+                                    <span id="admin-price-preview-text"></span>
+                                </div>
+                            </div>
+
                             <div class="mt-4">
                                 <label class="block text-sm font-medium text-gray-700">Mô Tả</label>
                                 <textarea id="admin-form-description" rows="2" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">${itemToEdit ? itemToEdit.description : ''}</textarea>
@@ -2081,6 +2112,11 @@
         function clearAdminForm() {
             document.getElementById('admin-item-form').reset();
             document.getElementById('admin-form-id').value = '';
+            // Hide price preview
+            const previewDiv = document.getElementById('admin-price-preview');
+            if (previewDiv) {
+                previewDiv.style.display = 'none';
+            }
             renderApp(); // Force re-render để cập nhật tiêu đề form
         }
         
@@ -2090,11 +2126,15 @@
                 document.getElementById('admin-form-id').value = item.id;
                 document.getElementById('admin-form-name').value = item.name;
                 document.getElementById('admin-form-price').value = item.price;
+                document.getElementById('admin-form-new-price').value = item.newPrice || '';
                 document.getElementById('admin-form-category').value = item.category;
                 document.getElementById('admin-form-status').value = item.status || 'active';
                 document.getElementById('admin-form-size').value = item.size || '';
                 document.getElementById('admin-form-image').value = item.imageUrl || '';
                 document.getElementById('admin-form-description').value = item.description || '';
+
+                // Update price preview
+                updateAdminPricePreview();
 
                 // Show/hide size field based on category
                 toggleSizeField(item.category);
@@ -2110,6 +2150,41 @@
             }
         }
 
+        function updateAdminPricePreview() {
+            const oldPriceInput = document.getElementById('admin-form-price');
+            const newPriceInput = document.getElementById('admin-form-new-price');
+            const previewDiv = document.getElementById('admin-price-preview');
+            const previewText = document.getElementById('admin-price-preview-text');
+
+            if (!oldPriceInput || !newPriceInput || !previewDiv || !previewText) return;
+
+            const oldPrice = parseFloat(oldPriceInput.value);
+            const newPrice = parseFloat(newPriceInput.value);
+
+            if (newPriceInput.value && !isNaN(newPrice) && newPrice > 0) {
+                previewDiv.style.display = 'block';
+                if (newPrice >= oldPrice) {
+                    // Giá mới >= giá cũ: chỉ hiện giá mới
+                    previewText.innerHTML = `Chỉ hiện: ${formatCurrency(newPrice)}`;
+                } else {
+                    // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
+                    previewText.innerHTML = `Gạch ${formatCurrency(oldPrice)} → ${formatCurrency(newPrice)}`;
+                }
+            } else {
+                previewDiv.style.display = 'none';
+            }
+        }
+
+        function setupAdminPricePreviewListeners() {
+            const oldPriceInput = document.getElementById('admin-form-price');
+            const newPriceInput = document.getElementById('admin-form-new-price');
+
+            if (oldPriceInput && newPriceInput) {
+                oldPriceInput.addEventListener('input', updateAdminPricePreview);
+                newPriceInput.addEventListener('input', updateAdminPricePreview);
+            }
+        }
+
         // Add event listener for category change
         document.addEventListener('DOMContentLoaded', function() {
             const categorySelect = document.getElementById('admin-form-category');
@@ -2121,6 +2196,7 @@
         });
         
         function handleSaveItem() {
+            const newPriceValue = document.getElementById('admin-form-new-price').value.trim();
             const item = {
                 id: document.getElementById('admin-form-id').value,
                 name: document.getElementById('admin-form-name').value,
@@ -2131,6 +2207,12 @@
                 imageUrl: document.getElementById('admin-form-image').value,
                 description: document.getElementById('admin-form-description').value,
             };
+
+            // Add newPrice if provided
+            if (newPriceValue && parseFloat(newPriceValue) > 0) {
+                item.newPrice = parseFloat(newPriceValue);
+            }
+
             saveItem(item);
         }
 
@@ -3133,6 +3215,11 @@
                 }
             }
 
+            // Setup admin price preview listeners
+            setTimeout(() => {
+                setupAdminPricePreviewListeners();
+            }, 100);
+
             renderLucideIcons();
         }
 
@@ -3295,6 +3382,8 @@
             window.updateCategoryAdmin = updateCategoryAdmin;
             window.loadCategories = loadCategories;
             window.saveCategories = saveCategories;
+            window.updateAdminPricePreview = updateAdminPricePreview;
+            window.setupAdminPricePreviewListeners = setupAdminPricePreviewListeners;
             window.closeCategoryModal = closeCategoryModal;
             window.addNewCategory = addNewCategory;
             window.editCategory = editCategory;
