@@ -242,7 +242,14 @@
             onSnapshot(q, (snapshot) => {
                 menuItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 console.log("✅ Loaded menu items:", menuItems.length, "items");
-                console.log("📋 Menu items:", menuItems);
+                console.log("📋 Menu items:", menuItems.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    priceType: typeof item.price,
+                    newPrice: item.newPrice,
+                    newPriceType: typeof item.newPrice
+                })));
                 console.log("🔍 Raw snapshot:", snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
                 renderApp();
             }, (error) => {
@@ -623,8 +630,14 @@
                             <p class="text-sm text-gray-500 mb-2">${item.description}</p>
                             <div class="flex items-center gap-2">
                                 ${item.newPrice ?
-                                    `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
-                                     <span class="text-xl font-bold text-red-600">${formatCurrency(item.newPrice)}</span>` :
+                                    (parseFloat(item.newPrice) > parseFloat(item.price) ?
+                                        // Giá mới > giá cũ: chỉ hiện giá mới
+                                        `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
+                                        // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
+                                        `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                         <span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>`
+                                    ) :
+                                    // Không có giá mới: chỉ hiện giá cũ
                                     `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
                                 }
                                 ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">💰</button>` : ''}
@@ -659,8 +672,14 @@
                                     <div class="mt-auto flex justify-between items-center">
                                         <div class="flex items-center gap-2">
                                             ${item.newPrice ?
-                                                `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
-                                                 <span class="text-xl font-bold text-red-600">${formatCurrency(item.newPrice)}</span>` :
+                                                (parseFloat(item.newPrice) > parseFloat(item.price) ?
+                                                    // Giá mới > giá cũ: chỉ hiện giá mới
+                                                    `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
+                                                    // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
+                                                    `<span class="text-lg text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                                     <span class="text-xl font-bold text-orange-600">${formatCurrency(item.newPrice)}</span>`
+                                                ) :
+                                                // Không có giá mới: chỉ hiện giá cũ
                                                 `<span class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</span>`
                                             }
                                             ${isAdmin && !isPreviewMode ? `<button onclick="openPriceModal('${item.id}')" class="ml-1 px-1 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">💰</button>` : ''}
@@ -789,12 +808,12 @@
             const newPrice = item.newPrice || '';
 
             modalContent.innerHTML = `
-                <div class="mb-4">
+                        <div class="mb-4">
                     <h4 class="font-semibold text-amber-900 mb-2">${item.name}</h4>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Giá Hiện Tại</label>
-                            <div class="text-lg font-bold text-gray-600 ${newPrice ? 'line-through' : ''}">
+                            <div class="text-lg font-bold text-orange-600">
                                 ${formatCurrency(oldPrice)}
                             </div>
                         </div>
@@ -803,13 +822,19 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Giá Mới (Có Thể Bỏ Trống)</label>
                             <input type="number" id="new-price-input" value="${newPrice}" placeholder="Nhập giá mới..."
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                            <p class="text-xs text-gray-500 mt-1">Để trống nếu muốn xóa giá mới</p>
                         </div>
 
                         ${newPrice ? `
-                            <div class="p-3 bg-green-50 rounded-lg">
-                                <div class="text-sm text-green-800">
-                                    <strong>Giá mới:</strong> ${formatCurrency(parseFloat(newPrice))}
-                                    ${parseFloat(newPrice) > oldPrice ? '📈 (Tăng)' : parseFloat(newPrice) < oldPrice ? '📉 (Giảm)' : '➡️ (Giữ nguyên)'}
+                            <div class="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                                <div class="text-sm text-amber-800">
+                                    <strong>Preview hiển thị:</strong><br>
+                                    ${parseFloat(newPrice) > oldPrice ?
+                                        `Chỉ hiện: ${formatCurrency(parseFloat(newPrice))}` :
+                                    parseFloat(newPrice) < oldPrice ?
+                                        `Gạch ${formatCurrency(oldPrice)} → ${formatCurrency(parseFloat(newPrice))}` :
+                                        `Sẽ chỉ hiện 1 giá: ${formatCurrency(oldPrice)}`
+                                    }
                                 </div>
                             </div>
                         ` : ''}
@@ -848,7 +873,8 @@
                 }
 
                 if (newPriceValue === '') {
-                    // Xóa giá mới, chỉ giữ giá cũ (Firestore sẽ xóa field nếu không có trong update)
+                    // Xóa giá mới, chỉ giữ giá cũ
+                    // Firestore sẽ xóa field newPrice nếu không include
                 } else {
                     // Cập nhật giá mới
                     const newPriceNum = parseFloat(newPriceValue);
@@ -856,7 +882,15 @@
                         showMessage("Giá phải lớn hơn 0!", "error");
                         return;
                     }
-                    updateData.newPrice = newPriceNum;
+
+                    // Nếu giá mới bằng giá cũ, xóa newPrice
+                    if (newPriceNum === parseFloat(currentPriceUpdateItem.price)) {
+                        // Firestore sẽ xóa field newPrice nếu không include
+                        showMessage("Giá mới giống giá cũ, đã cập nhật thành 1 giá!", "info");
+                    } else {
+                        updateData.newPrice = newPriceNum;
+                        showMessage("Cập nhật giá thành công!", "success");
+                    }
                 }
 
                 // Filter out undefined values to prevent Firestore errors
@@ -1121,7 +1155,15 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.category}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">${item.size || '-'}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">${formatCurrency(item.price)}${item.newPrice ? ` → ${formatCurrency(item.newPrice)}` : ''}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">
+                                                ${item.newPrice ?
+                                                    (parseFloat(item.newPrice) > parseFloat(item.price) ?
+                                                        formatCurrency(item.newPrice) :
+                                                        `${formatCurrency(item.price)} → ${formatCurrency(item.newPrice)}`
+                                                    ) :
+                                                    formatCurrency(item.price)
+                                                }
+                                            </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                                 <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
                                                 <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900">Xóa</button>
