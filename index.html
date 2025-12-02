@@ -2771,7 +2771,8 @@
           let currentDateFilter = 'today'; // today, all
           let currentPage = 1;
           let itemsPerPage = 5; // Default 10 items per page
-          
+          let processingOrderId = localStorage.getItem('processingOrderId'); // Lấy từ storage nếu reload
+
           // Setup realtime listener cho orders
           function setupOrdersListener() {
               if (!db) {
@@ -2787,6 +2788,48 @@
                       orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                       console.log("📋 Orders updated:", orders.length);
                       
+                      // --- LOGIC TỰ ĐỘNG CHUYỂN TAB VÀ TRẠNG THÁI ---
+                      if (isAdmin) {
+                           // 1. Kiểm tra đơn hàng đang làm (processingOrderId)
+                           if (processingOrderId) {
+                               const processingOrder = orders.find(o => o.id === processingOrderId);
+                               
+                               // Nếu đơn vẫn đang làm ('preparing') -> Giữ màn hình ở tab 'preparing'
+                               if (processingOrder && processingOrder.status === 'preparing') {
+                                   if (currentOrderFilter !== 'preparing') {
+                                       currentOrderFilter = 'preparing';
+                                   }
+                               } 
+                               // Nếu đơn đã xong hoặc hủy -> Xóa trạng thái đang làm
+                               else {
+                                   processingOrderId = null;
+                                   localStorage.removeItem('processingOrderId');
+                                   
+                                   // Nếu vừa xong đơn làm, kiểm tra xem có đơn chờ nào không để chuyển về tab ordered
+                                   const hasPendingOrders = orders.some(o => o.status === 'ordered');
+                                   if (hasPendingOrders && currentOrderFilter !== 'ordered') {
+                                       currentOrderFilter = 'ordered';
+                                   }
+                               }
+                           }
+                           
+                           // 2. Logic khi có đơn mới
+                           snapshot.docChanges().forEach(change => {
+                               if (change.type === 'added') {
+                                   const order = change.doc.data();
+                                   if (order.status === 'ordered') {
+                                       showMessage(`🔔 Đơn hàng mới: #${change.doc.id.slice(-6).toUpperCase()}`, 'info');
+                                       speak(`Có đơn hàng mới`);
+                                       
+                                       // NẾU KHÔNG ĐANG LÀM ĐƠN NÀO -> Tự động chuyển sang tab chờ nhận
+                                       if (!processingOrderId && currentOrderFilter !== 'ordered') {
+                                           currentOrderFilter = 'ordered';
+                                       }
+                                   }
+                               }
+                           });
+                      }
+
                       // Re-render header để cập nhật badge
                       if (isAdmin) {
                           document.getElementById('header-container').innerHTML = renderHeader();
@@ -2808,15 +2851,6 @@
                                   guestOrder.updatedAt = orderData.updatedAt;
                                   saveSessionToCookie();
                                   console.log('📝 Guest order updated:', guestOrder);
-                              }
-                          }
-
-                          // Thông báo nếu có đơn mới (cho admin)
-                          if (change.type === 'added' && isAdmin) {
-                              const order = change.doc.data();
-                              if (order.status === 'ordered') {
-                                  showMessage(`🔔 Đơn hàng mới: #${change.doc.id.slice(-6).toUpperCase()}`, 'info');
-                                  speak(`Có đơn hàng mới`);
                               }
                           }
                       });
@@ -3261,12 +3295,20 @@
 
           // Nhận đơn hàng
           async function acceptOrder(orderId) {
+              if (!confirm("Xác nhận nhận đơn hàng này?")) return; // Add confirm check
+
               try {
                   await updateDoc(doc(db, 'orders', orderId), {
                       status: 'preparing',
                       acceptedAt: new Date(),
                       updatedAt: new Date()
                   });
+
+                  // Set as currently processing order
+                  processingOrderId = orderId;
+                  localStorage.setItem('processingOrderId', orderId);
+                  currentOrderFilter = 'preparing'; // Chuyển sang tab đang làm
+                  renderOrdersManagementList(); // Update UI immediately
 
                   showMessage(`✅ Đã nhận đơn #${orderId.slice(-6).toUpperCase()}`, "success");
                   speak("Đã nhận đơn");
@@ -3313,6 +3355,19 @@
                       completedAt: completedAt,
                       updatedAt: completedAt
                   });
+
+                  // Clear processing state
+                  if (processingOrderId === orderId) {
+                      processingOrderId = null;
+                      localStorage.removeItem('processingOrderId');
+                      
+                      // Check for pending orders to switch back
+                      const hasPendingOrders = orders.some(o => o.status === 'ordered');
+                      if (hasPendingOrders && currentOrderFilter !== 'ordered') {
+                          currentOrderFilter = 'ordered';
+                      }
+                      renderOrdersManagementList();
+                  }
 
                   // 2. Lưu thống kê doanh thu
                   const year = completedAt.getFullYear();
