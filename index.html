@@ -530,28 +530,106 @@
         }
 
         // --- Khởi tạo và Quản lý Auth ---
+        // ==================== SESSION MANAGEMENT (COOKIE) ====================
+
+        let currentSessionId = null; // ID session của khách
+        let guestOrders = []; // Lịch sử đơn hàng của khách trong session
+
+        // Tạo session ID duy nhất
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Lưu session vào cookie (expire sau 2 giờ)
+        function saveSessionToCookie() {
+            const sessionData = {
+                sessionId: currentSessionId,
+                tableNumber: currentTableNumber,
+                orders: guestOrders,
+                createdAt: new Date().toISOString()
+            };
+
+            const expirationTime = new Date();
+            expirationTime.setTime(expirationTime.getTime() + (2 * 60 * 60 * 1000)); // 2 giờ
+
+            document.cookie = `guest_session=${JSON.stringify(sessionData)}; expires=${expirationTime.toUTCString()}; path=/`;
+
+            console.log('💾 Session saved to cookie:', sessionData);
+        }
+
+        // Đọc session từ cookie
+        function loadSessionFromCookie() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'guest_session') {
+                    try {
+                        const sessionData = JSON.parse(decodeURIComponent(value));
+
+                        // Kiểm tra xem session có còn hợp lệ không (chưa quá 2 giờ)
+                        const sessionAge = Date.now() - new Date(sessionData.createdAt).getTime();
+                        const maxAge = 2 * 60 * 60 * 1000; // 2 giờ
+
+                        if (sessionAge < maxAge) {
+                            currentSessionId = sessionData.sessionId;
+                            currentTableNumber = sessionData.tableNumber;
+                            guestOrders = sessionData.orders || [];
+                            userRole = 'guest';
+
+                            console.log('📖 Session loaded from cookie:', sessionData);
+                            return true;
+                        } else {
+                            // Session hết hạn, xóa cookie
+                            clearSessionCookie();
+                            console.log('⏰ Session expired, cleared cookie');
+                        }
+                    } catch (error) {
+                        console.error('Error parsing session cookie:', error);
+                        clearSessionCookie();
+                    }
+                    break;
+                }
+            }
+            return false;
+        }
+
+        // Xóa session cookie
+        function clearSessionCookie() {
+            document.cookie = 'guest_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            currentSessionId = null;
+            currentTableNumber = null;
+            guestOrders = [];
+            userRole = 'guest';
+        }
+
         // ==================== TABLE MANAGEMENT ====================
-        
+
         // Đọc table number từ URL (QR code scan)
         function checkTableFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
             const tableNumber = urlParams.get('table');
-            
+
             if (tableNumber) {
+                // Kiểm tra xem có session cũ với bàn khác không
+                if (currentTableNumber && currentTableNumber !== tableNumber) {
+                    // Đổi bàn mới, tạo session mới
+                    console.log(`🔄 Changing table from ${currentTableNumber} to ${tableNumber}`);
+                    guestOrders = []; // Reset orders khi đổi bàn
+                }
+
                 currentTableNumber = tableNumber;
                 userRole = 'guest';
-                console.log(`🍽️ Guest accessing from Table ${tableNumber}`);
-                showMessage(`Chào mừng đến Bàn ${tableNumber}!`, 'success');
-                
-                // Lưu vào localStorage để giữ khi refresh
-                localStorage.setItem('currentTable', tableNumber);
-            } else {
-                // Kiểm tra localStorage
-                const savedTable = localStorage.getItem('currentTable');
-                if (savedTable) {
-                    currentTableNumber = savedTable;
-                    userRole = 'guest';
+
+                // Tạo session ID mới nếu chưa có
+                if (!currentSessionId) {
+                    currentSessionId = generateSessionId();
                 }
+
+                console.log(`🍽️ Guest accessing from Table ${tableNumber} (Session: ${currentSessionId})`);
+                showMessage(`Chào mừng đến Bàn ${tableNumber}!`, 'success');
+
+                // Lưu session vào cookie
+                saveSessionToCookie();
             }
         }
         
@@ -689,9 +767,12 @@
         
         function initFirebase() {
             try {
-                // Kiểm tra table từ URL trước
+                // Load session từ cookie trước
+                loadSessionFromCookie();
+
+                // Kiểm tra table từ URL (có thể override session cũ)
                 checkTableFromURL();
-                
+
                 console.log("🚀 Initializing Firebase with config:", firebaseConfig);
                 if (Object.keys(firebaseConfig).length > 0) {
                     app = initializeApp(firebaseConfig);
@@ -814,10 +895,17 @@
                             <div>
                                 <h1 class="text-2xl font-bold text-amber-900 font-serif">Quán Trà Đồ</h1>
                                 ${currentTableNumber ? `
-                                    <p class="text-sm text-teal-600 font-semibold flex items-center gap-1">
-                                        <i data-lucide="table-2" class="w-4 h-4"></i>
-                                        Bàn ${currentTableNumber}
-                                    </p>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm text-teal-600 font-semibold flex items-center gap-1">
+                                            <i data-lucide="table-2" class="w-4 h-4"></i>
+                                            Bàn ${currentTableNumber}
+                                        </p>
+                                        ${guestOrders.length > 0 ? `
+                                            <span class="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full">
+                                                ${guestOrders.length} đơn
+                                            </span>
+                                        ` : ''}
+                                    </div>
                                 ` : ''}
                             </div>
                         </div>
@@ -1672,6 +1760,22 @@
                   // TTS
                   speak(`Cảm ơn bạn. Đơn hàng trị giá ${total.toLocaleString('vi-VN')} đồng đã được đặt thành công. Mã đơn hàng là ${docRef.id.slice(-6).toUpperCase()}.`);
 
+                  // Lưu order vào session cho khách hàng (nếu là guest)
+                  if (userRole === 'guest' && currentSessionId) {
+                      const guestOrderData = {
+                          orderId: docRef.id,
+                          shortId: docRef.id.slice(-6).toUpperCase(),
+                          items: orderItems,
+                          total: total,
+                          status: 'ordered',
+                          tableNumber: currentTableNumber,
+                          createdAt: orderData.createdAt,
+                          updatedAt: orderData.updatedAt
+                      };
+                      guestOrders.push(guestOrderData);
+                      saveSessionToCookie();
+                  }
+
                   // Đóng cart và xóa giỏ hàng
                   document.getElementById('cart-sidebar').classList.add('translate-x-full');
                   cart = {};
@@ -1715,8 +1819,20 @@
                           renderOrdersManagementList();
                       }
                       
-                      // Thông báo nếu có đơn mới
+                      // Cập nhật guest orders nếu có thay đổi
                       snapshot.docChanges().forEach(change => {
+                          if (userRole === 'guest' && change.type === 'modified') {
+                              const orderData = change.doc.data();
+                              const guestOrder = guestOrders.find(o => o.orderId === change.doc.id);
+                              if (guestOrder) {
+                                  guestOrder.status = orderData.status;
+                                  guestOrder.updatedAt = orderData.updatedAt;
+                                  saveSessionToCookie();
+                                  console.log('📝 Guest order updated:', guestOrder);
+                              }
+                          }
+
+                          // Thông báo nếu có đơn mới (cho admin)
                           if (change.type === 'added' && isAdmin) {
                               const order = change.doc.data();
                               if (order.status === 'ordered') {
@@ -2280,18 +2396,26 @@
 
           // ==================== CUSTOMER ORDER HISTORY ====================
           async function showMyOrders() {
+              // Guest: xem từ cookie session
+              if (userRole === 'guest') {
+                  console.log("Loading guest orders from session...");
+                  showGuestOrders();
+                  return;
+              }
+
+              // Customer: query Firebase
               if (!auth.currentUser) {
                   showMessage("Vui lòng đăng nhập để xem đơn hàng!", "warning");
                   return;
               }
 
               try {
-                  console.log("Loading my orders...");
+                  console.log("Loading customer orders from Firebase...");
                   const q = query(collection(db, 'orders'), where('customerId', '==', userId));
                   const querySnapshot = await getDocs(q);
                   const myOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-                  console.log("Loaded my orders:", myOrders.length);
+                  console.log("Loaded customer orders:", myOrders.length);
 
                   const modalContent = document.getElementById('my-orders-content');
 
@@ -2376,6 +2500,71 @@
 
           function closeMyOrdersModal() {
               document.getElementById('my-orders-modal').classList.add('hidden');
+          }
+
+          // Hiển thị đơn hàng của guest từ session
+          function showGuestOrders() {
+              const modalContent = document.getElementById('my-orders-content');
+
+              if (guestOrders.length === 0) {
+                  modalContent.innerHTML = '<p class="text-gray-500 text-center py-8">Bạn chưa có đơn hàng nào trong phiên này</p>';
+              } else {
+                  // Sort by newest first
+                  const sortedOrders = [...guestOrders].sort((a, b) => {
+                      const timeA = new Date(a.createdAt).getTime();
+                      const timeB = new Date(b.createdAt).getTime();
+                      return timeB - timeA;
+                  });
+
+                  modalContent.innerHTML = sortedOrders.map(order => `
+                      <div class="bg-gray-50 p-4 rounded-lg border-2 ${
+                          order.status === 'cancelled' ? 'border-red-200' :
+                          order.status === 'completed' ? 'border-green-200' :
+                          'border-blue-200'
+                      } mb-4">
+                          <div class="flex justify-between items-start mb-3">
+                              <div>
+                                  <h4 class="font-semibold text-blue-800">Order #${order.shortId}</h4>
+                                  <p class="text-sm text-gray-600">${new Date(order.createdAt).toLocaleString('vi-VN')}</p>
+                                  <p class="text-xs text-gray-500">Bàn: ${order.tableNumber || 'N/A'}</p>
+                              </div>
+                              <div class="text-right">
+                                  <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(order.status)}">
+                                      ${getStatusText(order.status)}
+                                  </span>
+                              </div>
+                          </div>
+
+                          <div class="space-y-2 mb-3">
+                              ${order.items.map(item => `
+                                  <div class="flex justify-between items-center bg-white p-2 rounded">
+                                      <div class="flex-1">
+                                          <span class="font-medium">${item.name}</span>
+                                          ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
+                                          <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                      </div>
+                                      <div class="text-right">
+                                          <span class="text-sm font-semibold text-orange-600">${formatCurrency(item.price * item.quantity)}</span>
+                                      </div>
+                                  </div>
+                              `).join('')}
+                          </div>
+
+                          <div class="flex justify-between items-center pt-2 border-t border-gray-300">
+                              <span class="font-bold text-lg text-orange-600">Tổng: ${formatCurrency(order.total)}</span>
+                              <span class="text-xs text-gray-500">
+                                  ${order.status === 'ordered' ? '⏳ Chờ nhận đơn' :
+                                    order.status === 'cancelled' ? '❌ Đã hủy' :
+                                    order.status === 'completed' ? '✅ Hoàn thành' :
+                                    '🔄 Đang xử lý'}
+                              </span>
+                          </div>
+                      </div>
+                  `).join('');
+              }
+
+              document.getElementById('my-orders-modal').classList.remove('hidden');
+              renderLucideIcons();
           }
         
         // --- Custom Alert/Message ---
