@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quán Trà Sữa & Đồ Ăn - Single Page App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons for nice, clean icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, getDocs, where, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Cấu hình Firebase và Khởi tạo
+        setLogLevel('Debug');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const __initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, userId;
+        let menuItems = [];
+        let cart = {}; // { itemId: { item, quantity } }
+        let currentView = 'customer'; // 'customer', 'login', 'admin'
+        let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
+        let isAdmin = false;
+
+        // --- Hàm hỗ trợ chung ---
+        function renderLucideIcons() {
+            lucide.createIcons();
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function pcmToWav(pcm16, sampleRate = 16000) {
+            const numChannels = 1;
+            const numSamples = pcm16.length;
+            const bytesPerSample = 2;
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = numSamples * bytesPerSample;
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+
+            let offset = 0;
+
+            // RIFF chunk
+            view.setUint32(offset, 0x52494646, false); offset += 4; // "RIFF"
+            view.setUint32(offset, 36 + dataSize, true); offset += 4; // file size - 8
+            view.setUint32(offset, 0x57415645, false); offset += 4; // "WAVE"
+
+            // fmt chunk
+            view.setUint32(offset, 0x666d7420, false); offset += 4; // "fmt "
+            view.setUint32(offset, 16, true); offset += 4; // chunk size
+            view.setUint16(offset, 1, true); offset += 2; // format (1 = PCM)
+            view.setUint16(offset, numChannels, true); offset += 2; // channels
+            view.setUint32(offset, sampleRate, true); offset += 4; // sample rate
+            view.setUint32(offset, byteRate, true); offset += 4; // byte rate
+            view.setUint16(offset, blockAlign, true); offset += 2; // block align
+            view.setUint16(offset, bytesPerSample * 8, true); offset += 2; // bits per sample
+
+            // data chunk
+            view.setUint32(offset, 0x64617461, false); offset += 4; // "data"
+            view.setUint32(offset, dataSize, true); offset += 4; // data size
+
+            // write PCM data
+            for (let i = 0; i < numSamples; i++) {
+                view.setInt16(offset, pcm16[i], true);
+                offset += 2;
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        async function speak(text) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=`;
+            const payload = {
+                contents: [{ parts: [{ text: text }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } }
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            const maxRetries = 5;
+            let currentDelay = 1000;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                    const result = await response.json();
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                        // Assuming a default sample rate of 16000 Hz for PCM16 audio
+                        const sampleRate = 16000;
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        const pcm16 = new Int16Array(pcmData);
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        const audio = new Audio(audioUrl);
+                        audio.play();
+                        return;
+                    }
+                } catch (error) {
+                    console.error(`TTS API failed (attempt ${i + 1}):`, error);
+                    if (i < maxRetries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, currentDelay));
+                        currentDelay *= 2; // Exponential backoff
+                    } else {
+                        console.error('TTS failed after multiple retries.');
+                    }
+                }
+            }
+        }
+
+        // --- Quản lý Giỏ hàng ---
+        function updateCart(itemId, change) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            if (cart[itemId]) {
+                cart[itemId].quantity += change;
+            } else if (change > 0) {
+                cart[itemId] = { item: item, quantity: 1 };
+            }
+
+            if (cart[itemId] && cart[itemId].quantity <= 0) {
+                delete cart[itemId];
+            }
+
+            localStorage.setItem('cart', JSON.stringify(cart));
+            renderApp();
+        }
+
+        // --- Quản lý State View ---
+        function setView(viewName) {
+            currentView = viewName;
+            renderApp();
+            if (viewName !== 'login') {
+                document.getElementById('login-form').reset();
+            }
+        }
+
+        function setCategory(categoryName) {
+            currentCategory = categoryName;
+            renderApp();
+        }
+
+        function toggleAdminMode() {
+            if (isAdmin) {
+                currentView = currentView === 'customer' ? 'admin' : 'customer';
+                renderApp();
+            }
+        }
+        
+        function formatCurrency(amount) {
+            return amount.toLocaleString('vi-VN') + ' ₫';
+        }
+
+        // --- Quản lý Dữ liệu Firebase ---
+        const PUBLIC_DATA_PATH = `artifacts/${appId}/public/data/menuItems`;
+        const PRIVATE_SALES_PATH = `artifacts/${appId}/users/${userId}/sales`;
+
+        function setupMenuListener() {
+            if (!db) return;
+            const q = query(collection(db, PUBLIC_DATA_PATH));
+
+            onSnapshot(q, (snapshot) => {
+                menuItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderApp();
+            }, (error) => {
+                console.error("Lỗi khi nghe thay đổi menu:", error);
+            });
+        }
+        
+        async function saveItem(item) {
+            const isNew = !item.id;
+            const itemToSave = {
+                name: item.name,
+                description: item.description,
+                price: parseFloat(item.price),
+                category: item.category,
+                imageUrl: item.imageUrl || `https://placehold.co/150x150/f0d48f/8b542f?text=${encodeURIComponent(item.name.substring(0, 10))}`,
+                updatedAt: new Date(),
+            };
+
+            try {
+                if (isNew) {
+                    await addDoc(collection(db, PUBLIC_DATA_PATH), itemToSave);
+                    console.log("Thêm món thành công");
+                } else {
+                    const itemRef = doc(db, PUBLIC_DATA_PATH, item.id);
+                    await updateDoc(itemRef, itemToSave);
+                    console.log("Cập nhật món thành công");
+                }
+                setView('admin'); // Trở về trang quản lý
+            } catch (e) {
+                console.error("Lỗi khi lưu món:", e);
+                // Hiển thị thông báo lỗi trên UI nếu cần
+            }
+        }
+        
+        async function deleteItem(id) {
+            if (!confirm("Bạn có chắc chắn muốn xóa món này?")) return;
+            try {
+                await deleteDoc(doc(db, PUBLIC_DATA_PATH, id));
+                console.log("Xóa món thành công");
+            } catch (e) {
+                console.error("Lỗi khi xóa món:", e);
+            }
+        }
+
+        // --- Quản lý Đăng nhập/Đăng xuất ---
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = e.target.email.value;
+            const password = e.target.password.value;
+            
+            // Đây là Logic Đăng nhập/Đăng ký đơn giản. Trong thực tế, bạn cần một cơ chế Admin cụ thể hơn.
+            // Để đơn giản, tôi sẽ cho phép đăng nhập qua Email/Password
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // AuthStateChanged sẽ lo việc chuyển view
+            } catch (error) {
+                console.error("Lỗi đăng nhập:", error.code, error.message);
+                document.getElementById('login-message').textContent = "Đăng nhập thất bại. Vui lòng kiểm tra email/mật khẩu hoặc đăng ký.";
+            }
+        }
+        
+        async function handleLogout() {
+            try {
+                await signOut(auth);
+                // AuthStateChanged sẽ lo việc chuyển view
+            } catch (error) {
+                console.error("Lỗi đăng xuất:", error);
+            }
+        }
+
+        // --- Khởi tạo và Quản lý Auth ---
+        function initFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length > 0) {
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                } else {
+                    console.warn("Firebase Config không tồn tại. Dùng chế độ Demo.");
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        // Giả định: nếu user có email/password (đã đăng nhập) thì là Admin
+                        isAdmin = user.email !== null;
+                        
+                        if (__initial_auth_token && user.isAnonymous) {
+                            // Đây là logic đặc biệt cho môi trường Canvas, dùng token ban đầu
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                            // Sau khi đăng nhập bằng custom token, user vẫn là ẩn danh.
+                            userId = auth.currentUser.uid;
+                            isAdmin = false;
+                        }
+                        
+                        if (db) setupMenuListener();
+                        
+                        // Chuyển về trạng thái Khách hàng nếu không phải Admin
+                        if (isAdmin && currentView === 'login') {
+                           setView('admin');
+                        } else if (!isAdmin && currentView === 'login') {
+                           setView('customer');
+                        }
+                    } else {
+                        // User đã đăng xuất
+                        isAdmin = false;
+                        userId = crypto.randomUUID(); // Dùng ID ngẫu nhiên cho khách ẩn danh
+                        if (db) {
+                            // Đăng nhập ẩn danh để có quyền đọc/ghi theo Rules (nếu chưa có auth token)
+                            if (!__initial_auth_token) await signInAnonymously(auth);
+                            setupMenuListener();
+                        }
+                        setView('customer');
+                    }
+                    renderApp();
+                });
+            } catch (e) {
+                console.error("Lỗi khởi tạo Firebase:", e);
+            }
+        }
+
+
+        // --- Render UI ---
+        function renderHeader() {
+            const loginButton = isAdmin 
+                ? `<button onclick="handleLogout()" class="px-4 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition duration-150">Đăng Xuất</button>`
+                : `<button onclick="setView('login')" class="px-4 py-2 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition duration-150">Đăng Nhập</button>`;
+
+            const adminToggle = isAdmin 
+                ? `<button onclick="toggleAdminMode()" class="flex items-center space-x-2 px-4 py-2 rounded-full bg-yellow-500 text-brown-900 font-semibold hover:bg-yellow-600 transition duration-150">
+                    <i data-lucide="${currentView === 'admin' ? 'store' : 'settings'}" class="w-5 h-5"></i>
+                    <span>Xem ${currentView === 'admin' ? 'Khách Hàng' : 'Admin'}</span>
+                </button>` : '';
+
+            return `
+                <header class="sticky top-0 z-20 bg-amber-100/90 backdrop-blur-sm shadow-md border-b border-yellow-700/50">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                        <!-- Logo Quán -->
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="coffee" class="text-amber-800 w-8 h-8"></i>
+                            <h1 class="text-2xl font-bold text-amber-900 font-serif">Quán Trà Đồ</h1>
+                        </div>
+                        
+                        <!-- Liên hệ & Đăng nhập -->
+                        <div class="flex items-center space-x-4">
+                            ${adminToggle}
+                            <a href="#" class="text-amber-800 hover:text-orange-600 transition duration-150 hidden sm:block">
+                                <i data-lucide="phone" class="w-5 h-5 inline mr-1"></i> Liên Hệ
+                            </a>
+                            ${loginButton}
+                            <button onclick="document.getElementById('cart-sidebar').classList.remove('translate-x-full')" class="relative p-2 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition duration-150 shadow-md">
+                                <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+                                ${Object.keys(cart).length > 0 ? `<span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">${Object.values(cart).reduce((sum, item) => sum + item.quantity, 0)}</span>` : ''}
+                            </button>
+                        </div>
+                    </div>
+                </header>
+            `;
+        }
+
+        function renderMenuSelection() {
+            const categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
+            return `
+                <div class="flex justify-center space-x-2 p-4 bg-amber-50 shadow-inner sticky top-[68px] z-10">
+                    ${categories.map(cat => `
+                        <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-semibold py-2 px-6 rounded-full transition duration-150">
+                            ${cat}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        function renderCustomerMenu() {
+            const filteredItems = menuItems.filter(item => item.category === currentCategory);
+            
+            if (currentCategory === 'Đồ Uống') {
+                // Layout Đồ Uống: 1 món/hàng, ảnh trái
+                return filteredItems.map(item => `
+                    <div class="flex items-center bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-4 border border-amber-200">
+                        <img src="${item.imageUrl}" alt="${item.name}" class="w-24 h-24 object-cover rounded-lg mr-4 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
+                        <div class="flex-grow">
+                            <h3 class="text-lg font-semibold text-amber-900">${item.name}</h3>
+                            <p class="text-sm text-gray-500 mb-2">${item.description}</p>
+                            <p class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</p>
+                        </div>
+                        <button onclick="updateCart('${item.id}', 1)" class="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-md">
+                            <i data-lucide="plus" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                `).join('');
+            } else {
+                // Layout Đồ Ăn/Đồ Nhậu: 2 món/hàng, khung vuông
+                return `
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 p-4 sm:p-6">
+                        ${filteredItems.map(item => `
+                            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-300 flex flex-col hover:shadow-xl transition duration-300">
+                                <img src="${item.imageUrl}" alt="${item.name}" class="w-full h-32 sm:h-40 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x160/f0d48f/8b542f?text=Món+Ăn'">
+                                <div class="p-4 flex flex-col flex-grow">
+                                    <h3 class="text-lg font-bold text-amber-900 mb-1">${item.name}</h3>
+                                    <p class="text-xs text-gray-500 line-clamp-2 mb-3">${item.description}</p>
+                                    <div class="mt-auto flex justify-between items-center">
+                                        <p class="text-xl font-bold text-orange-600">${formatCurrency(item.price)}</p>
+                                        <button onclick="updateCart('${item.id}', 1)" class="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 shadow-md">
+                                            <i data-lucide="plus" class="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        }
+        
+        function renderLoginView() {
+            return `
+                <div class="flex justify-center items-center py-20 bg-amber-50 min-h-screen">
+                    <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl border border-yellow-700/50">
+                        <h2 class="text-3xl font-bold text-center text-amber-900 mb-6">Đăng Nhập Admin</h2>
+                        <form id="login-form" onsubmit="handleLogin(event)">
+                            <div class="mb-4">
+                                <label for="email" class="block text-amber-800 font-semibold mb-2">Email</label>
+                                <input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="admin@quan.vn">
+                            </div>
+                            <div class="mb-6">
+                                <label for="password" class="block text-amber-800 font-semibold mb-2">Mật khẩu</label>
+                                <input type="password" id="password" name="password" required class="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="••••••••">
+                            </div>
+                            <p id="login-message" class="text-red-500 text-sm mb-4"></p>
+                            <button type="submit" class="w-full bg-orange-600 text-white py-3 rounded-xl font-bold hover:bg-orange-700 transition duration-150 shadow-lg">Đăng Nhập</button>
+                        </form>
+                        <p class="mt-4 text-center text-sm text-gray-500">
+                            (Chỉ dành cho Quản trị viên)
+                        </p>
+                        <button onclick="setView('customer')" class="w-full mt-4 text-orange-600 hover:text-orange-800 transition duration-150 text-sm">
+                            Trở về trang khách hàng
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderAdminDashboard() {
+            const totalRevenue = 15000000; // Mock data
+            const totalOrders = 120; // Mock data
+            
+            const itemToEdit = menuItems.find(i => i.id === (document.getElementById('admin-form-id')?.value || null));
+
+            return `
+                <div class="p-6 md:p-10 bg-gray-50 min-h-screen">
+                    <h2 class="text-3xl font-bold text-amber-900 mb-6">Bảng Điều Khiển Quản Trị (Admin)</h2>
+                    
+                    <!-- Thống kê doanh thu tháng (Mock) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500">
+                            <p class="text-sm text-gray-500">Doanh Thu Tháng (Mock)</p>
+                            <p class="text-3xl font-extrabold text-amber-900 mt-1">${formatCurrency(totalRevenue)}</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-yellow-500">
+                            <p class="text-sm text-gray-500">Tổng Đơn Hàng (Mock)</p>
+                            <p class="text-3xl font-extrabold text-amber-900 mt-1">${totalOrders}</p>
+                        </div>
+                         <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-amber-500">
+                            <p class="text-sm text-gray-500">Số Món Đang Bán</p>
+                            <p class="text-3xl font-extrabold text-amber-900 mt-1">${menuItems.length}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Phần Quản lý Món ăn -->
+                    <div class="bg-white p-6 rounded-xl shadow-2xl mb-8">
+                        <h3 class="text-2xl font-bold text-orange-600 mb-4">${itemToEdit ? 'Chỉnh Sửa Món' : 'Thêm Món Mới'}</h3>
+                        <form id="admin-item-form" onsubmit="event.preventDefault(); handleSaveItem()">
+                            <input type="hidden" id="admin-form-id" value="${itemToEdit ? itemToEdit.id : ''}">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Tên Món</label>
+                                    <input type="text" id="admin-form-name" required value="${itemToEdit ? itemToEdit.name : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Giá (VNĐ)</label>
+                                    <input type="number" id="admin-form-price" required value="${itemToEdit ? itemToEdit.price : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Danh Mục</label>
+                                    <select id="admin-form-category" required class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                        <option value="Đồ Uống" ${itemToEdit && itemToEdit.category === 'Đồ Uống' ? 'selected' : ''}>Đồ Uống</option>
+                                        <option value="Đồ Ăn" ${itemToEdit && itemToEdit.category === 'Đồ Ăn' ? 'selected' : ''}>Đồ Ăn</option>
+                                        <option value="Đồ Nhậu" ${itemToEdit && itemToEdit.category === 'Đồ Nhậu' ? 'selected' : ''}>Đồ Nhậu</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">URL Ảnh</label>
+                                    <input type="url" id="admin-form-image" value="${itemToEdit ? itemToEdit.imageUrl : ''}" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <label class="block text-sm font-medium text-gray-700">Mô Tả</label>
+                                <textarea id="admin-form-description" rows="2" class="mt-1 block w-full rounded-md border-amber-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">${itemToEdit ? itemToEdit.description : ''}</textarea>
+                            </div>
+                            <div class="mt-6 flex justify-end space-x-3">
+                                <button type="button" onclick="clearAdminForm()" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy/Thêm Mới</button>
+                                <button type="submit" class="px-4 py-2 bg-orange-600 text-white rounded-md shadow-lg text-sm font-medium hover:bg-orange-700">
+                                    ${itemToEdit ? 'Cập Nhật Món' : 'Thêm Món'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Danh sách Món ăn -->
+                    <div class="bg-white p-6 rounded-xl shadow-2xl">
+                        <h3 class="text-2xl font-bold text-amber-900 mb-4">Danh Sách Món Ăn/Đồ Uống (${menuItems.length})</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-amber-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${menuItems.map(item => `
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-amber-900">${item.name}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.category}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">${formatCurrency(item.price)}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                                <button onclick="loadItemForEdit('${item.id}')" class="text-indigo-600 hover:text-indigo-900">Sửa</button>
+                                                <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-900">Xóa</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function clearAdminForm() {
+            document.getElementById('admin-item-form').reset();
+            document.getElementById('admin-form-id').value = '';
+            renderApp(); // Force re-render để cập nhật tiêu đề form
+        }
+        
+        function loadItemForEdit(itemId) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (item) {
+                document.getElementById('admin-form-id').value = item.id;
+                document.getElementById('admin-form-name').value = item.name;
+                document.getElementById('admin-form-price').value = item.price;
+                document.getElementById('admin-form-category').value = item.category;
+                document.getElementById('admin-form-image').value = item.imageUrl || '';
+                document.getElementById('admin-form-description').value = item.description || '';
+                renderApp(); // Force re-render để cập nhật tiêu đề form
+            }
+        }
+        
+        function handleSaveItem() {
+            const item = {
+                id: document.getElementById('admin-form-id').value,
+                name: document.getElementById('admin-form-name').value,
+                price: parseFloat(document.getElementById('admin-form-price').value),
+                category: document.getElementById('admin-form-category').value,
+                imageUrl: document.getElementById('admin-form-image').value,
+                description: document.getElementById('admin-form-description').value,
+            };
+            saveItem(item);
+        }
+
+
+        function renderMainContent() {
+            switch (currentView) {
+                case 'login':
+                    return renderLoginView();
+                case 'admin':
+                    return isAdmin ? renderAdminDashboard() : renderLoginView();
+                case 'customer':
+                default:
+                    const menuHtml = currentCategory === 'Đồ Uống' 
+                        ? `<div class="max-w-7xl mx-auto p-4 md:p-6 space-y-4">${renderCustomerMenu()}</div>`
+                        : `<div class="max-w-7xl mx-auto">${renderCustomerMenu()}</div>`;
+                    
+                    return `
+                        ${renderMenuSelection()}
+                        <main class="bg-amber-50">
+                            ${menuHtml}
+                        </main>
+                    `;
+            }
+        }
+        
+        function renderCartSidebar() {
+            const itemsInCart = Object.values(cart);
+            const total = itemsInCart.reduce((sum, entry) => sum + (entry.item.price * entry.quantity), 0);
+            const cartClasses = Object.keys(cart).length === 0 
+                ? 'translate-x-full' // Ẩn khi không có món
+                : ''; // Giữ trạng thái ẩn/hiện dựa trên click
+
+            return `
+                <!-- Nền đen mờ -->
+                <div id="cart-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300 ${document.getElementById('cart-sidebar')?.classList.contains('translate-x-full') ? 'hidden' : ''}" onclick="document.getElementById('cart-sidebar').classList.add('translate-x-full')"></div>
+            
+                <div id="cart-sidebar" class="fixed top-0 right-0 w-full md:w-96 h-full bg-white shadow-2xl z-40 transform transition-transform duration-300 ${cartClasses}">
+                    <div class="flex justify-between items-center p-4 border-b border-amber-200 bg-amber-50">
+                        <h3 class="text-xl font-bold text-amber-900 flex items-center">
+                            <i data-lucide="shopping-basket" class="w-6 h-6 mr-2"></i> Giỏ Hàng
+                        </h3>
+                        <button onclick="document.getElementById('cart-sidebar').classList.add('translate-x-full')" class="p-2 rounded-full hover:bg-gray-100 text-amber-800">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="p-4 overflow-y-auto h-[calc(100%-140px)]">
+                        ${itemsInCart.length > 0 ? itemsInCart.map(entry => `
+                            <div class="flex items-center justify-between py-3 border-b border-dashed border-amber-100">
+                                <div class="flex-grow pr-4">
+                                    <p class="font-semibold text-amber-900">${entry.item.name}</p>
+                                    <p class="text-sm text-orange-600">${formatCurrency(entry.item.price)} x ${entry.quantity}</p>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <button onclick="updateCart('${entry.item.id}', -1)" class="p-1 text-sm bg-amber-200 rounded-full hover:bg-amber-300 transition duration-150">
+                                        <i data-lucide="minus" class="w-4 h-4"></i>
+                                    </button>
+                                    <span class="w-6 text-center text-amber-900 font-medium">${entry.quantity}</span>
+                                    <button onclick="updateCart('${entry.item.id}', 1)" class="p-1 text-sm bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150">
+                                        <i data-lucide="plus" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('') : '<p class="text-center text-gray-500 mt-10">Giỏ hàng trống.</p>'}
+                    </div>
+                    
+                    <div class="absolute bottom-0 w-full p-4 border-t border-amber-300 bg-white">
+                        <div class="flex justify-between items-center mb-3">
+                            <p class="text-lg font-bold text-amber-900">Tổng Cộng:</p>
+                            <p class="text-2xl font-extrabold text-red-600">${formatCurrency(total)}</p>
+                        </div>
+                        <button class="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition duration-150 shadow-lg" onclick="handleCheckout(${total})">
+                            <i data-lucide="check-circle" class="w-5 h-5 inline mr-2"></i> Thanh Toán
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleCheckout(total) {
+            if (total === 0) {
+                 showMessage("Giỏ hàng trống! Vui lòng chọn món.", 'warning');
+                 return;
+            }
+            // Logic Thanh toán (Mock - trong thực tế sẽ lưu vào Firestore)
+            showMessage(`Đã đặt hàng thành công! Tổng cộng: ${formatCurrency(total)}`, 'success');
+            
+            // TTS
+            speak(`Cảm ơn bạn. Đơn hàng trị giá ${total.toLocaleString('vi-VN')} đồng đã được đặt thành công.`);
+
+            // Xóa giỏ hàng
+            cart = {};
+            localStorage.removeItem('cart');
+            renderApp();
+        }
+        
+        // --- Custom Alert/Message ---
+        function showMessage(message, type = 'info') {
+            const messageBox = document.getElementById('message-box');
+            messageBox.textContent = message;
+            
+            let classes = '';
+            if (type === 'success') {
+                classes = 'bg-green-100 text-green-800 border-green-400';
+            } else if (type === 'warning') {
+                classes = 'bg-yellow-100 text-yellow-800 border-yellow-400';
+            } else { // info/error
+                classes = 'bg-red-100 text-red-800 border-red-400';
+            }
+            
+            messageBox.className = `p-3 rounded-lg border fixed top-4 left-1/2 -translate-x-1/2 z-50 shadow-lg transition-opacity duration-300 ${classes}`;
+            messageBox.style.opacity = '1';
+            
+            setTimeout(() => {
+                messageBox.style.opacity = '0';
+            }, 3000);
+        }
+
+        function renderApp() {
+            const appContainer = document.getElementById('app-container');
+            if (!appContainer) return;
+
+            // Render Header
+            document.getElementById('header-container').innerHTML = renderHeader();
+
+            // Render Main Content (Menu/Login/Admin)
+            document.getElementById('main-content-container').innerHTML = renderMainContent();
+
+            // Render Cart Sidebar
+            document.getElementById('cart-container').innerHTML = renderCartSidebar();
+            
+            // Xử lý giỏ hàng ban đầu (khi user mở app)
+            const storedCart = localStorage.getItem('cart');
+            if (storedCart) {
+                try {
+                    cart = JSON.parse(storedCart);
+                } catch(e) {
+                    console.error("Lỗi parse giỏ hàng:", e);
+                    cart = {};
+                }
+            }
+
+            renderLucideIcons();
+        }
+
+        // --- Khởi tạo Ứng dụng ---
+        window.onload = function() {
+            initFirebase();
+            window.updateCart = updateCart;
+            window.setView = setView;
+            window.setCategory = setCategory;
+            window.handleLogin = handleLogin;
+            window.handleLogout = handleLogout;
+            window.toggleAdminMode = toggleAdminMode;
+            window.handleCheckout = handleCheckout;
+            window.saveItem = saveItem;
+            window.deleteItem = deleteItem;
+            window.handleSaveItem = handleSaveItem;
+            window.loadItemForEdit = loadItemForEdit;
+            window.clearAdminForm = clearAdminForm;
+            window.speak = speak;
+
+            renderApp(); // Render lần đầu
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fef3c7; /* Amber-100 light background */
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #fef3c7;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d97706; /* Orange-700 */
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <div id="app-container" class="relative">
+        <div id="header-container">
+            <!-- Header sẽ được render tại đây -->
+        </div>
+
+        <div id="main-content-container">
+            <!-- Nội dung chính (Menu, Login, Admin) sẽ được render tại đây -->
+        </div>
+
+        <div id="cart-container">
+            <!-- Giỏ hàng Sidebar sẽ được render tại đây -->
+        </div>
+        
+        <!-- Hộp thông báo tùy chỉnh (thay thế alert) -->
+        <div id="message-box" style="opacity: 0; pointer-events: none;" class="p-3 rounded-lg border fixed top-4 left-1/2 -translate-x-1/2 z-50 shadow-lg transition-opacity duration-300"></div>
+
+        <!-- Footer đơn giản -->
+        <footer class="bg-amber-900 text-white p-4 mt-8 text-center text-sm">
+            Bản quyền &copy; 2024 Quán Trà Đồ. Phát triển bằng HTML, Tailwind & Firebase.
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,232 @@
+{
+  "_comment": "Firebase Firestore Import Data - Copy nội dung này vào Firebase Console",
+  "_instructions": [
+    "1. Vào Firebase Console > Firestore Database",
+    "2. Chọn Import JSON",
+    "3. Paste nội dung từ file này",
+    "4. Import vào collection: menuItems",
+    "5. Hoặc dùng Firebase Admin SDK để import programmatically"
+  ],
+  "menuItems": [
+    {
+      "name": "Trà Sữa Trân Châu Đường Đen",
+      "description": "Trà sữa truyền thống với trân châu dẻo ngon và đường đen đặc trưng",
+      "price": 35000,
+      "category": "Đồ Uống",
+      "imageUrl": "https://images.unsplash.com/photo-1558857563-b371033873b8?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Trà Đá Xanh Latte",
+      "description": "Trà xanh Nhật Bản pha latte kem sữa, vị thanh mát",
+      "price": 45000,
+      "category": "Đồ Uống",
+      "imageUrl": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Cà Phê Sữa Đá",
+      "description": "Cà phê đen pha sữa tươi, vị đắng ngọt cân bằng",
+      "price": 25000,
+      "category": "Đồ Uống",
+      "imageUrl": "https://images.unsplash.com/photo-1559496417-e7f25cb247f3?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Sinh Tố Bơ",
+      "description": "Sinh tố bơ tươi với sữa đặc và đá lạnh",
+      "price": 40000,
+      "category": "Đồ Uống",
+      "imageUrl": "https://images.unsplash.com/photo-1553909489-cd5096e7fb06?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Trà Ô Long Kem Phô Mai",
+      "description": "Trà ô long đậm đà phủ lớp kem phô mai thơm ngon",
+      "price": 50000,
+      "category": "Đồ Uống",
+      "imageUrl": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Nước Ép Dưa Hấu",
+      "description": "Nước ép dưa hấu tươi nguyên chất, giải khát",
+      "price": 30000,
+      "category": "Đồ Uống",
+      "imageUrl": "https://images.unsplash.com/photo-1546173159-315724a3167d?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Bánh Mì Kẹp Thịt Nướng",
+      "description": "Bánh mì giòn tan kẹp thịt nướng thơm ngon với rau củ",
+      "price": 25000,
+      "category": "Đồ Ăn",
+      "imageUrl": "https://images.unsplash.com/photo-1551782450-17144efb5723?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Cơm Tấm Sườn Bì",
+      "description": "Cơm tấm với sườn nướng, bì, trứng ốp la và đồ chua",
+      "price": 35000,
+      "category": "Đồ Ăn",
+      "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Phở Bò",
+      "description": "Phở bò tái chín với nước dùng ninh xương thơm ngọt",
+      "price": 40000,
+      "category": "Đồ Ăn",
+      "imageUrl": "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Gỏi Cuốn",
+      "description": "Gỏi cuốn tươi với tôm, thịt, rau sống và nước mắm chua ngọt",
+      "price": 30000,
+      "category": "Đồ Ăn",
+      "imageUrl": "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Bún Bò Huế",
+      "description": "Bún bò Huế cay nồng với thịt bò và giò heo",
+      "price": 45000,
+      "category": "Đồ Ăn",
+      "imageUrl": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Salad Trái Cây",
+      "description": "Salad trái cây tươi với dừa, xoài, dưa hấu và mật ong",
+      "price": 28000,
+      "category": "Đồ Ăn",
+      "imageUrl": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Mì Xào Hải Sản",
+      "description": "Mì xào với tôm, mực, bạch tuộc và rau củ tươi",
+      "price": 42000,
+      "category": "Đồ Ăn",
+      "imageUrl": "https://images.unsplash.com/photo-1563379091339-03246963d96c?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Bia Sài Gòn Lager",
+      "description": "Bia Sài Gòn Lager mát lạnh, vị đắng nhẹ",
+      "price": 25000,
+      "category": "Đồ Nhậu",
+      "imageUrl": "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Rượu Vang Đỏ",
+      "description": "Rượu vang đỏ nhập khẩu, phù hợp để nhâm nhi",
+      "price": 150000,
+      "category": "Đồ Nhậu",
+      "imageUrl": "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Cocktail Mojito",
+      "description": "Cocktail Mojito với bạc hà, chanh và soda",
+      "price": 55000,
+      "category": "Đồ Nhậu",
+      "imageUrl": "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Bia Tiger",
+      "description": "Bia Tiger mát lạnh từ Singapore",
+      "price": 20000,
+      "category": "Đồ Nhậu",
+      "imageUrl": "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Whisky Chivas Regal",
+      "description": "Whisky Chivas Regal 12 năm, vị cổ điển",
+      "price": 350000,
+      "category": "Đồ Nhậu",
+      "imageUrl": "https://images.unsplash.com/photo-1527281400683-1a8a7ce3491c?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Tôm Lột Nướng",
+      "description": "Tôm lột nướng muối ớt, ăn kèm với bia",
+      "price": 120000,
+      "category": "Đồ Nhậu",
+      "imageUrl": "https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "name": "Khô Bò",
+      "description": "Khô bò cay ngọt, món nhậu không thể thiếu",
+      "price": 80000,
+      "category": "Đồ Nhậu",
+      "imageUrl": "https://images.unsplash.com/photo-1551782450-17144efb5723?w=400&h=300&fit=crop&crop=center",
+      "updatedAt": {
+        "_seconds": 1700000000,
+        "_nanoseconds": 0
+      }
+    }
+  ]
+}

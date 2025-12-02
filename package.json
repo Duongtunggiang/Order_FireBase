@@ -1,0 +1,15 @@
+{
+  "name": "quan-tra-do-import",
+  "version": "1.0.0",
+  "description": "Script import dữ liệu mẫu cho quán trà sữa",
+  "main": "import-data.js",
+  "scripts": {
+    "import": "node import-data.js"
+  },
+  "dependencies": {
+    "firebase": "^11.6.1"
+  },
+  "keywords": ["firebase", "firestore", "import", "quan-tra-do"],
+  "author": "Quan Tra Do",
+  "license": "MIT"
+}
