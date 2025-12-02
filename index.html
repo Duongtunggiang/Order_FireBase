@@ -2266,23 +2266,23 @@
                                 <span class="hidden sm:inline">Thêm Danh Mục</span>
                             </button>
                         </div>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4 max-h-48 overflow-y-auto">
+                        <div class="space-y-2 max-h-48 overflow-y-auto">
                             ${categories.map((cat, index) => `
-                                <div class="bg-indigo-50 p-3 sm:p-4 rounded-lg border border-indigo-200 flex justify-between items-center active:scale-[0.98] transition">
-                                    <div class="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
-                                        <span class="text-base sm:text-lg flex-shrink-0">${getCategoryIcon(cat)}</span>
-                                        <span class="font-medium text-gray-800 text-xs sm:text-sm truncate">${cat}</span>
-                                        <span class="text-[10px] sm:text-xs bg-indigo-100 text-indigo-800 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full flex-shrink-0">
+                                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-200 flex justify-between items-center active:scale-[0.98] transition">
+                                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                                        <span class="text-lg flex-shrink-0">${getCategoryIcon(cat)}</span>
+                                        <span class="font-medium text-gray-800 truncate">${cat}</span>
+                                        <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full flex-shrink-0 ml-2">
                                             ${menuItems.filter(item => item.category === cat && item.status !== 'deleted').length} món
                                         </span>
                                     </div>
-                                    <div class="flex gap-0.5 sm:gap-1 ml-1">
-                                        <button onclick="openEditCategoryModalAdmin('${cat}')" class="text-blue-600 hover:text-blue-800 p-1 active:scale-95 transition" title="Sửa">
-                                            <i data-lucide="edit" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                                    <div class="flex gap-1 ml-2">
+                                        <button onclick="openEditCategoryModalAdmin('${cat}')" class="text-blue-600 hover:text-blue-800 p-1.5 active:scale-95 transition" title="Sửa">
+                                            <i data-lucide="edit" class="w-4 h-4"></i>
                                         </button>
                                         ${index >= 3 ? `
-                                            <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1 active:scale-95 transition" title="Xóa">
-                                                <i data-lucide="trash-2" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                                            <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1.5 active:scale-95 transition" title="Xóa">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         ` : ''}
                                     </div>
@@ -2320,9 +2320,15 @@
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    ${menuItems.filter(item => item.status !== 'deleted').map(item => `
+                                    ${(() => {
+                                        const filteredItems = menuItems.filter(item => item.status !== 'deleted');
+                                        const startIndex = (menuCurrentPage - 1) * menuItemsPerPage;
+                                        const endIndex = startIndex + menuItemsPerPage;
+                                        const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+                                        return paginatedItems.map((item, index) => `
                                         <tr class="hover:bg-gray-50 cursor-pointer transition" onclick="showItemContextMenu(event, '${item.id}')">
-                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-amber-900">${item.name}</td>
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-amber-900">#${startIndex + index + 1} ${item.name}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-orange-600 font-semibold">
                                                 ${item.newPrice ?
                                                     (parseFloat(item.newPrice) >= parseFloat(item.price) ?
@@ -2343,10 +2349,32 @@
                                                 </div>
                                             </td>
                                         </tr>
-                                    `).join('')}
+                                        `).join('');
+                                    })()}
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- Menu Items Pagination -->
+                        ${(() => {
+                            const filteredItems = menuItems.filter(item => item.status !== 'deleted');
+                            const totalPages = Math.ceil(filteredItems.length / menuItemsPerPage);
+                            if (totalPages <= 1) return '';
+
+                            let paginationHtml = '<div class="flex items-center justify-between mt-4 px-4 py-3 bg-gray-50 border-t">';
+
+                            // Previous button
+                            paginationHtml += `<button onclick="setMenuPage(${menuCurrentPage - 1})" ${menuCurrentPage <= 1 ? 'disabled class="text-gray-400 cursor-not-allowed"' : 'class="text-blue-600 hover:text-blue-800"'} class="px-3 py-1 text-sm">← Trước</button>`;
+
+                            // Page info
+                            paginationHtml += `<span class="text-sm text-gray-700">Trang ${menuCurrentPage} / ${totalPages} (${filteredItems.length} món)</span>`;
+
+                            // Next button
+                            paginationHtml += `<button onclick="setMenuPage(${menuCurrentPage + 1})" ${menuCurrentPage >= totalPages ? 'disabled class="text-gray-400 cursor-not-allowed"' : 'class="text-blue-600 hover:text-blue-800"'} class="px-3 py-1 text-sm">Sau →</button>`;
+
+                            paginationHtml += '</div>';
+                            return paginationHtml;
+                        })()}
 
                             <!-- Context Menu -->
                         <div id="item-context-menu" class="fixed bg-white border border-gray-300 rounded-lg shadow-lg py-2 z-50 hidden">
@@ -3069,6 +3097,8 @@
           let dateTo = null; // End date for filtering (Date object)
           let currentPage = 1;
           let itemsPerPage = 5; // Default 10 items per page
+          let menuCurrentPage = 1;
+          let menuItemsPerPage = 15; // Show 15 menu items per page
           let processingOrderId = localStorage.getItem('processingOrderId'); // Lấy từ storage nếu reload
 
           // Setup realtime listener cho orders
@@ -3259,6 +3289,15 @@
           function setPage(page) {
               currentPage = page;
               renderOrdersManagementList();
+          }
+
+          function setMenuPage(page) {
+              const filteredItems = menuItems.filter(item => item.status !== 'deleted');
+              const totalPages = Math.ceil(filteredItems.length / menuItemsPerPage);
+              if (page >= 1 && page <= totalPages) {
+                  menuCurrentPage = page;
+                  renderAdminMenu();
+              }
           }
 
           function nextPage() {
@@ -4354,6 +4393,7 @@
             window.closeItemModal = closeItemModal;
             window.setItemsPerPage = setItemsPerPage;
             window.setPage = setPage;
+            window.setMenuPage = setMenuPage;
             window.nextPage = nextPage;
             window.prevPage = prevPage;
             window.addTable = addTable;
