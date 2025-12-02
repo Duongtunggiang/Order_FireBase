@@ -681,8 +681,9 @@
             };
 
             const expirationTime = new Date();
+            expirationTime.setTime(expirationTime.getTime() + (30 * 60 * 1000)); // 30 phút
+            // expirationTime.setTime(expirationTime.getTime() + (1 * 60 * 1000)); // 1 phút (để test)
             // expirationTime.setTime(expirationTime.getTime() + (2 * 60 * 60 * 1000)); // 2 giờ (production)
-            expirationTime.setTime(expirationTime.getTime() + (1 * 60 * 1000)); // 1 phút (để test)
 
             document.cookie = `guest_session=${JSON.stringify(sessionData)}; expires=${expirationTime.toUTCString()}; path=/`;
 
