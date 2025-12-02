@@ -2954,9 +2954,12 @@
           // Setup mặc định cho trang quản lý đơn hàng
           function setupOrdersPage() {
               currentOrderFilter = 'ordered'; // Mặc định hiển thị đơn chờ
-              // Don't set default date range here - let user choose
-              dateFrom = null;
-              dateTo = null;
+              // Set default to show today's orders
+              const now = new Date();
+              const today = new Date(now);
+              today.setHours(0, 0, 0, 0); // Start of today
+              dateFrom = today;
+              dateTo = now; // Current time
           }
 
           function setOrderFilter(filter) {
@@ -3006,9 +3009,16 @@
           }
 
           function clearDateFilter() {
-              // Clear date filter (show all orders within date range)
-              dateFrom = null;
-              dateTo = null;
+              // Clear date filter and show today's orders (from 00:00 to current time)
+              const now = new Date();
+              const today = new Date(now);
+              today.setHours(0, 0, 0, 0); // Start of today
+              dateFrom = today;
+              dateTo = now; // Current time
+
+              // Update input values to show today's range
+              document.getElementById('date-from').value = dateFrom.toISOString().slice(0, 16);
+              document.getElementById('date-to').value = dateTo.toISOString().slice(0, 16);
 
               currentPage = 1; // Reset to first page when clearing filters
               renderOrdersManagementList();
@@ -3106,12 +3116,25 @@
 
               const filteredOrders = getFilteredOrders();
 
-              // Count theo status (theo kết quả đã lọc)
+              // Count theo status (theo kết quả lọc thời gian, không phụ thuộc vào currentOrderFilter)
+              let dateFilteredOrders = orders;
+              if (dateFrom || dateTo) {
+                  dateFilteredOrders = orders.filter(order => {
+                      if (!order.createdAt) return false;
+                      const orderDate = new Date(order.createdAt.seconds * 1000);
+
+                      if (dateFrom && orderDate < dateFrom) return false;
+                      if (dateTo && orderDate > dateTo) return false;
+
+                      return true;
+                  });
+              }
+
               const counts = {
-                  ordered: filteredOrders.filter(o => o.status === 'ordered').length,
-                  preparing: filteredOrders.filter(o => o.status === 'preparing').length,
-                  completed: filteredOrders.filter(o => o.status === 'completed').length,
-                  cancelled: filteredOrders.filter(o => o.status === 'cancelled').length
+                  ordered: dateFilteredOrders.filter(o => o.status === 'ordered').length,
+                  preparing: dateFilteredOrders.filter(o => o.status === 'preparing').length,
+                  completed: dateFilteredOrders.filter(o => o.status === 'completed').length,
+                  cancelled: dateFilteredOrders.filter(o => o.status === 'cancelled').length
               };
 
               // Pagination calculations
@@ -3172,7 +3195,7 @@
                                   ❌ Đã hủy (${counts.cancelled})
                               </button>
                               <button onclick="setOrderFilter('all')" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${currentOrderFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'} active:scale-95 transition whitespace-nowrap">
-                                  📂 Tất cả (${filteredOrders.length})
+                                  📂 Tất cả (${dateFilteredOrders.length})
                               </button>
                           </div>
                       </div>
@@ -3317,7 +3340,19 @@
                   </div>
               `;
 
-              // Date inputs will be empty by default, user can fill them
+              // Set default values for date inputs based on current filter
+              setTimeout(() => {
+                  const fromInput = document.getElementById('date-from');
+                  const toInput = document.getElementById('date-to');
+
+                  if (fromInput && dateFrom) {
+                      fromInput.value = dateFrom.toISOString().slice(0, 16);
+                  }
+
+                  if (toInput && dateTo) {
+                      toInput.value = dateTo.toISOString().slice(0, 16);
+                  }
+              }, 100);
 
               renderLucideIcons();
           }
