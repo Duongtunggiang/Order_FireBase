@@ -1757,7 +1757,7 @@
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-3xl font-bold text-teal-900">🍽️ Quản Lý Bàn Ăn</h2>
                         <div class="flex gap-2">
-                            <button onclick="openAddTableModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2">
+                            <button onclick="openAddTableModalAdmin()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2">
                                 <i data-lucide="plus" class="w-4 h-4"></i>
                                 Thêm Bàn Mới
                             </button>
@@ -1817,8 +1817,11 @@
                                                 </span>
                                             </div>
                                             <div class="flex gap-1">
-                                                <button onclick="showTableQR('${table.id}', '${table.tableNumber}')" class="p-2 bg-blue-500 text-white rounded hover:bg-blue-600" title="Xem QR Code">
+                                                <button onclick="showTableQRAdmin('${table.tableNumber}')" class="p-2 bg-blue-500 text-white rounded hover:bg-blue-600" title="Xem QR Code">
                                                     <i data-lucide="qr-code" class="w-4 h-4"></i>
+                                                </button>
+                                                <button onclick="openEditTableModalAdmin('${table.id}', '${table.tableNumber}', '${table.status || 'available'}')" class="p-2 bg-yellow-500 text-white rounded hover:bg-yellow-600" title="Chỉnh sửa">
+                                                    <i data-lucide="edit" class="w-4 h-4"></i>
                                                 </button>
                                                 <button onclick="deleteTable('${table.id}')" class="p-2 bg-red-500 text-white rounded hover:bg-red-600" title="Xóa bàn">
                                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -1832,6 +1835,80 @@
                                 `).join('')}
                             </div>
                         `}
+                    </div>
+
+                    <!-- Add Table Modal for Admin Tables -->
+                    <div id="add-table-modal-admin" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+                        <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                            <h3 class="text-xl font-bold text-teal-600 mb-4">🍽️ Thêm Bàn Mới</h3>
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Số Bàn</label>
+                                <input type="text" id="new-table-number-admin" placeholder="Ví dụ: 1, A1, VIP-01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500">
+                                <p class="text-xs text-gray-500 mt-1">Có thể dùng số hoặc chữ cái</p>
+                            </div>
+
+                            <div class="flex gap-3">
+                                <button onclick="closeAddTableModalAdmin()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                                <button onclick="addTableAdmin()" class="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thêm Bàn</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Table Modal for Admin Tables -->
+                    <div id="edit-table-modal-admin" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+                        <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                            <h3 class="text-xl font-bold text-teal-600 mb-4">✏️ Chỉnh Sửa Bàn</h3>
+
+                            <input type="hidden" id="edit-table-id-admin">
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Số Bàn</label>
+                                <input type="text" id="edit-table-number-admin" placeholder="Ví dụ: 1, A1, VIP-01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500">
+                                <p class="text-xs text-gray-500 mt-1">Có thể dùng số hoặc chữ cái</p>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Trạng Thái</label>
+                                <select id="edit-table-status-admin" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500">
+                                    <option value="available">🟢 Trống</option>
+                                    <option value="occupied">🔴 Đang dùng</option>
+                                </select>
+                            </div>
+
+                            <div class="flex gap-3">
+                                <button onclick="closeEditTableModalAdmin()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                                <button onclick="updateTableAdmin()" class="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Cập Nhật</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Modal for Admin Tables -->
+                    <div id="qr-table-modal-admin" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+                        <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-bold text-teal-600">📱 QR Code Bàn</h3>
+                                <button onclick="closeQRTableModalAdmin()" class="text-gray-500 hover:text-gray-700">
+                                    <i data-lucide="x" class="w-6 h-6"></i>
+                                </button>
+                            </div>
+
+                            <div id="qr-table-info-admin" class="mb-4 text-center">
+                                <!-- Table info will be inserted here -->
+                            </div>
+
+                            <div id="qr-table-code-container-admin" class="flex justify-center mb-4 bg-white p-4 rounded-lg border-2 border-teal-200">
+                                <!-- QR Code will be generated here -->
+                            </div>
+
+                            <div class="flex gap-3">
+                                <button onclick="downloadTableQRAdmin()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    Tải Xuống
+                                </button>
+                                <button onclick="closeQRTableModalAdmin()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Đóng</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -2107,6 +2184,146 @@
                 closeEditCategoryModalAdmin();
                 renderApp();
             }
+        }
+
+        function openAddTableModalAdmin() {
+            document.getElementById('add-table-modal-admin').classList.remove('hidden');
+            document.getElementById('new-table-number-admin').focus();
+        }
+
+        function closeAddTableModalAdmin() {
+            document.getElementById('add-table-modal-admin').classList.add('hidden');
+            document.getElementById('new-table-number-admin').value = '';
+        }
+
+        async function addTableAdmin() {
+            const tableNumber = document.getElementById('new-table-number-admin').value.trim();
+
+            if (!tableNumber) {
+                showMessage("Vui lòng nhập số bàn!", "error");
+                return;
+            }
+
+            // Kiểm tra trùng
+            if (tables.some(t => t.tableNumber === tableNumber)) {
+                showMessage(`Bàn ${tableNumber} đã tồn tại!`, "error");
+                return;
+            }
+
+            try {
+                const tableData = {
+                    tableNumber: tableNumber,
+                    status: 'available', // available, occupied
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+
+                await addDoc(collection(db, 'tables'), tableData);
+
+                showMessage(`✅ Đã thêm Bàn ${tableNumber}`, "success");
+                closeAddTableModalAdmin();
+
+            } catch (error) {
+                console.error("Error adding table:", error);
+                showMessage("Lỗi thêm bàn: " + error.message, "error");
+            }
+        }
+
+        function openEditTableModalAdmin(tableId, tableNumber, status) {
+            document.getElementById('edit-table-id-admin').value = tableId;
+            document.getElementById('edit-table-number-admin').value = tableNumber;
+            document.getElementById('edit-table-status-admin').value = status;
+            document.getElementById('edit-table-modal-admin').classList.remove('hidden');
+        }
+
+        function closeEditTableModalAdmin() {
+            document.getElementById('edit-table-modal-admin').classList.add('hidden');
+            document.getElementById('edit-table-id-admin').value = '';
+            document.getElementById('edit-table-number-admin').value = '';
+            document.getElementById('edit-table-status-admin').value = 'available';
+        }
+
+        async function updateTableAdmin() {
+            const tableId = document.getElementById('edit-table-id-admin').value;
+            const newTableNumber = document.getElementById('edit-table-number-admin').value.trim();
+            const newStatus = document.getElementById('edit-table-status-admin').value;
+
+            if (!newTableNumber) {
+                showMessage("Vui lòng nhập số bàn!", "error");
+                return;
+            }
+
+            // Kiểm tra trùng (trừ bàn hiện tại)
+            const currentTable = tables.find(t => t.id === tableId);
+            if (tables.some(t => t.tableNumber === newTableNumber && t.id !== tableId)) {
+                showMessage(`Bàn ${newTableNumber} đã tồn tại!`, "error");
+                return;
+            }
+
+            try {
+                await updateDoc(doc(db, 'tables', tableId), {
+                    tableNumber: newTableNumber,
+                    status: newStatus,
+                    updatedAt: new Date()
+                });
+
+                showMessage(`✅ Đã cập nhật Bàn ${newTableNumber}`, "success");
+                closeEditTableModalAdmin();
+
+            } catch (error) {
+                console.error("Error updating table:", error);
+                showMessage("Lỗi cập nhật bàn: " + error.message, "error");
+            }
+        }
+
+        function showTableQRAdmin(tableNumber) {
+            const modal = document.getElementById('qr-table-modal-admin');
+            const qrContainer = document.getElementById('qr-table-code-container-admin');
+            const tableInfo = document.getElementById('qr-table-info-admin');
+
+            // Clear previous QR
+            qrContainer.innerHTML = '';
+
+            // Tạo URL với table parameter
+            const baseUrl = window.location.origin + window.location.pathname;
+            const qrUrl = `${baseUrl}?table=${tableNumber}`;
+
+            // Generate QR Code
+            new QRCode(qrContainer, {
+                text: qrUrl,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            // Update table info
+            tableInfo.innerHTML = `
+                <p class="text-lg font-bold text-teal-600 mb-2">Bàn ${tableNumber}</p>
+                <p class="text-sm text-gray-600 mb-3">Quét QR code này để vào menu</p>
+                <div class="bg-gray-100 p-2 rounded text-xs break-all">
+                    ${qrUrl}
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeQRTableModalAdmin() {
+            document.getElementById('qr-table-modal-admin').classList.add('hidden');
+        }
+
+        function downloadTableQRAdmin() {
+            const qrCanvas = document.querySelector('#qr-table-code-container-admin canvas');
+            if (!qrCanvas) return;
+
+            const tableNumber = document.querySelector('#qr-table-info-admin .text-teal-600').textContent;
+
+            const link = document.createElement('a');
+            link.download = `QR-Ban-${tableNumber}.png`;
+            link.href = qrCanvas.toDataURL();
+            link.click();
         }
 
         function clearAdminForm() {
@@ -3380,6 +3597,15 @@
             window.openEditCategoryModalAdmin = openEditCategoryModalAdmin;
             window.closeEditCategoryModalAdmin = closeEditCategoryModalAdmin;
             window.updateCategoryAdmin = updateCategoryAdmin;
+            window.openAddTableModalAdmin = openAddTableModalAdmin;
+            window.closeAddTableModalAdmin = closeAddTableModalAdmin;
+            window.addTableAdmin = addTableAdmin;
+            window.openEditTableModalAdmin = openEditTableModalAdmin;
+            window.closeEditTableModalAdmin = closeEditTableModalAdmin;
+            window.updateTableAdmin = updateTableAdmin;
+            window.showTableQRAdmin = showTableQRAdmin;
+            window.closeQRTableModalAdmin = closeQRTableModalAdmin;
+            window.downloadTableQRAdmin = downloadTableQRAdmin;
             window.loadCategories = loadCategories;
             window.saveCategories = saveCategories;
             window.updateAdminPricePreview = updateAdminPricePreview;
