@@ -10,15 +10,15 @@ const urlsToCache = [
 
 // Install event - Cache resources
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...');
+  // console.log('Service Worker: Installing...'); // Ẩn để bảo mật
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Service Worker: Caching files');
+        // console.log('Service Worker: Caching files'); // Ẩn để bảo mật
         return cache.addAll(urlsToCache);
       })
       .catch((error) => {
-        console.error('Service Worker: Cache failed', error);
+        // console.error('Service Worker: Cache failed', error); // Ẩn để bảo mật
       })
   );
   self.skipWaiting(); // Activate immediately
@@ -26,13 +26,13 @@ self.addEventListener('install', (event) => {
 
 // Activate event - Clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating...');
+  // console.log('Service Worker: Activating...'); // Ẩn để bảo mật
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('Service Worker: Deleting old cache', cacheName);
+            // console.log('Service Worker: Deleting old cache', cacheName); // Ẩn để bảo mật
             return caches.delete(cacheName);
           }
         })
@@ -55,7 +55,7 @@ self.addEventListener('fetch', (event) => {
 
 // Notification click event
 self.addEventListener('notificationclick', (event) => {
-  console.log('Service Worker: Notification clicked', event.notification);
+  // console.log('Service Worker: Notification clicked', event.notification); // Ẩn để bảo mật
   event.notification.close();
   
   event.waitUntil(
@@ -85,7 +85,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // Push event - Handle push notifications (for future use)
 self.addEventListener('push', (event) => {
-  console.log('Service Worker: Push received', event);
+  // console.log('Service Worker: Push received', event); // Ẩn để bảo mật
   const data = event.data ? event.data.json() : {};
   const title = data.title || 'Chill Coffee';
   const options = {

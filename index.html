@@ -1944,58 +1944,51 @@
 
         async function loadCategories() {
             try {
-                console.log("🔄 Loading categories from Firebase...");
+                // console.log("🔄 Loading categories from Firebase..."); // Ẩn để bảo mật
                 const docRef = doc(db, 'config', CATEGORIES_DOC_ID);
                 const docSnap = await getDoc(docRef);
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     categories = data.categories || ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
-                    console.log("✅ Loaded categories:", categories);
+                    // console.log("✅ Loaded categories:", categories); // Ẩn để bảo mật
                 } else {
                     // Nếu chưa có, tạo document mặc định
                     categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
                     await setDoc(docRef, { categories: categories, updatedAt: new Date() });
-                    console.log("✅ Created default categories in Firebase");
+                    // console.log("✅ Created default categories in Firebase"); // Ẩn để bảo mật
                 }
             } catch (error) {
-                console.error("❌ Error loading categories:", error);
+                // console.error("❌ Error loading categories:", error); // Ẩn để bảo mật
                 categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Fallback
             }
         }
 
         async function saveCategories() {
             try {
-                console.log("💾 Saving categories to Firebase...");
+                // console.log("💾 Saving categories to Firebase..."); // Ẩn để bảo mật
                 const docRef = doc(db, 'config', CATEGORIES_DOC_ID);
                 await setDoc(docRef, { categories: categories, updatedAt: new Date() });
-                console.log("✅ Categories saved successfully");
+                // console.log("✅ Categories saved successfully"); // Ẩn để bảo mật
             } catch (error) {
-                console.error("❌ Error saving categories:", error);
+                // console.error("❌ Error saving categories:", error); // Ẩn để bảo mật
                 showMessage("Lỗi khi lưu danh mục: " + error.message, "error");
             }
         }
 
         function setupMenuListener() {
             if (!db) {
-                console.warn("❌ DB chưa được khởi tạo");
+                // console.warn("❌ DB chưa được khởi tạo"); // Ẩn để bảo mật
                 return;
             }
             const q = query(collection(db, PUBLIC_DATA_PATH));
-            console.log("🔄 Setting up menu listener for path:", PUBLIC_DATA_PATH);
+                // console.log("🔄 Setting up menu listener for path:", PUBLIC_DATA_PATH); // Ẩn để bảo mật
 
             onSnapshot(q, (snapshot) => {
                 menuItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log("✅ Loaded menu items:", menuItems.length, "items");
-                console.log("📋 Menu items:", menuItems.map(item => ({
-                    id: item.id,
-                    name: item.name,
-                    price: item.price,
-                    priceType: typeof item.price,
-                    newPrice: item.newPrice,
-                    newPriceType: typeof item.newPrice
-                })));
-                console.log("🔍 Raw snapshot:", snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
+                // console.log("✅ Loaded menu items:", menuItems.length, "items"); // Ẩn để bảo mật
+                // console.log("📋 Menu items:", menuItems.map(...)); // Ẩn để bảo mật
+                // console.log("🔍 Raw snapshot:", snapshot.docs.map(...)); // Ẩn để bảo mật
 
                 // Kiểm tra currentCategory có còn active không (có món không)
                 const activeCategories = categories.filter(cat =>
@@ -2004,7 +1997,7 @@
                 if (!activeCategories.includes(currentCategory) && activeCategories.length > 0) {
                     // Nếu currentCategory không còn active, chuyển về category đầu tiên
                     currentCategory = activeCategories[0];
-                    console.log("🔄 Current category changed to:", currentCategory);
+                    // console.log("🔄 Current category changed to:", currentCategory); // Ẩn để bảo mật
                 }
 
                 // Auto-cleanup expired items
@@ -2012,8 +2005,8 @@
 
                 renderApp();
             }, (error) => {
-                console.error("❌ Lỗi khi nghe thay đổi menu:", error);
-                console.error("❌ Error details:", error.code, error.message);
+                // console.error("❌ Lỗi khi nghe thay đổi menu:", error); // Ẩn để bảo mật
+                // console.error("❌ Error details:", error.code, error.message); // Ẩn để bảo mật
                 // Fallback: thử load một lần
                 loadMenuItemsOnce();
             });
@@ -2021,13 +2014,13 @@
 
         async function loadMenuItemsOnce() {
             try {
-                console.log("🔄 Loading menu items once...");
+                // console.log("🔄 Loading menu items once..."); // Ẩn để bảo mật
                 const querySnapshot = await getDocs(collection(db, PUBLIC_DATA_PATH));
                 menuItems = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log("✅ Loaded menu items (once):", menuItems.length, "items");
+                // console.log("✅ Loaded menu items (once):", menuItems.length, "items"); // Ẩn để bảo mật
                 renderApp();
             } catch (error) {
-                console.error("❌ Failed to load menu items:", error);
+                // console.error("❌ Failed to load menu items:", error); // Ẩn để bảo mật
             }
         }
         
@@ -2040,13 +2033,13 @@
                 // Handle file upload - Convert to Data URL
                 const fileInput = document.getElementById('item-modal-image-file');
                 if (fileInput && fileInput.files && fileInput.files[0]) {
-                    console.log("📸 Processing image...");
+                    // console.log("📸 Processing image..."); // Ẩn để bảo mật
                     showMessage("Đang xử lý ảnh...", "info");
                     
                     try {
                         imageUrl = await uploadImage(fileInput.files[0]);
                         showMessage("✅ Ảnh đã sẵn sàng!", "success");
-                        console.log("✅ Image ready for save");
+                        // console.log("✅ Image ready for save"); // Ẩn để bảo mật
                     } catch (error) {
                         showMessage("❌ Lỗi xử lý ảnh: " + error.message, "error");
                         throw error;
@@ -2056,7 +2049,7 @@
                 // Fallback to placeholder if no image provided
                 if (!imageUrl || imageUrl.trim() === '') {
                     imageUrl = `https://via.placeholder.com/400x300/f0d48f/8b542f?text=${encodeURIComponent(item.name.substring(0, 10))}`;
-                    console.log("📝 Using placeholder image");
+                    // console.log("📝 Using placeholder image"); // Ẩn để bảo mật
                 }
 
                 const itemToSave = {
@@ -2101,12 +2094,12 @@
 
                 if (isNew) {
                     await addDoc(collection(db, PUBLIC_DATA_PATH), itemToSave);
-                    console.log("Thêm món thành công");
+                    // console.log("Thêm món thành công"); // Ẩn để bảo mật
                     showMessage("Thêm món thành công!", "success");
                 } else {
                     const itemRef = doc(db, PUBLIC_DATA_PATH, item.id);
                     await updateDoc(itemRef, itemToSave);
-                    console.log("Cập nhật món thành công");
+                    // console.log("Cập nhật món thành công"); // Ẩn để bảo mật
                     showMessage("Cập nhật món thành công!", "success");
                 }
 
@@ -2117,7 +2110,7 @@
                 await loadMenuItemsOnce();
                 closeItemModal();
             } catch (e) {
-                console.error("Lỗi khi lưu món:", e);
+                // console.error("Lỗi khi lưu món:", e); // Ẩn để bảo mật
                 showMessage("Lỗi khi lưu món: " + e.message, "error");
             }
         }
@@ -2130,14 +2123,14 @@
                     deletedAt: new Date(),
                     updatedAt: new Date()
                 });
-                console.log("✅ Chuyển món vào thùng rác thành công");
+                // console.log("✅ Chuyển món vào thùng rác thành công"); // Ẩn để bảo mật
 
                 // Reload menu items to reflect changes
                 await loadMenuItemsOnce();
 
                 showMessage("Đã chuyển món vào thùng rác!", "success");
             } catch (e) {
-                console.error("❌ Lỗi khi xóa món:", e);
+                // console.error("❌ Lỗi khi xóa món:", e); // Ẩn để bảo mật
                 showMessage("Lỗi khi xóa món: " + e.message, "error");
             }
         }
@@ -2151,7 +2144,7 @@
                     restoredAt: new Date(),
                     updatedAt: new Date()
                 });
-                console.log("✅ Khôi phục món thành công");
+                // console.log("✅ Khôi phục món thành công"); // Ẩn để bảo mật
 
                 // Reload menu items to reflect changes
                 await loadMenuItemsOnce();
@@ -2163,7 +2156,7 @@
 
                 showMessage("Đã khôi phục món ăn!", "success");
             } catch (e) {
-                console.error("❌ Lỗi khi khôi phục món:", e);
+                // console.error("❌ Lỗi khi khôi phục món:", e); // Ẩn để bảo mật
                 showMessage("Lỗi khi khôi phục món: " + e.message, "error");
             }
         }
@@ -2175,7 +2168,7 @@
             
             try {
                 await deleteDoc(doc(db, PUBLIC_DATA_PATH, id));
-                console.log("✅ Xóa vĩnh viễn món thành công");
+                // console.log("✅ Xóa vĩnh viễn món thành công"); // Ẩn để bảo mật
 
                 // Reload menu items to reflect changes
                 await loadMenuItemsOnce();
@@ -2187,7 +2180,7 @@
 
                 showMessage("Đã xóa vĩnh viễn món ăn!", "success");
             } catch (e) {
-                console.error("❌ Lỗi khi xóa vĩnh viễn món:", e);
+                // console.error("❌ Lỗi khi xóa vĩnh viễn món:", e); // Ẩn để bảo mật
                 showMessage("Lỗi khi xóa vĩnh viễn món: " + e.message, "error");
             }
         }
@@ -2197,8 +2190,8 @@
             if (!file) return null;
 
             try {
-                console.log("📸 Converting image to Data URL...");
-                console.log("📁 File:", file.name, "Size:", (file.size / 1024).toFixed(2), "KB");
+                // console.log("📸 Converting image to Data URL..."); // Ẩn để bảo mật
+                // console.log("📁 File:", file.name, "Size:", (file.size / 1024).toFixed(2), "KB"); // Ẩn để bảo mật
 
                 // Check file size (max 1MB recommended for Data URL)
                 if (file.size > 1024 * 1024) {
@@ -2210,20 +2203,20 @@
                     
                     reader.onload = function(e) {
                         const dataURL = e.target.result;
-                        console.log("✅ Image converted successfully!");
-                        console.log("📊 Data URL length:", dataURL.length);
+                        // console.log("✅ Image converted successfully!"); // Ẩn để bảo mật
+                        // console.log("📊 Data URL length:", dataURL.length); // Ẩn để bảo mật
                         resolve(dataURL);
                     };
                     
                     reader.onerror = function(error) {
-                        console.error("❌ Error reading file:", error);
+                        // console.error("❌ Error reading file:", error); // Ẩn để bảo mật
                         reject(error);
                     };
                     
                     reader.readAsDataURL(file);
                 });
             } catch (error) {
-                console.error("❌ Error processing image:", error);
+                // console.error("❌ Error processing image:", error); // Ẩn để bảo mật
                 throw error;
             }
         }
@@ -2240,12 +2233,12 @@
 
                 // Update password mới
                 await updatePassword(user, newPassword);
-                console.log("Password changed successfully");
+                // console.log("Password changed successfully"); // Ẩn để bảo mật
 
                 showMessage("Đổi mật khẩu thành công!", "success");
                 return true;
             } catch (error) {
-                console.error("Error changing password:", error);
+                // console.error("Error changing password:", error); // Ẩn để bảo mật
                 let errorMessage = "Lỗi khi đổi mật khẩu";
 
                 if (error.code === 'auth/wrong-password') {
@@ -2265,25 +2258,25 @@
             const email = e.target.email.value;
             const password = e.target.password.value;
 
-            console.log("🔐 Attempting login with email:", email);
+                // console.log("🔐 Attempting login with email:", email); // Ẩn để bảo mật
 
             try {
                 showMessage("Đang đăng nhập...", "info");
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
                 
-                console.log("✅ Login successful!");
-                console.log("👤 User:", userCredential.user.email);
-                console.log("🆔 UID:", userCredential.user.uid);
+                // console.log("✅ Login successful!"); // Ẩn để bảo mật
+                // console.log("👤 User:", userCredential.user.email); // Ẩn để bảo mật
+                // console.log("🆔 UID:", userCredential.user.uid); // Ẩn để bảo mật
                 
                 // Check if admin
                 const adminEmails = ['binhbiinshop@admin.com', 'duong3112@gmail.com'];
                 const isAdminUser = adminEmails.includes(userCredential.user.email);
                 
-                console.log("👑 Is Admin:", isAdminUser);
+                // console.log("👑 Is Admin:", isAdminUser); // Ẩn để bảo mật
                 
                 if (isAdminUser) {
                     showMessage("✅ Đăng nhập Admin thành công! Chuyển đến Dashboard...", "success");
-                    console.log("🚀 Redirecting to Admin Dashboard");
+                    // console.log("🚀 Redirecting to Admin Dashboard"); // Ẩn để bảo mật
 
                     // Yêu cầu quyền thông báo trình duyệt cho admin
                     setTimeout(() => {
@@ -2291,12 +2284,12 @@
                     }, 1000);
                 } else {
                     showMessage("✅ Đăng nhập thành công! Nhưng tài khoản không có quyền Admin.", "info");
-                    console.log("⚠️ User is not admin, staying in customer view");
+                    // console.log("⚠️ User is not admin, staying in customer view"); // Ẩn để bảo mật
                 }
                 
                 // AuthStateChanged sẽ lo việc chuyển view
             } catch (error) {
-                console.error("❌ Login failed:", error.code, error.message);
+                // console.error("❌ Login failed:", error.code, error.message); // Ẩn để bảo mật
                 let errorMessage = "Đăng nhập thất bại.";
 
                 if (error.code === 'auth/user-not-found') {
@@ -2311,20 +2304,20 @@
 
                 document.getElementById('login-message').textContent = errorMessage;
                 showMessage(errorMessage, "error");
-                console.log("❌ Error details:", error);
+                // console.log("❌ Error details:", error); // Ẩn để bảo mật
             }
         }
         
         async function handleLogout() {
             try {
-                console.log("🔓 Logging out...");
+                // console.log("🔓 Logging out..."); // Ẩn để bảo mật
                 await signOut(auth);
-                console.log("✅ Logout successful");
+                // console.log("✅ Logout successful"); // Ẩn để bảo mật
                 showMessage("Đã đăng xuất thành công!", "success");
                 isPreviewMode = false;
                 // AuthStateChanged sẽ lo việc chuyển view
             } catch (error) {
-                console.error("❌ Logout error:", error);
+                // console.error("❌ Logout error:", error); // Ẩn để bảo mật
                 showMessage("Lỗi khi đăng xuất", "error");
             }
         }
@@ -2356,7 +2349,7 @@
 
             document.cookie = `guest_session=${JSON.stringify(sessionData)}; expires=${expirationTime.toUTCString()}; path=/`;
 
-            console.log('💾 Session saved to cookie:', sessionData);
+            // console.log('💾 Session saved to cookie:', sessionData); // Ẩn để bảo mật
         }
 
         // Đọc session từ cookie
@@ -2372,13 +2365,7 @@
                         const sessionAge = Date.now() - new Date(sessionData.createdAt).getTime();
                         const maxAge = 1 * 60 * 1000; // 1 phút (để test)
 
-                        console.log('🍪 Cookie check:', {
-                            sessionAge: Math.round(sessionAge / 1000) + 's',
-                            maxAge: Math.round(maxAge / 1000) + 's',
-                            isExpired: sessionAge >= maxAge,
-                            createdAt: new Date(sessionData.createdAt).toLocaleTimeString(),
-                            now: new Date().toLocaleTimeString()
-                        });
+                        // console.log('🍪 Cookie check:', {...}); // Ẩn để bảo mật
 
                         if (sessionAge < maxAge) {
                             currentSessionId = sessionData.sessionId;
@@ -2386,7 +2373,7 @@
                             guestOrders = sessionData.orders || [];
                             userRole = 'guest';
 
-                            console.log('📖 Session loaded from cookie:', sessionData);
+                            // console.log('📖 Session loaded from cookie:', sessionData); // Ẩn để bảo mật
                             return true;
                         } else {
                             // Session hết hạn, xóa cookie
@@ -2632,7 +2619,7 @@
         function initFirebase() {
             try {
                 // Debug: Check current cookies
-                console.log('🍪 Current cookies:', document.cookie);
+                // console.log('🍪 Current cookies:', document.cookie); // Ẩn để bảo mật
 
                 // Load session từ cookie trước
                 loadSessionFromCookie();
@@ -2640,7 +2627,7 @@
                 // Kiểm tra table từ URL (có thể override session cũ)
                 checkTableFromURL();
 
-                console.log("🚀 Initializing Firebase with config:", firebaseConfig);
+                // console.log("🚀 Initializing Firebase with config:", firebaseConfig); // Ẩn để bảo mật
                 if (Object.keys(firebaseConfig).length > 0) {
                     app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
@@ -2658,8 +2645,8 @@
                         const adminEmails = ['binhbiinshop@admin.com', 'duong3112@gmail.com'];
                         isAdmin = adminEmails.includes(user.email);
                         
-                        console.log("👤 User authenticated:", user.email);
-                        console.log("👑 Is Admin:", isAdmin);
+                        // console.log("👤 User authenticated:", user.email); // Ẩn để bảo mật
+                        // console.log("👑 Is Admin:", isAdmin); // Ẩn để bảo mật
                         
                         if (__initial_auth_token && user.isAnonymous) {
                             // Đây là logic đặc biệt cho môi trường Canvas, dùng token ban đầu
@@ -2722,7 +2709,7 @@
                         if (db) {
                             // Tạm thời bỏ anonymous auth để tránh lỗi config
                             // if (!__initial_auth_token) await signInAnonymously(auth);
-                            console.log("🔄 Setting up menu listener without auth...");
+                            // console.log("🔄 Setting up menu listener without auth..."); // Ẩn để bảo mật
                             setupMenuListener();
 
                             // Khởi tạo timer cho khách hàng ẩn danh
@@ -4255,10 +4242,10 @@
                     deletedAt: null,
                     updatedAt: new Date()
                 });
-                console.log("✅ Khôi phục món thành công");
+                // console.log("✅ Khôi phục món thành công"); // Ẩn để bảo mật
                 showMessage("Đã khôi phục món!", "success");
             } catch (e) {
-                console.error("❌ Lỗi khi khôi phục món:", e);
+                // console.error("❌ Lỗi khi khôi phục món:", e); // Ẩn để bảo mật
                 showMessage("Lỗi khi khôi phục món: " + e.message, "error");
             }
         }
@@ -4267,10 +4254,10 @@
             if (!confirm("Bạn có chắc chắn muốn XÓA VĨNH VIỄN món này? Hành động này không thể hoàn tác!")) return;
             try {
                 await deleteDoc(doc(db, PUBLIC_DATA_PATH, id));
-                console.log("✅ Xóa vĩnh viễn món thành công");
+                // console.log("✅ Xóa vĩnh viễn món thành công"); // Ẩn để bảo mật
                 showMessage("Đã xóa vĩnh viễn món!", "success");
             } catch (e) {
-                console.error("❌ Lỗi khi xóa vĩnh viễn món:", e);
+                // console.error("❌ Lỗi khi xóa vĩnh viễn món:", e); // Ẩn để bảo mật
                 showMessage("Lỗi khi xóa vĩnh viễn món: " + e.message, "error");
             }
         }
@@ -6371,16 +6358,16 @@
                         scope: './'
                     });
                     serviceWorkerRegistration = registration;
-                    console.log('✅ Service Worker registered:', registration);
+                    // console.log('✅ Service Worker registered:', registration); // Ẩn để bảo mật
                     
                     // Kiểm tra nếu có update
                     registration.addEventListener('updatefound', () => {
-                        console.log('🔄 Service Worker update found');
+                        // console.log('🔄 Service Worker update found'); // Ẩn để bảo mật
                     });
                     
                     return registration;
                 } catch (error) {
-                    console.error('❌ Service Worker registration failed:', error);
+                    // console.error('❌ Service Worker registration failed:', error); // Ẩn để bảo mật
                     // Thử với đường dẫn tuyệt đối
                     try {
                         const registration = await navigator.serviceWorker.register('/service-worker.js');
@@ -6393,7 +6380,7 @@
                     }
                 }
             } else {
-                console.log('⚠️ Service Worker not supported');
+                // console.log('⚠️ Service Worker not supported'); // Ẩn để bảo mật
                 return null;
             }
         }
@@ -6410,21 +6397,21 @@
                     Notification.requestPermission().then(permission => {
                         if (permission === 'granted') {
                             showMessage("✅ Đã cấp quyền thông báo trình duyệt!", "success");
-                            console.log("🔔 Notification permission granted");
+                            // console.log("🔔 Notification permission granted"); // Ẩn để bảo mật
                         } else {
                             showMessage("❌ Không thể cấp quyền thông báo trình duyệt", "warning");
-                            console.log("🔔 Notification permission denied");
+                            // console.log("🔔 Notification permission denied"); // Ẩn để bảo mật
                         }
                     });
                 } else if (Notification.permission === 'granted') {
                     showMessage("✅ Quyền thông báo đã được cấp!", "success");
-                    console.log("🔔 Notification permission already granted");
+                    // console.log("🔔 Notification permission already granted"); // Ẩn để bảo mật
                 } else {
                     showMessage("⚠️ Thông báo trình duyệt bị chặn. Vui lòng cho phép trong cài đặt trình duyệt.", "warning");
                 }
             } else {
                 showMessage("⚠️ Trình duyệt không hỗ trợ thông báo", "warning");
-                console.log("🔔 Browser doesn't support notifications");
+                // console.log("🔔 Browser doesn't support notifications"); // Ẩn để bảo mật
             }
         }
 
@@ -6433,7 +6420,7 @@
             if ('vibrate' in navigator) {
                 try {
                     navigator.vibrate(pattern);
-                    console.log('📳 Device vibrated:', pattern);
+                    // console.log('📳 Device vibrated:', pattern); // Ẩn để bảo mật
                 } catch (error) {
                     console.error('❌ Vibration failed:', error);
                 }
@@ -6468,7 +6455,7 @@
                                 url: window.location.href
                             }
                         });
-                        console.log('✅ Notification shown via Service Worker with vibration');
+                        // console.log('✅ Notification shown via Service Worker with vibration'); // Ẩn để bảo mật
                     } else {
                         // Fallback: Sử dụng Notification API trực tiếp (cho desktop)
                         const notification = new Notification(title, {
@@ -6501,7 +6488,7 @@
 
                     return true;
                 } catch (error) {
-                    console.error("❌ Error showing browser notification:", error);
+                    // console.error("❌ Error showing browser notification:", error); // Ẩn để bảo mật
                     // Thử fallback với Notification API trực tiếp
                     try {
                         // Vẫn rung ngay cả khi fallback
@@ -6517,11 +6504,11 @@
                         setTimeout(() => notification.close(), 5000);
                         return true;
                     } catch (fallbackError) {
-                        console.error("❌ Fallback notification also failed:", fallbackError);
+                        // console.error("❌ Fallback notification also failed:", fallbackError); // Ẩn để bảo mật
                     }
                 }
             } else {
-                console.warn("⚠️ Notification permission not granted");
+                // console.warn("⚠️ Notification permission not granted"); // Ẩn để bảo mật
             }
             return false;
         }
@@ -6532,10 +6519,10 @@
                 const audio = new Audio('dong_xu.mp3');
                 audio.volume = 0.7; // Giảm âm lượng một chút
                 audio.play().catch(error => {
-                    console.error("❌ Error playing notification sound:", error);
+                    // console.error("❌ Error playing notification sound:", error); // Ẩn để bảo mật
                 });
             } catch (error) {
-                console.error("❌ Error creating audio object:", error);
+                    // console.error("❌ Error creating audio object:", error); // Ẩn để bảo mật
             }
         }
 
@@ -7186,7 +7173,7 @@
 
         // --- Khởi tạo Ứng dụng ---
         window.onload = function() {
-            console.log("🌟 Ứng dụng Chill Coffee khởi động...");
+            // console.log("🌟 Ứng dụng Chill Coffee khởi động..."); // Ẩn để bảo mật
 
             // Đăng ký Service Worker cho PWA và notifications
             registerServiceWorker().then(() => {
