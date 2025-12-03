@@ -2995,41 +2995,42 @@
             const deletedMenuItems = menuItems.filter(m => m.status === 'deleted');
             
             return `
-                <div class="p-3 sm:p-6 md:p-10 bg-gray-50 min-h-screen pb-16 sm:pb-20">
-                    <div class="flex justify-between items-center mb-4 sm:mb-6">
-                        <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">🗑️ Thùng Rác</h2>
-                        <button onclick="loadOrders(); loadMenuItems();" class="bg-gray-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-700 flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
+                <div class="p-2 sm:p-3 md:p-6 lg:p-10 bg-gray-50 min-h-screen pb-16 sm:pb-20">
+                    <div class="flex flex-col xs:flex-row xs:justify-between xs:items-center mb-3 sm:mb-4 md:mb-6 gap-3">
+                        <h2 class="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">🗑️ Thùng Rác</h2>
+                        <button onclick="loadOrders(); loadMenuItems();" class="bg-gray-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-700 flex items-center gap-1 sm:gap-2 text-sm sm:text-base w-full xs:w-auto justify-center">
                             <i data-lucide="refresh-cw" class="w-3 h-3 sm:w-4 sm:h-4"></i>
                             <span class="hidden sm:inline">Làm mới</span>
+                            <span class="sm:hidden">↻</span>
                         </button>
                     </div>
 
                     <!-- Thống kê nhanh -->
-                    <div class="grid grid-cols-2 gap-3 sm:gap-4 mb-6">
-                        <div class="bg-white p-4 rounded-lg shadow border-l-4 border-purple-500">
+                    <div class="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4 mb-6">
+                        <div class="bg-white p-3 sm:p-4 rounded-lg shadow border-l-4 border-purple-500">
                             <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-gray-600 text-sm">Đơn hàng đã xóa</p>
-                                    <p class="text-2xl font-bold text-purple-600">${deletedOrders.length}</p>
+                                <div class="flex-1">
+                                    <p class="text-gray-600 text-xs sm:text-sm">Đơn hàng đã xóa</p>
+                                    <p class="text-xl sm:text-2xl font-bold text-purple-600">${deletedOrders.length}</p>
                                 </div>
-                                <i data-lucide="clipboard-x" class="w-8 h-8 text-purple-400"></i>
+                                <i data-lucide="clipboard-x" class="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0 ml-2"></i>
                             </div>
                         </div>
-                        <div class="bg-white p-4 rounded-lg shadow border-l-4 border-orange-500">
+                        <div class="bg-white p-3 sm:p-4 rounded-lg shadow border-l-4 border-orange-500">
                             <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-gray-600 text-sm">Món ăn đã xóa</p>
-                                    <p class="text-2xl font-bold text-orange-600">${deletedMenuItems.length}</p>
+                                <div class="flex-1">
+                                    <p class="text-gray-600 text-xs sm:text-sm">Món ăn đã xóa</p>
+                                    <p class="text-xl sm:text-2xl font-bold text-orange-600">${deletedMenuItems.length}</p>
                                 </div>
-                                <i data-lucide="coffee" class="w-8 h-8 text-orange-400"></i>
+                                <i data-lucide="coffee" class="w-6 h-6 sm:w-8 sm:h-8 text-orange-400 flex-shrink-0 ml-2"></i>
                             </div>
                         </div>
                     </div>
 
                     <!-- Đơn hàng đã xóa -->
-                    <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
-                        <h3 class="text-lg sm:text-xl font-bold text-purple-900 mb-4 flex items-center gap-2">
-                            <i data-lucide="clipboard-x" class="w-5 h-5"></i>
+                    <div class="bg-white rounded-lg shadow-lg p-3 sm:p-4 md:p-6 mb-4 sm:mb-6">
+                        <h3 class="text-base sm:text-lg md:text-xl font-bold text-purple-900 mb-3 sm:mb-4 flex items-center gap-2">
+                            <i data-lucide="clipboard-x" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                             Đơn hàng đã xóa (${deletedOrders.length})
                         </h3>
                         
@@ -3041,38 +3042,38 @@
                         ` : `
                             <div class="space-y-3">
                                 ${deletedOrders.map(order => `
-                                    <div class="bg-gray-100 border-2 border-gray-300 p-4 rounded-lg">
-                                        <div class="flex justify-between items-start mb-3">
-                                            <div class="flex-1">
-                                                <h4 class="font-semibold text-gray-800 mb-1">
+                                    <div class="bg-gray-100 border-2 border-gray-300 p-3 sm:p-4 rounded-lg">
+                                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
+                                            <div class="flex-1 min-w-0">
+                                                <h4 class="font-semibold text-gray-800 mb-1 text-sm sm:text-base">
                                                     Order #${order.id.slice(-6).toUpperCase()}
-                                                    ${order.tableNumber ? `<span class="ml-2 px-2 py-0.5 bg-teal-100 text-teal-700 text-xs rounded-full">🍽️ Bàn ${order.tableNumber}</span>` : ''}
+                                                    ${order.tableNumber ? `<span class="ml-1 sm:ml-2 px-2 py-0.5 bg-teal-100 text-teal-700 text-xs rounded-full inline-block">🍽️ Bàn ${order.tableNumber}</span>` : ''}
                                                 </h4>
-                                                <p class="text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                                                <p class="text-xs sm:text-sm text-gray-600">${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
                                                 ${order.previousStatus ? `<p class="text-xs text-gray-500 mt-1">Trạng thái trước: ${getStatusText(order.previousStatus)}</p>` : ''}
                                                 ${order.deletedAt ? `<p class="text-xs text-red-600 mt-1">Xóa lúc: ${new Date(order.deletedAt.seconds * 1000).toLocaleString('vi-VN')}</p>` : ''}
                                             </div>
-                                            <div class="flex gap-2">
-                                                <button onclick="restoreOrder('${order.id}')" class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm whitespace-nowrap">
+                                            <div class="flex gap-2 sm:flex-shrink-0">
+                                                <button onclick="restoreOrder('${order.id}')" class="bg-green-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-green-600 text-xs sm:text-sm whitespace-nowrap flex-1 sm:flex-none">
                                                     ♻️ Khôi phục
                                                 </button>
-                                                <button onclick="permanentDeleteOrder('${order.id}')" class="bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700 text-sm whitespace-nowrap">
+                                                <button onclick="permanentDeleteOrder('${order.id}')" class="bg-red-600 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-red-700 text-xs sm:text-sm whitespace-nowrap flex-1 sm:flex-none">
                                                     ⚠️ Xóa vĩnh viễn
                                                 </button>
                                             </div>
                                         </div>
                                         
-                                        <div class="space-y-2">
+                                        <div class="space-y-1.5 sm:space-y-2">
                                             ${order.items.map(item => `
-                                                <div class="flex justify-between text-sm bg-white p-2 rounded">
-                                                    <span>${item.name} ${item.size ? `(${item.size})` : ''} x${item.quantity}</span>
-                                                    <span class="font-semibold text-orange-600">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
+                                                <div class="flex justify-between text-xs sm:text-sm bg-white p-2 rounded">
+                                                    <span class="flex-1 min-w-0 pr-2 truncate">${item.name} ${item.size ? `(${item.size})` : ''} x${item.quantity}</span>
+                                                    <span class="font-semibold text-orange-600 flex-shrink-0">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
                                                 </div>
                                             `).join('')}
                                         </div>
-                                        
+
                                         <div class="mt-3 pt-3 border-t flex justify-between items-center">
-                                            <span class="font-bold text-orange-600">Tổng: ${formatCurrency(order.total)}</span>
+                                            <span class="font-bold text-orange-600 text-sm sm:text-base">Tổng: ${formatCurrency(order.total)}</span>
                                         </div>
                                     </div>
                                 `).join('')}
@@ -3081,9 +3082,9 @@
                     </div>
 
                     <!-- Món ăn đã xóa -->
-                    <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6">
-                        <h3 class="text-lg sm:text-xl font-bold text-orange-900 mb-4 flex items-center gap-2">
-                            <i data-lucide="coffee" class="w-5 h-5"></i>
+                    <div class="bg-white rounded-lg shadow-lg p-3 sm:p-4 md:p-6">
+                        <h3 class="text-base sm:text-lg md:text-xl font-bold text-orange-900 mb-3 sm:mb-4 flex items-center gap-2">
+                            <i data-lucide="coffee" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                             Món ăn đã xóa (${deletedMenuItems.length})
                         </h3>
                         
@@ -3093,22 +3094,22 @@
                                 <br>Không có món ăn nào trong thùng rác
                             </p>
                         ` : `
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                                 ${deletedMenuItems.map(item => `
-                                    <div class="bg-gray-100 border-2 border-gray-300 p-4 rounded-lg">
+                                    <div class="bg-gray-100 border-2 border-gray-300 p-3 sm:p-4 rounded-lg">
                                         ${item.image ? `
-                                            <img src="${item.image}" alt="${item.name}" class="w-full h-32 object-cover rounded-lg mb-3 opacity-60">
+                                            <img src="${item.image}" alt="${item.name}" class="w-full h-24 sm:h-32 object-cover rounded-lg mb-3 opacity-60">
                                         ` : ''}
-                                        <h4 class="font-semibold text-gray-800 mb-2">${item.name}</h4>
-                                        <p class="text-sm text-gray-600 mb-2">${item.category}</p>
-                                        <p class="text-orange-600 font-bold mb-3">${formatCurrency(getItemPrice(item))}</p>
-                                        ${item.deletedAt ? `<p class="text-xs text-red-600 mb-3">Xóa lúc: ${new Date(item.deletedAt.seconds * 1000).toLocaleString('vi-VN')}</p>` : ''}
-                                        
-                                        <div class="flex gap-2">
-                                            <button onclick="restoreMenuItem('${item.id}')" class="flex-1 bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm">
+                                        <h4 class="font-semibold text-gray-800 mb-2 text-sm sm:text-base">${item.name}</h4>
+                                        <p class="text-xs sm:text-sm text-gray-600 mb-2">${item.category}</p>
+                                        <p class="text-orange-600 font-bold mb-2 sm:mb-3 text-sm sm:text-base">${formatCurrency(getItemPrice(item))}</p>
+                                        ${item.deletedAt ? `<p class="text-xs text-red-600 mb-2 sm:mb-3">Xóa lúc: ${new Date(item.deletedAt.seconds * 1000).toLocaleString('vi-VN')}</p>` : ''}
+
+                                        <div class="flex gap-1.5 sm:gap-2">
+                                            <button onclick="restoreMenuItem('${item.id}')" class="flex-1 bg-green-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-green-600 text-xs sm:text-sm">
                                                 ♻️ Khôi phục
                                             </button>
-                                            <button onclick="permanentDeleteMenuItem('${item.id}')" class="flex-1 bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700 text-sm">
+                                            <button onclick="permanentDeleteMenuItem('${item.id}')" class="flex-1 bg-red-600 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-red-700 text-xs sm:text-sm">
                                                 ⚠️ Xóa vĩnh viễn
                                             </button>
                                         </div>
