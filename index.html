@@ -125,109 +125,6 @@
             lucide.createIcons();
         }
 
-        function base64ToArrayBuffer(base64) {
-            const binaryString = window.atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        function pcmToWav(pcm16, sampleRate = 16000) {
-            const numChannels = 1;
-            const numSamples = pcm16.length;
-            const bytesPerSample = 2;
-            const blockAlign = numChannels * bytesPerSample;
-            const byteRate = sampleRate * blockAlign;
-            const dataSize = numSamples * bytesPerSample;
-            const buffer = new ArrayBuffer(44 + dataSize);
-            const view = new DataView(buffer);
-
-            let offset = 0;
-
-            // RIFF chunk
-            view.setUint32(offset, 0x52494646, false); offset += 4; // "RIFF"
-            view.setUint32(offset, 36 + dataSize, true); offset += 4; // file size - 8
-            view.setUint32(offset, 0x57415645, false); offset += 4; // "WAVE"
-
-            // fmt chunk
-            view.setUint32(offset, 0x666d7420, false); offset += 4; // "fmt "
-            view.setUint32(offset, 16, true); offset += 4; // chunk size
-            view.setUint16(offset, 1, true); offset += 2; // format (1 = PCM)
-            view.setUint16(offset, numChannels, true); offset += 2; // channels
-            view.setUint32(offset, sampleRate, true); offset += 4; // sample rate
-            view.setUint32(offset, byteRate, true); offset += 4; // byte rate
-            view.setUint16(offset, blockAlign, true); offset += 2; // block align
-            view.setUint16(offset, bytesPerSample * 8, true); offset += 2; // bits per sample
-
-            // data chunk
-            view.setUint32(offset, 0x64617461, false); offset += 4; // "data"
-            view.setUint32(offset, dataSize, true); offset += 4; // data size
-
-            // write PCM data
-            for (let i = 0; i < numSamples; i++) {
-                view.setInt16(offset, pcm16[i], true);
-                offset += 2;
-            }
-
-            return new Blob([buffer], { type: 'audio/wav' });
-        }
-
-        async function speak(text) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=`;
-            const payload = {
-                contents: [{ parts: [{ text: text }] }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } }
-                    }
-                },
-                model: "gemini-2.5-flash-preview-tts"
-            };
-
-            const maxRetries = 5;
-            let currentDelay = 1000;
-
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-                    const result = await response.json();
-                    const part = result?.candidates?.[0]?.content?.parts?.[0];
-                    const audioData = part?.inlineData?.data;
-                    const mimeType = part?.inlineData?.mimeType;
-
-                    if (audioData && mimeType && mimeType.startsWith("audio/")) {
-                        // Assuming a default sample rate of 16000 Hz for PCM16 audio
-                        const sampleRate = 16000;
-                        const pcmData = base64ToArrayBuffer(audioData);
-                        const pcm16 = new Int16Array(pcmData);
-                        const wavBlob = pcmToWav(pcm16, sampleRate);
-                        const audioUrl = URL.createObjectURL(wavBlob);
-                        const audio = new Audio(audioUrl);
-                        audio.play();
-                        return;
-                    }
-                } catch (error) {
-                    console.error(`TTS API failed (attempt ${i + 1}):`, error);
-                    if (i < maxRetries - 1) {
-                        await new Promise(resolve => setTimeout(resolve, currentDelay));
-                        currentDelay *= 2; // Exponential backoff
-                    } else {
-                        console.error('TTS failed after multiple retries.');
-                    }
-                }
-            }
-        }
 
         // --- Quản lý Giỏ hàng ---
         function updateCart(itemId, change) {
@@ -3212,8 +3109,6 @@
 
                   showMessage(`🎉 Đã đặt hàng thành công! Mã đơn: #${docRef.id.slice(-6).toUpperCase()}`, 'success');
 
-                  // TTS
-                  speak(`Cảm ơn bạn. Đơn hàng trị giá ${total.toLocaleString('vi-VN')} đồng đã được đặt thành công. Mã đơn hàng là ${docRef.id.slice(-6).toUpperCase()}.`);
 
                   // Lưu order vào session cho khách hàng (nếu là guest)
                   if (userRole === 'guest' && currentSessionId) {
@@ -3268,9 +3163,39 @@
                   console.log("📡 Setting up orders realtime listener...");
                   const ordersRef = collection(db, 'orders');
                   
-                  onSnapshot(ordersRef, (snapshot) => {
+                  onSnapshot(ordersRef, async (snapshot) => {
                       orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                       console.log("📋 Orders updated:", orders.length);
+                      
+                      // --- TỰ ĐỘNG HỦY ĐƠN QUÁ HẠN (3 TIẾNG) ---
+                      const now = Date.now();
+                      const threeHours = 3 * 60 * 60 * 1000; // 3 giờ tính bằng milliseconds
+                      
+                      for (const order of orders) {
+                          if (order.status === 'ordered' && order.createdAt && order.createdAt.seconds) {
+                              const orderTime = order.createdAt.seconds * 1000;
+                              const timeDiff = now - orderTime;
+                              
+                              // Nếu đơn hàng đã quá 3 tiếng
+                              if (timeDiff >= threeHours) {
+                                  console.log(`⏰ Auto-cancelling expired order: ${order.id.slice(-6)}`);
+                                  
+                                  try {
+                                      await updateDoc(doc(db, 'orders', order.id), {
+                                          status: 'cancelled',
+                                          cancelReason: 'Đơn hàng quá hạn (tự động hủy sau 3 giờ)',
+                                          cancelledAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+                                          cancelledBy: 'system',
+                                          updatedAt: new Date()
+                                      });
+                                      
+                                      showMessage(`⏰ Đơn #${order.id.slice(-6).toUpperCase()} đã bị hủy do quá hạn`, "warning");
+                                  } catch (error) {
+                                      console.error("Error auto-cancelling order:", error);
+                                  }
+                              }
+                          }
+                      }
                       
                       // --- LOGIC TỰ ĐỘNG CHUYỂN TAB VÀ TRẠNG THÁI ---
                       if (isAdmin) {
@@ -3303,7 +3228,6 @@
                                    const order = change.doc.data();
                                    if (order.status === 'ordered') {
                                        showMessage(`🔔 Đơn hàng mới: #${change.doc.id.slice(-6).toUpperCase()}`, 'info');
-                                       speak(`Có đơn hàng mới`);
                                        
                                        // NẾU KHÔNG ĐANG LÀM ĐƠN NÀO -> Tự động chuyển sang tab chờ nhận
                                        if (!processingOrderId && currentOrderFilter !== 'ordered') {
@@ -3325,19 +3249,56 @@
                           renderOrdersManagementList();
                       }
                       
-                      // Cập nhật guest orders nếu có thay đổi
+                      // Cập nhật guest orders nếu có thay đổi (REALTIME UPDATE)
+                      let hasGuestOrderUpdate = false;
                       snapshot.docChanges().forEach(change => {
-                          if (userRole === 'guest' && change.type === 'modified') {
+                          if (userRole === 'guest' && (change.type === 'modified' || change.type === 'added')) {
                               const orderData = change.doc.data();
                               const guestOrder = guestOrders.find(o => o.orderId === change.doc.id);
                               if (guestOrder) {
+                                  // Cập nhật thông tin order
                                   guestOrder.status = orderData.status;
                                   guestOrder.updatedAt = orderData.updatedAt;
+                                  
+                                  // Cập nhật cancelReason nếu có
+                                  if (orderData.status === 'cancelled' && orderData.cancelReason) {
+                                      guestOrder.cancelReason = orderData.cancelReason;
+                                      guestOrder.cancelledAt = orderData.cancelledAt;
+                                  }
+                                  
                                   saveSessionToCookie();
-                                  console.log('📝 Guest order updated:', guestOrder);
+                                  hasGuestOrderUpdate = true;
+                                  console.log('📝 Guest order updated realtime:', {
+                                      orderId: guestOrder.shortId,
+                                      status: guestOrder.status,
+                                      cancelReason: guestOrder.cancelReason
+                                  });
+                                  
+                                  // Hiển thị thông báo cho khách hàng
+                                  const statusMessages = {
+                                      'preparing': `🍳 Đơn hàng #${guestOrder.shortId} đang được chuẩn bị!`,
+                                      'completed': `✅ Đơn hàng #${guestOrder.shortId} đã hoàn thành!`,
+                                      'cancelled': `❌ Đơn hàng #${guestOrder.shortId} đã bị hủy`
+                                  };
+                                  
+                                  if (statusMessages[orderData.status]) {
+                                      showMessage(statusMessages[orderData.status], 
+                                          orderData.status === 'completed' ? 'success' : 
+                                          orderData.status === 'cancelled' ? 'error' : 'info');
+                                  }
                               }
                           }
                       });
+                      
+                      // Tự động cập nhật modal "Đơn hàng của tôi" nếu đang mở
+                      if (hasGuestOrderUpdate) {
+                          const myOrdersModal = document.getElementById('my-orders-modal');
+                          if (myOrdersModal && !myOrdersModal.classList.contains('hidden')) {
+                              // Modal đang mở -> refresh nội dung
+                              console.log('🔄 Refreshing My Orders modal (realtime update)');
+                              showGuestOrders();
+                          }
+                      }
                   }, (error) => {
                       console.error("Error in orders listener:", error);
                   });
@@ -3952,7 +3913,6 @@
                   renderOrdersManagementList(); // Update UI immediately
 
                   showMessage(`✅ Đã nhận đơn #${orderId.slice(-6).toUpperCase()}`, "success");
-                  speak("Đã nhận đơn");
 
               } catch (error) {
                   console.error("Error accepting order:", error);
@@ -4031,7 +3991,6 @@
                   }
 
                   showMessage(`✅ Hoàn thành đơn #${orderId.slice(-6).toUpperCase()} - ${formatCurrency(order.total)}`, "success");
-                  speak("Đơn hàng hoàn thành");
 
               } catch (error) {
                   console.error("Error completing order:", error);
@@ -4132,6 +4091,10 @@
           }
 
           // ==================== CUSTOMER ORDER HISTORY ====================
+          
+          // Biến lưu unsubscribe function cho customer orders listener
+          let customerOrdersUnsubscribe = null;
+          
           async function showMyOrders() {
               // Guest: xem từ cookie session
               if (userRole === 'guest') {
@@ -4140,35 +4103,84 @@
                   return;
               }
 
-              // Customer: query Firebase
+              // Customer: query Firebase với REALTIME LISTENER
               if (!auth.currentUser) {
                   showMessage("Vui lòng đăng nhập để xem đơn hàng!", "warning");
                   return;
               }
 
               try {
-                  console.log("Loading customer orders from Firebase...");
+                  console.log("Setting up customer orders realtime listener...");
                   const q = query(collection(db, 'orders'), where('customerId', '==', userId));
-                  const querySnapshot = await getDocs(q);
-                  const myOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                  
+                  // Hủy listener cũ nếu có
+                  if (customerOrdersUnsubscribe) {
+                      customerOrdersUnsubscribe();
+                  }
+                  
+                  // Setup realtime listener
+                  customerOrdersUnsubscribe = onSnapshot(q, (snapshot) => {
+                      const myOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                      
+                      console.log("Customer orders updated:", myOrders.length);
+                      
+                      // Kiểm tra xem có order nào bị thay đổi không
+                      snapshot.docChanges().forEach(change => {
+                          if (change.type === 'modified') {
+                              const orderData = change.doc.data();
+                              console.log('📝 Customer order updated realtime:', {
+                                  orderId: change.doc.id.slice(-6),
+                                  status: orderData.status
+                              });
+                              
+                              // Hiển thị thông báo
+                              const statusMessages = {
+                                  'preparing': `🍳 Đơn hàng #${change.doc.id.slice(-6).toUpperCase()} đang được chuẩn bị!`,
+                                  'completed': `✅ Đơn hàng #${change.doc.id.slice(-6).toUpperCase()} đã hoàn thành!`,
+                                  'cancelled': `❌ Đơn hàng #${change.doc.id.slice(-6).toUpperCase()} đã bị hủy`
+                              };
+                              
+                              if (statusMessages[orderData.status]) {
+                                  showMessage(statusMessages[orderData.status], 
+                                      orderData.status === 'completed' ? 'success' : 
+                                      orderData.status === 'cancelled' ? 'error' : 'info');
+                              }
+                          }
+                      });
 
-                  console.log("Loaded customer orders:", myOrders.length);
-                  // Debug: check if cancelled orders have cancelReason
-                  myOrders.filter(o => o.status === 'cancelled').forEach(order => {
-                      console.log(`Customer order ${order.id.slice(-6)} cancelled reason:`, order.cancelReason);
+                      // Render nội dung modal
+                      renderCustomerOrdersModal(myOrders);
                   });
 
-                  const modalContent = document.getElementById('my-orders-content');
+                  // Hiển thị modal
+                  document.getElementById('my-orders-modal').classList.remove('hidden');
 
-                  if (myOrders.length === 0) {
-                      modalContent.innerHTML = '<p class="text-gray-500 text-center py-8">Bạn chưa có đơn hàng nào</p>';
-                  } else {
-                      // Sort by newest first
-                      const sortedOrders = myOrders.sort((a, b) => {
-                          const timeA = a.createdAt?.seconds || 0;
-                          const timeB = b.createdAt?.seconds || 0;
-                          return timeB - timeA;
-                      });
+              } catch (error) {
+                  console.error("Error setting up customer orders listener:", error);
+                  showMessage("Lỗi tải đơn hàng: " + error.message, "error");
+              }
+          }
+          
+          // Render nội dung modal đơn hàng cho customer
+          function renderCustomerOrdersModal(myOrders) {
+              const modalContent = document.getElementById('my-orders-content');
+              
+              // Kiểm tra xem modal có đang mở không
+              const modal = document.getElementById('my-orders-modal');
+              if (!modal || modal.classList.contains('hidden')) {
+                  // Modal không mở, không cần render
+                  return;
+              }
+
+              if (myOrders.length === 0) {
+                  modalContent.innerHTML = '<p class="text-gray-500 text-center py-8">Bạn chưa có đơn hàng nào</p>';
+              } else {
+                  // Sort by newest first
+                  const sortedOrders = [...myOrders].sort((a, b) => {
+                      const timeA = a.createdAt?.seconds || 0;
+                      const timeB = b.createdAt?.seconds || 0;
+                      return timeB - timeA;
+                  });
 
                       modalContent.innerHTML = sortedOrders.map(order => `
                           <div class="bg-gray-50 p-4 rounded-lg border-2 ${
@@ -4241,19 +4253,20 @@
                               ` : ''}
                           </div>
                       `).join('');
-                  }
-
-                  document.getElementById('my-orders-modal').classList.remove('hidden');
-                  renderLucideIcons();
-
-              } catch (error) {
-                  console.error("Error loading my orders:", error);
-                  showMessage("Lỗi tải đơn hàng: " + error.message, "error");
               }
+              
+              renderLucideIcons();
           }
 
           function closeMyOrdersModal() {
               document.getElementById('my-orders-modal').classList.add('hidden');
+              
+              // Hủy listener khi đóng modal để tiết kiệm tài nguyên
+              if (customerOrdersUnsubscribe) {
+                  customerOrdersUnsubscribe();
+                  customerOrdersUnsubscribe = null;
+                  console.log('🔌 Customer orders listener unsubscribed');
+              }
           }
 
           // Hiển thị đơn hàng của guest từ session
@@ -4527,7 +4540,6 @@
             window.handleChangePassword = handleChangePassword;
             window.loadItemForEdit = loadItemForEdit;
             window.clearAdminForm = clearAdminForm;
-            window.speak = speak;
             window.loadMenuItemsOnce = loadMenuItemsOnce;
             window.openPriceModal = openPriceModal;
             window.closePriceModal = closePriceModal;
@@ -4816,5 +4828,64 @@
     <footer class="bg-amber-700 text-white p-2 mt-6 text-center text-xs fixed bottom-0 left-0 right-0 z-50">
         &copy; 2025 by GTD Fry. Chill Coffee
     </footer>
+
+    <!-- Auto Clear Script - Tự động xóa sau 2 giờ -->
+    <script>
+        // Hàm xóa tất cả dữ liệu khách hàng
+        function autoCleanupCustomerData() {
+            console.log('🧹 Đang thực hiện dọn dẹp tự động...');
+            
+            // 1. Xóa giỏ hàng từ localStorage
+            localStorage.removeItem('cart');
+            
+            // 2. Xóa đơn hàng đang xử lý từ localStorage
+            localStorage.removeItem('processingOrderId');
+            
+            // 3. Xóa session cookie (bao gồm table number và orders)
+            if (typeof clearSessionCookie === 'function') {
+                clearSessionCookie();
+            } else {
+                // Fallback nếu function chưa được định nghĩa
+                document.cookie = 'guest_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            }
+            
+            // 4. Reset giỏ hàng trong memory
+            if (typeof cart !== 'undefined') {
+                cart = {};
+            }
+            
+            console.log('✅ Đã xóa tất cả: Cookie, Giỏ hàng, Đơn hàng, Bàn');
+            
+            // 5. Hiển thị thông báo cho người dùng
+            if (typeof showMessage === 'function') {
+                showMessage('⏰ Phiên làm việc đã hết hạn. Dữ liệu đã được xóa!', 'info');
+            }
+            
+            // 6. Reload trang để làm mới giao diện sau 2 giây
+            setTimeout(() => {
+                window.location.href = window.location.pathname; // Reload về trang chủ, xóa query params
+            }, 2000);
+        }
+        
+        // Thiết lập timer 2 giờ (7,200,000 milliseconds)
+        const TWO_HOURS = 2  * 60 * 1000; // 2 giờ = 7,200,000 ms
+        
+        // Bắt đầu đếm ngược khi trang được load
+        console.log('⏰ Timer bắt đầu: Sẽ tự động xóa dữ liệu sau 2 giờ');
+        const autoCleanupTimer = setTimeout(autoCleanupCustomerData, TWO_HOURS);
+        
+        // Lưu thời gian bắt đầu để có thể kiểm tra
+        const startTime = new Date();
+        console.log('🕐 Thời gian bắt đầu:', startTime.toLocaleString('vi-VN'));
+        console.log('🕐 Thời gian xóa dự kiến:', new Date(startTime.getTime() + TWO_HOURS).toLocaleString('vi-VN'));
+        
+        // Optional: Lưu timer ID để có thể hủy nếu cần (ví dụ: khi user logout)
+        window.autoCleanupTimerId = autoCleanupTimer;
+        
+        // Optional: Thêm event listener để clear timer khi đóng tab/window
+        window.addEventListener('beforeunload', function() {
+            console.log('🚪 Trang đang đóng, timer sẽ bị hủy');
+        });
+    </script>
 </body>
 </html>
