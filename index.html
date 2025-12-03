@@ -392,8 +392,10 @@
                     setView('admin-stats');
                     showMessage("Đã thoát chế độ xem khách hàng", "info");
                 } else {
-                    // Admin đang ở trang admin → về trang thống kê
-                    setView('admin-stats');
+                    // DISABLED: Không tự động chuyển về trang thống kê khi click logo
+                    // để tránh làm phiền admin đang làm việc ở trang khác
+                    // setView('admin-stats');
+                    showMessage("Logo clicked - staying on current page", "info");
                 }
             } else {
                 // Khách hàng → về trang khách
@@ -548,7 +550,23 @@
                 // Auto-cleanup expired items
                 cleanupExpiredItems();
 
-                renderApp();
+                // Selective updates instead of full renderApp()
+                if (currentView === 'customer') {
+                    // Only update customer menu if we're on customer view
+                    document.getElementById('main-content-container').innerHTML = renderMainContent();
+                } else if (currentView === 'admin-menu') {
+                    // Only update admin menu if we're on admin menu view
+                    document.getElementById('main-content-container').innerHTML = renderMainContent();
+                } else if (currentView === 'admin-stats') {
+                    // Only update stats numbers if we're on stats view
+                    updateStatsPage();
+                } else if (currentView === 'admin-trash') {
+                    // Update trash view if we're on trash view (menu changes might affect deleted items count)
+                    document.getElementById('main-content-container').innerHTML = renderMainContent();
+                }
+                // For other views, no update needed as menu changes don't affect them
+
+                renderLucideIcons();
             }, (error) => {
                 console.error("❌ Lỗi khi nghe thay đổi menu:", error);
                 console.error("❌ Error details:", error.code, error.message);
@@ -3378,11 +3396,11 @@
                                    processingOrderId = null;
                                    localStorage.removeItem('processingOrderId');
                                    
-                                   // Nếu vừa xong đơn làm, kiểm tra xem có đơn chờ nào không để chuyển về tab ordered
-                                   const hasPendingOrders = orders.some(o => o.status === 'ordered');
-                                   if (hasPendingOrders && currentOrderFilter !== 'ordered') {
-                                       currentOrderFilter = 'ordered';
-                                   }
+                                   // DISABLED: Không tự động chuyển tab khi hoàn thành đơn để tránh làm phiền admin
+                                   // const hasPendingOrders = orders.some(o => o.status === 'ordered');
+                                   // if (hasPendingOrders && currentOrderFilter !== 'ordered') {
+                                   //     currentOrderFilter = 'ordered';
+                                   // }
                                }
                            }
                            
@@ -3392,30 +3410,24 @@
                                    const order = change.doc.data();
                                    if (order.status === 'ordered') {
                                        showMessage(`🔔 Đơn hàng mới: #${change.doc.id.slice(-6).toUpperCase()}`, 'info');
-                                       
-                                       // NẾU KHÔNG ĐANG LÀM ĐƠN NÀO -> Tự động chuyển sang tab chờ nhận
-                                       if (!processingOrderId && currentOrderFilter !== 'ordered') {
-                                           currentOrderFilter = 'ordered';
-                                       }
+
+                                       // DISABLED: Không tự động chuyển tab để tránh làm phiền admin đang làm việc
+                                       // if (!processingOrderId && currentOrderFilter !== 'ordered') {
+                                       //     currentOrderFilter = 'ordered';
+                                       // }
                                    }
                                }
                            });
                       }
 
-                      // Re-render header để cập nhật badge
-                      if (isAdmin) {
-                          document.getElementById('header-container').innerHTML = renderHeader();
-                          renderLucideIcons();
-                      }
-                      
-                      // Render nếu đang ở trang admin orders
+                      // Update navigation badges only
+                      updateNavigationBadges();
+
+                      // Update current view only if necessary
                       if (currentView === 'admin-orders') {
                           renderOrdersManagementList();
-                      }
-
-                      // Render nếu đang ở trang admin stats
-                      if (currentView === 'admin-stats') {
-                          renderApp(); // Re-render toàn bộ app để cập nhật thống kê
+                      } else if (currentView === 'admin-stats') {
+                          updateStatsPage();
                       }
                       
                       // NOTE: Guest orders realtime updates now handled by individual order listeners
@@ -4759,6 +4771,90 @@
             renderLucideIcons();
         }
 
+        // Update only navigation badges without full re-render
+        function updateNavigationBadges() {
+            if (!isAdmin) return;
+
+            const pendingOrdersCount = orders.filter(o => o.status === 'ordered').length;
+
+            // Update admin orders button badge
+            const ordersButton = document.querySelector('button[onclick*="admin-orders"]');
+            if (ordersButton) {
+                // Remove existing badge
+                const existingBadge = ordersButton.querySelector('.absolute');
+                if (existingBadge) {
+                    existingBadge.remove();
+                }
+
+                // Add new badge if there are pending orders
+                if (pendingOrdersCount > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform bg-red-600 rounded-full animate-pulse';
+                    badge.textContent = pendingOrdersCount;
+                    ordersButton.appendChild(badge);
+                }
+            }
+        }
+
+        // Update only stats page numbers without full re-render
+        function updateStatsPage() {
+            if (!isAdmin || currentView !== 'admin-stats') return;
+
+            // Recalculate stats
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth();
+            const currentYear = currentDate.getFullYear();
+
+            const totalRevenue = orders
+                .filter(order => order.status === 'completed')
+                .filter(order => {
+                    if (!order.createdAt || !order.createdAt.seconds) return false;
+                    const orderDate = new Date(order.createdAt.seconds * 1000);
+                    return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+                })
+                .reduce((sum, order) => sum + (order.total || 0), 0);
+
+            const totalOrders = orders.length;
+            const activeItems = menuItems.filter(item => item.status !== 'deleted').length;
+            const pendingOrders = orders.filter(o => o.status === 'ordered').length;
+
+            // Update revenue
+            const revenueElement = document.querySelector('.border-l-orange-500 .font-extrabold');
+            if (revenueElement) {
+                revenueElement.textContent = formatCurrency(totalRevenue);
+            }
+
+            // Update total orders
+            const totalOrdersElement = document.querySelector('.border-l-blue-500 .font-extrabold');
+            if (totalOrdersElement) {
+                totalOrdersElement.textContent = totalOrders;
+            }
+
+            // Update active items
+            const activeItemsElement = document.querySelector('.border-l-green-500 .font-extrabold');
+            if (activeItemsElement) {
+                activeItemsElement.textContent = activeItems;
+            }
+
+            // Update pending orders
+            const pendingOrdersElement = document.querySelector('.border-l-purple-500 .font-extrabold');
+            if (pendingOrdersElement) {
+                pendingOrdersElement.textContent = pendingOrders;
+            }
+
+            // Update orders button text in stats page
+            const statsOrdersButton = document.querySelector('button[onclick*="admin-orders"]:not(.absolute)');
+            if (statsOrdersButton) {
+                const spanElements = statsOrdersButton.querySelectorAll('span');
+                spanElements.forEach(span => {
+                    if (span.textContent.includes('Đơn Hàng') || span.textContent.includes('Đơn')) {
+                        span.textContent = span.textContent.includes('Đơn Hàng') ?
+                            `Đơn Hàng (${pendingOrders})` : `Đơn (${pendingOrders})`;
+                    }
+                });
+            }
+        }
+
 
         // ==================== MOBILE MENU ====================
 
@@ -5235,7 +5331,7 @@
         }
         
         // Thiết lập timer 2 giờ (7,200,000 milliseconds)
-        const TWO_HOURS = 2  * 60 * 1000; // 2 giờ = 7,200,000 ms
+        const TWO_HOURS = 2 * 60 * 60 * 1000; // 2 giờ = 7,200,000 ms
         
         // Bắt đầu đếm ngược khi trang được load
         console.log('⏰ Timer bắt đầu: Sẽ tự động xóa dữ liệu sau 2 giờ');
