@@ -392,10 +392,8 @@
                     setView('admin-stats');
                     showMessage("Đã thoát chế độ xem khách hàng", "info");
                 } else {
-                    // DISABLED: Không tự động chuyển về trang thống kê khi click logo
-                    // để tránh làm phiền admin đang làm việc ở trang khác
-                    // setView('admin-stats');
-                    showMessage("Logo clicked - staying on current page", "info");
+                    // Admin đang ở trang admin → về trang thống kê
+                    setView('admin-stats');
                 }
             } else {
                 // Khách hàng → về trang khách
@@ -550,23 +548,7 @@
                 // Auto-cleanup expired items
                 cleanupExpiredItems();
 
-                // Selective updates instead of full renderApp()
-                if (currentView === 'customer') {
-                    // Only update customer menu if we're on customer view
-                    document.getElementById('main-content-container').innerHTML = renderMainContent();
-                } else if (currentView === 'admin-menu') {
-                    // Only update admin menu if we're on admin menu view
-                    document.getElementById('main-content-container').innerHTML = renderMainContent();
-                } else if (currentView === 'admin-stats') {
-                    // Only update stats numbers if we're on stats view
-                    updateStatsPage();
-                } else if (currentView === 'admin-trash') {
-                    // Update trash view if we're on trash view (menu changes might affect deleted items count)
-                    document.getElementById('main-content-container').innerHTML = renderMainContent();
-                }
-                // For other views, no update needed as menu changes don't affect them
-
-                renderLucideIcons();
+                renderApp();
             }, (error) => {
                 console.error("❌ Lỗi khi nghe thay đổi menu:", error);
                 console.error("❌ Error details:", error.code, error.message);
@@ -1235,6 +1217,23 @@
                            console.log("🚀 Admin logged in, redirecting to admin dashboard");
                            setView('admin-stats');
                         }
+
+                        // Khởi tạo timer session cleanup sau khi authentication hoàn thành
+                        // Chỉ áp dụng cho khách hàng, không áp dụng cho admin
+                        if (!isAdmin) {
+                            console.log('⏰ Timer bắt đầu: Sẽ tự động xóa dữ liệu sau 2 giờ');
+                            const autoCleanupTimer = setTimeout(autoCleanupCustomerData, TWO_HOURS);
+
+                            // Lưu thời gian bắt đầu để có thể kiểm tra
+                            const startTime = new Date();
+                            console.log('🕐 Thời gian bắt đầu:', startTime.toLocaleString('vi-VN'));
+                            console.log('🕐 Thời gian xóa dự kiến:', new Date(startTime.getTime() + TWO_HOURS).toLocaleString('vi-VN'));
+
+                            // Optional: Lưu timer ID để có thể hủy nếu cần (ví dụ: khi user logout)
+                            window.autoCleanupTimerId = autoCleanupTimer;
+                        } else {
+                            console.log('👑 Admin mode: Timer tự động xóa dữ liệu bị tắt để không làm gián đoạn công việc');
+                        }
                     } else {
                         // User đã đăng xuất
                         isAdmin = false;
@@ -1244,6 +1243,18 @@
                             // if (!__initial_auth_token) await signInAnonymously(auth);
                             console.log("🔄 Setting up menu listener without auth...");
                             setupMenuListener();
+
+                            // Khởi tạo timer cho khách hàng ẩn danh
+                            console.log('⏰ Timer bắt đầu: Sẽ tự động xóa dữ liệu sau 2 giờ (khách hàng ẩn danh)');
+                            const autoCleanupTimer = setTimeout(autoCleanupCustomerData, TWO_HOURS);
+
+                            // Lưu thời gian bắt đầu để có thể kiểm tra
+                            const startTime = new Date();
+                            console.log('🕐 Thời gian bắt đầu:', startTime.toLocaleString('vi-VN'));
+                            console.log('🕐 Thời gian xóa dự kiến:', new Date(startTime.getTime() + TWO_HOURS).toLocaleString('vi-VN'));
+
+                            // Optional: Lưu timer ID để có thể hủy nếu cần (ví dụ: khi user logout)
+                            window.autoCleanupTimerId = autoCleanupTimer;
 
                             // Load categories from Firebase
                             loadCategories();
@@ -3396,11 +3407,11 @@
                                    processingOrderId = null;
                                    localStorage.removeItem('processingOrderId');
                                    
-                                   // DISABLED: Không tự động chuyển tab khi hoàn thành đơn để tránh làm phiền admin
-                                   // const hasPendingOrders = orders.some(o => o.status === 'ordered');
-                                   // if (hasPendingOrders && currentOrderFilter !== 'ordered') {
-                                   //     currentOrderFilter = 'ordered';
-                                   // }
+                                   // Nếu vừa xong đơn làm, kiểm tra xem có đơn chờ nào không để chuyển về tab ordered
+                                   const hasPendingOrders = orders.some(o => o.status === 'ordered');
+                                   if (hasPendingOrders && currentOrderFilter !== 'ordered') {
+                                       currentOrderFilter = 'ordered';
+                                   }
                                }
                            }
                            
@@ -3410,24 +3421,30 @@
                                    const order = change.doc.data();
                                    if (order.status === 'ordered') {
                                        showMessage(`🔔 Đơn hàng mới: #${change.doc.id.slice(-6).toUpperCase()}`, 'info');
-
-                                       // DISABLED: Không tự động chuyển tab để tránh làm phiền admin đang làm việc
-                                       // if (!processingOrderId && currentOrderFilter !== 'ordered') {
-                                       //     currentOrderFilter = 'ordered';
-                                       // }
+                                       
+                                       // NẾU KHÔNG ĐANG LÀM ĐƠN NÀO -> Tự động chuyển sang tab chờ nhận
+                                       if (!processingOrderId && currentOrderFilter !== 'ordered') {
+                                           currentOrderFilter = 'ordered';
+                                       }
                                    }
                                }
                            });
                       }
 
-                      // Update navigation badges only
-                      updateNavigationBadges();
-
-                      // Update current view only if necessary
+                      // Re-render header để cập nhật badge
+                      if (isAdmin) {
+                          document.getElementById('header-container').innerHTML = renderHeader();
+                          renderLucideIcons();
+                      }
+                      
+                      // Render nếu đang ở trang admin orders
                       if (currentView === 'admin-orders') {
                           renderOrdersManagementList();
-                      } else if (currentView === 'admin-stats') {
-                          updateStatsPage();
+                      }
+
+                      // Render nếu đang ở trang admin stats
+                      if (currentView === 'admin-stats') {
+                          renderApp(); // Re-render toàn bộ app để cập nhật thống kê
                       }
                       
                       // NOTE: Guest orders realtime updates now handled by individual order listeners
@@ -4771,90 +4788,6 @@
             renderLucideIcons();
         }
 
-        // Update only navigation badges without full re-render
-        function updateNavigationBadges() {
-            if (!isAdmin) return;
-
-            const pendingOrdersCount = orders.filter(o => o.status === 'ordered').length;
-
-            // Update admin orders button badge
-            const ordersButton = document.querySelector('button[onclick*="admin-orders"]');
-            if (ordersButton) {
-                // Remove existing badge
-                const existingBadge = ordersButton.querySelector('.absolute');
-                if (existingBadge) {
-                    existingBadge.remove();
-                }
-
-                // Add new badge if there are pending orders
-                if (pendingOrdersCount > 0) {
-                    const badge = document.createElement('span');
-                    badge.className = 'absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform bg-red-600 rounded-full animate-pulse';
-                    badge.textContent = pendingOrdersCount;
-                    ordersButton.appendChild(badge);
-                }
-            }
-        }
-
-        // Update only stats page numbers without full re-render
-        function updateStatsPage() {
-            if (!isAdmin || currentView !== 'admin-stats') return;
-
-            // Recalculate stats
-            const currentDate = new Date();
-            const currentMonth = currentDate.getMonth();
-            const currentYear = currentDate.getFullYear();
-
-            const totalRevenue = orders
-                .filter(order => order.status === 'completed')
-                .filter(order => {
-                    if (!order.createdAt || !order.createdAt.seconds) return false;
-                    const orderDate = new Date(order.createdAt.seconds * 1000);
-                    return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-                })
-                .reduce((sum, order) => sum + (order.total || 0), 0);
-
-            const totalOrders = orders.length;
-            const activeItems = menuItems.filter(item => item.status !== 'deleted').length;
-            const pendingOrders = orders.filter(o => o.status === 'ordered').length;
-
-            // Update revenue
-            const revenueElement = document.querySelector('.border-l-orange-500 .font-extrabold');
-            if (revenueElement) {
-                revenueElement.textContent = formatCurrency(totalRevenue);
-            }
-
-            // Update total orders
-            const totalOrdersElement = document.querySelector('.border-l-blue-500 .font-extrabold');
-            if (totalOrdersElement) {
-                totalOrdersElement.textContent = totalOrders;
-            }
-
-            // Update active items
-            const activeItemsElement = document.querySelector('.border-l-green-500 .font-extrabold');
-            if (activeItemsElement) {
-                activeItemsElement.textContent = activeItems;
-            }
-
-            // Update pending orders
-            const pendingOrdersElement = document.querySelector('.border-l-purple-500 .font-extrabold');
-            if (pendingOrdersElement) {
-                pendingOrdersElement.textContent = pendingOrders;
-            }
-
-            // Update orders button text in stats page
-            const statsOrdersButton = document.querySelector('button[onclick*="admin-orders"]:not(.absolute)');
-            if (statsOrdersButton) {
-                const spanElements = statsOrdersButton.querySelectorAll('span');
-                spanElements.forEach(span => {
-                    if (span.textContent.includes('Đơn Hàng') || span.textContent.includes('Đơn')) {
-                        span.textContent = span.textContent.includes('Đơn Hàng') ?
-                            `Đơn Hàng (${pendingOrders})` : `Đơn (${pendingOrders})`;
-                    }
-                });
-            }
-        }
-
 
         // ==================== MOBILE MENU ====================
 
@@ -5331,19 +5264,8 @@
         }
         
         // Thiết lập timer 2 giờ (7,200,000 milliseconds)
-        const TWO_HOURS = 2 * 60 * 60 * 1000; // 2 giờ = 7,200,000 ms
+        const TWO_HOURS = 2 * 60  * 60 * 1000; // 2 giờ = 7,200,000 ms
         
-        // Bắt đầu đếm ngược khi trang được load
-        console.log('⏰ Timer bắt đầu: Sẽ tự động xóa dữ liệu sau 2 giờ');
-        const autoCleanupTimer = setTimeout(autoCleanupCustomerData, TWO_HOURS);
-        
-        // Lưu thời gian bắt đầu để có thể kiểm tra
-        const startTime = new Date();
-        console.log('🕐 Thời gian bắt đầu:', startTime.toLocaleString('vi-VN'));
-        console.log('🕐 Thời gian xóa dự kiến:', new Date(startTime.getTime() + TWO_HOURS).toLocaleString('vi-VN'));
-        
-        // Optional: Lưu timer ID để có thể hủy nếu cần (ví dụ: khi user logout)
-        window.autoCleanupTimerId = autoCleanupTimer;
         
         // Optional: Thêm event listener để clear timer khi đóng tab/window
         window.addEventListener('beforeunload', function() {
