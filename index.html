@@ -1871,7 +1871,19 @@
         // ==================== ADMIN DASHBOARD COMPONENTS ====================
 
         function renderAdminStats() {
-            const totalRevenue = 15000000; // Mock data - will be replaced with real stats
+            // Tính doanh thu tháng hiện tại từ các đơn hàng đã hoàn thành
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth();
+            const currentYear = currentDate.getFullYear();
+
+            const totalRevenue = orders
+                .filter(order => order.status === 'completed')
+                .filter(order => {
+                    if (!order.createdAt || !order.createdAt.seconds) return false;
+                    const orderDate = new Date(order.createdAt.seconds * 1000);
+                    return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+                })
+                .reduce((sum, order) => sum + (order.total || 0), 0);
             const totalOrders = orders.length;
             const activeItems = menuItems.filter(item => item.status !== 'deleted').length;
             const pendingOrders = orders.filter(o => o.status === 'ordered').length;
