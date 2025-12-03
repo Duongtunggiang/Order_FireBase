@@ -810,6 +810,11 @@
                 if (isAdminUser) {
                     showMessage("✅ Đăng nhập Admin thành công! Chuyển đến Dashboard...", "success");
                     console.log("🚀 Redirecting to Admin Dashboard");
+
+                    // Yêu cầu quyền thông báo trình duyệt cho admin
+                    setTimeout(() => {
+                        requestNotificationPermission();
+                    }, 1000);
                 } else {
                     showMessage("✅ Đăng nhập thành công! Nhưng tài khoản không có quyền Admin.", "info");
                     console.log("⚠️ User is not admin, staying in customer view");
@@ -2166,6 +2171,23 @@
                             ${orders.length === 0 ? '<p class="text-center text-gray-500 py-6 sm:py-8 text-sm">Chưa có đơn hàng nào</p>' : ''}
                         </div>
                     </div>
+
+                    <!-- Test Thông Báo (chỉ hiển thị cho admin) -->
+                    <div class="bg-white p-3 sm:p-4 rounded-lg sm:rounded-xl shadow-lg border-2 border-dashed border-gray-300">
+                        <h3 class="text-sm sm:text-base font-bold text-gray-900 mb-3">🔔 Test Thông Báo</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="requestNotificationPermission()" class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 text-xs sm:text-sm active:scale-95 transition">
+                                Cấp Quyền Thông Báo
+                            </button>
+                            <button onclick="showBrowserNotification('Test Thông Báo', 'Đây là thông báo test với âm thanh!', 'logo.png')" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 text-xs sm:text-sm active:scale-95 transition">
+                                Test Thông Báo
+                            </button>
+                            <button onclick="playNotificationSound()" class="bg-purple-500 text-white px-3 py-2 rounded hover:bg-purple-600 text-xs sm:text-sm active:scale-95 transition">
+                                Test Âm Thanh
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Sử dụng các nút này để test tính năng thông báo trình duyệt và âm thanh.</p>
+                    </div>
                 </div>
             `;
         }
@@ -3396,9 +3418,9 @@
                            if (processingOrderId) {
                                const processingOrder = orders.find(o => o.id === processingOrderId);
                                
-                               // Nếu đơn vẫn đang làm ('preparing') -> Giữ màn hình ở tab 'preparing'
+                               // Nếu đơn vẫn đang làm ('preparing') -> CHỈ tự động chuyển tab nếu KHÔNG đang ở trang admin-orders
                                if (processingOrder && processingOrder.status === 'preparing') {
-                                   if (currentOrderFilter !== 'preparing') {
+                                   if (currentView !== 'admin-orders' && currentOrderFilter !== 'preparing') {
                                        currentOrderFilter = 'preparing';
                                    }
                                } 
@@ -3408,8 +3430,9 @@
                                    localStorage.removeItem('processingOrderId');
                                    
                                    // Nếu vừa xong đơn làm, kiểm tra xem có đơn chờ nào không để chuyển về tab ordered
+                                   // CHỈ tự động chuyển tab nếu KHÔNG đang ở trang admin-orders
                                    const hasPendingOrders = orders.some(o => o.status === 'ordered');
-                                   if (hasPendingOrders && currentOrderFilter !== 'ordered') {
+                                   if (hasPendingOrders && currentView !== 'admin-orders' && currentOrderFilter !== 'ordered') {
                                        currentOrderFilter = 'ordered';
                                    }
                                }
@@ -3420,10 +3443,25 @@
                                if (change.type === 'added') {
                                    const order = change.doc.data();
                                    if (order.status === 'ordered') {
-                                       showMessage(`🔔 Đơn hàng mới: #${change.doc.id.slice(-6).toUpperCase()}`, 'info');
-                                       
-                                       // NẾU KHÔNG ĐANG LÀM ĐƠN NÀO -> Tự động chuyển sang tab chờ nhận
-                                       if (!processingOrderId && currentOrderFilter !== 'ordered') {
+                                       const orderId = change.doc.id.slice(-6).toUpperCase();
+                                       showMessage(`🔔 Đơn hàng mới: #${orderId}`, 'info');
+
+                                       // Hiển thị thông báo trình duyệt với âm thanh cho admin
+                                       showBrowserNotification(
+                                           '🔔 Đơn hàng mới!',
+                                           `Đơn hàng #${orderId} đang chờ xử lý`,
+                                           'logo.png'
+                                       );
+
+                                       // Tự động cập nhật dateTo để đảm bảo đơn mới luôn hiển thị (không bị date filter chặn)
+                                       if (dateTo) {
+                                           dateTo = new Date();
+                                           console.log('📅 Auto-updated dateTo to now:', dateTo);
+                                       }
+
+                                       // NẾU KHÔNG ĐANG LÀM ĐƠN NÀO VÀ KHÔNG ĐANG Ở TRANG QUẢN LÝ ĐƠN HÀNG -> Tự động chuyển sang tab chờ nhận
+                                       // Nếu đang ở trong trang admin-orders thì giữ nguyên tab hiện tại (không thay đổi currentOrderFilter)
+                                       if (!processingOrderId && currentView !== 'admin-orders' && currentOrderFilter !== 'ordered') {
                                            currentOrderFilter = 'ordered';
                                        }
                                    }
@@ -3439,6 +3477,7 @@
                       
                       // Render nếu đang ở trang admin orders
                       if (currentView === 'admin-orders') {
+                          console.log('🔄 Updating orders management page, current filter:', currentOrderFilter);
                           renderOrdersManagementList();
                       }
 
@@ -3633,11 +3672,13 @@
           function renderOrdersManagementList() {
               const container = document.getElementById('orders-management-content');
               if (!container) {
-                  console.log('Container not found, skipping render');
+                  console.log('❌ Container #orders-management-content not found, skipping render');
                   return;
               }
 
+              console.log('✅ Rendering orders management list, filter:', currentOrderFilter, 'total orders:', orders.length);
               const filteredOrders = getFilteredOrders();
+              console.log('📊 Filtered orders:', filteredOrders.length, 'Current page:', currentPage);
 
               // Count theo status (theo kết quả lọc thời gian, không phụ thuộc vào currentOrderFilter)
               let dateFilteredOrders = orders;
@@ -3915,6 +3956,8 @@
                   </div>
               `;
 
+              console.log('🎨 HTML updated in container');
+
               // Set default values for date inputs based on current filter
               setTimeout(() => {
                   const fromInput = document.getElementById('date-from');
@@ -3930,6 +3973,7 @@
               }, 100);
 
               renderLucideIcons();
+              console.log('✨ Render complete!');
           }
 
           async function loadOrders() {
@@ -4413,9 +4457,88 @@
                   console.error("Error updating order:", error);
                   showMessage("Lỗi cập nhật đơn hàng: " + error.message, "error");
               }
-          }
+        }
 
-          // ==================== CUSTOMER ORDER HISTORY ====================
+        // ==================== BROWSER NOTIFICATIONS ====================
+
+        // Yêu cầu quyền thông báo trình duyệt
+        function requestNotificationPermission() {
+            if ('Notification' in window) {
+                if (Notification.permission === 'default') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            showMessage("✅ Đã cấp quyền thông báo trình duyệt!", "success");
+                            console.log("🔔 Notification permission granted");
+                        } else {
+                            showMessage("❌ Không thể cấp quyền thông báo trình duyệt", "warning");
+                            console.log("🔔 Notification permission denied");
+                        }
+                    });
+                } else if (Notification.permission === 'granted') {
+                    console.log("🔔 Notification permission already granted");
+                } else {
+                    showMessage("⚠️ Thông báo trình duyệt bị chặn. Vui lòng cho phép trong cài đặt trình duyệt.", "warning");
+                }
+            } else {
+                showMessage("⚠️ Trình duyệt không hỗ trợ thông báo", "warning");
+                console.log("🔔 Browser doesn't support notifications");
+            }
+        }
+
+        // Hiển thị thông báo trình duyệt với âm thanh
+        function showBrowserNotification(title, body, icon = null) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    const notification = new Notification(title, {
+                        body: body,
+                        icon: icon || 'logo.png', // Sử dụng logo mặc định nếu không có icon
+                        badge: 'logo.png',
+                        tag: 'order-notification', // Tag để nhóm thông báo
+                        requireInteraction: false, // Tự động đóng sau 5 giây
+                        silent: false // Cho phép âm thanh mặc định của trình duyệt
+                    });
+
+                    // Phát âm thanh dong_xu.mp3
+                    playNotificationSound();
+
+                    // Tự động đóng sau 5 giây
+                    setTimeout(() => {
+                        notification.close();
+                    }, 5000);
+
+                    // Xử lý click vào thông báo
+                    notification.onclick = function() {
+                        // Focus vào tab hiện tại
+                        window.focus();
+                        // Có thể thêm logic chuyển đến trang đơn hàng
+                        if (isAdmin && currentView !== 'admin-orders') {
+                            setView('admin-orders');
+                        }
+                        notification.close();
+                    };
+
+                    return notification;
+                } catch (error) {
+                    console.error("❌ Error showing browser notification:", error);
+                }
+            }
+            return null;
+        }
+
+        // Phát âm thanh thông báo
+        function playNotificationSound() {
+            try {
+                const audio = new Audio('dong_xu.mp3');
+                audio.volume = 0.7; // Giảm âm lượng một chút
+                audio.play().catch(error => {
+                    console.error("❌ Error playing notification sound:", error);
+                });
+            } catch (error) {
+                console.error("❌ Error creating audio object:", error);
+            }
+        }
+
+        // ==================== CUSTOMER ORDER HISTORY ====================
 
           // Biến lưu unsubscribe functions cho các order listeners
           let customerOrdersUnsubscribe = null;
@@ -4798,19 +4921,22 @@
         function showMessage(message, type = 'info') {
             const messageBox = document.getElementById('message-box');
             messageBox.textContent = message;
-            
+
             let classes = '';
             if (type === 'success') {
                 classes = 'bg-green-100 text-green-800 border-green-400';
             } else if (type === 'warning') {
                 classes = 'bg-yellow-100 text-yellow-800 border-yellow-400';
-            } else { // info/error
+            } else if (type === 'error') {
                 classes = 'bg-red-100 text-red-800 border-red-400';
+            } else { // info
+                classes = 'bg-blue-100 text-blue-800 border-blue-400';
             }
-            
-            messageBox.className = `p-3 rounded-lg border fixed top-4 left-1/2 -translate-x-1/2 z-50 shadow-lg transition-opacity duration-300 ${classes}`;
+
+            // Responsive classes cho mobile và desktop
+            messageBox.className = `p-2 sm:p-3 text-sm sm:text-base rounded-lg border fixed top-3 sm:top-4 left-1/2 -translate-x-1/2 z-[9999] shadow-xl transition-opacity duration-300 max-w-[90vw] sm:max-w-md text-center ${classes}`;
             messageBox.style.opacity = '1';
-            
+
             setTimeout(() => {
                 messageBox.style.opacity = '0';
             }, 3000);
@@ -4993,6 +5119,9 @@
             window.setCategory = setCategory;
             window.handleLogin = handleLogin;
             window.handleLogout = handleLogout;
+            window.requestNotificationPermission = requestNotificationPermission;
+            window.showBrowserNotification = showBrowserNotification;
+            window.playNotificationSound = playNotificationSound;
             window.toggleAdminMode = toggleAdminMode;
             window.saveItem = saveItem;
             window.deleteItem = deleteItem;
@@ -5132,7 +5261,7 @@
         </div>
         
         <!-- Hộp thông báo tùy chỉnh (thay thế alert) -->
-        <div id="message-box" style="opacity: 0; pointer-events: none;" class="p-3 rounded-lg border fixed top-4 left-1/2 -translate-x-1/2 z-50 shadow-lg transition-opacity duration-300"></div>
+        <div id="message-box" style="opacity: 0; pointer-events: none;" class="p-2 sm:p-3 text-sm sm:text-base rounded-lg border fixed top-3 sm:top-4 left-1/2 -translate-x-1/2 z-[9999] shadow-xl transition-opacity duration-300 max-w-[90vw] sm:max-w-md text-center"></div>
 
         <!-- Price Update Modal -->
         <div id="price-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
