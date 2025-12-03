@@ -1193,23 +1193,14 @@
             document.getElementById('item-modal-new-price').value = '';
             document.getElementById('item-modal-status').value = 'active';
             document.getElementById('item-modal-item-type').value = 'simple';
-            document.getElementById('item-modal-size').value = '';
             document.getElementById('item-modal-image').value = '';
             document.getElementById('item-modal-description').value = '';
-            document.getElementById('item-modal-size-field').style.display = 'none';
             document.getElementById('item-modal-config-button-field').style.display = 'none';
 
             // Reset item details
             currentItemDetails = null;
 
             document.getElementById('item-modal').classList.remove('hidden');
-
-            // Setup category change listener
-            const categorySelect = document.getElementById('item-modal-category');
-            categorySelect.addEventListener('change', function() {
-                const sizeField = document.getElementById('item-modal-size-field');
-                sizeField.style.display = this.value === 'Đồ Uống' ? 'block' : 'none';
-            });
 
             // Setup item type change listener
             const itemTypeSelect = document.getElementById('item-modal-item-type');
@@ -1277,7 +1268,6 @@
             document.getElementById('item-modal-category').value = item.category;
             document.getElementById('item-modal-status').value = item.status;
             document.getElementById('item-modal-item-type').value = item.itemType || 'simple';
-            document.getElementById('item-modal-size').value = item.size || '';
             document.getElementById('item-modal-image').value = item.imageUrl || '';
             document.getElementById('item-modal-description').value = item.description || '';
 
@@ -1301,22 +1291,11 @@
                 currentItemDetails = null;
             }
 
-            // Show/hide size field
-            const sizeField = document.getElementById('item-modal-size-field');
-            sizeField.style.display = item.category === 'Đồ Uống' ? 'block' : 'none';
-
             // Show/hide config button
             const configButton = document.getElementById('item-modal-config-button-field');
             configButton.style.display = (item.itemType && item.itemType !== 'simple') ? 'block' : 'none';
 
             document.getElementById('item-modal').classList.remove('hidden');
-
-            // Setup category change listener
-            const categorySelect = document.getElementById('item-modal-category');
-            categorySelect.addEventListener('change', function() {
-                const sizeField = document.getElementById('item-modal-size-field');
-                sizeField.style.display = this.value === 'Đồ Uống' ? 'block' : 'none';
-            });
 
             // Setup item type change listener
             const itemTypeSelect = document.getElementById('item-modal-item-type');
@@ -3946,7 +3925,6 @@
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Ảnh</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
-                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
@@ -3954,7 +3932,15 @@
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     ${(() => {
-                                        const filteredItems = menuItems.filter(item => item.status !== 'deleted');
+                                        // Sắp xếp món mới nhất lên đầu (giảm dần theo createdAt, nếu không có thì dùng updatedAt)
+                                        const filteredItems = menuItems
+                                            .filter(item => item.status !== 'deleted')
+                                            .sort((a, b) => {
+                                                // Ưu tiên createdAt, nếu không có thì dùng updatedAt
+                                                const timeA = a.createdAt?.seconds || a.updatedAt?.seconds || 0;
+                                                const timeB = b.createdAt?.seconds || b.updatedAt?.seconds || 0;
+                                                return timeB - timeA; // Mới nhất trước
+                                            });
                                         const startIndex = (menuCurrentPage - 1) * menuItemsPerPage;
                                         const endIndex = startIndex + menuItemsPerPage;
                                         const paginatedItems = filteredItems.slice(startIndex, endIndex);
@@ -3979,7 +3965,6 @@
                                                     formatCurrency(item.price)
                                                 }
                                             </td>
-                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-blue-600">${item.size || '-'}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">${item.category}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-right text-xs sm:text-sm font-medium">
@@ -4091,13 +4076,6 @@
                                             <option value="best_seller">⭐ Best Seller</option>
                                             <option value="out_of_stock">❌ Hết hàng</option>
                                             <option value="coming_soon">⏳ Sắp có</option>
-                                        </select>
-                                    </div>
-                                    <div id="item-modal-size-field" style="display: none;">
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Size (Đồ Uống)</label>
-                                        <select id="item-modal-size" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
-                                            <option value="">Không chọn size</option>
-                                            ${drinkSizes.map(size => `<option value="${size}">${size}</option>`).join('')}
                                         </select>
                                     </div>
                                     <div id="item-modal-config-button-field" class="md:col-span-2" style="display: none;">
@@ -4527,19 +4505,10 @@
                 // Update price preview
                 updateAdminPricePreview();
 
-                // Show/hide size field based on category
-                toggleSizeField(item.category);
-
                 renderApp(); // Force re-render để cập nhật tiêu đề form
             }
         }
 
-        function toggleSizeField(category) {
-            const sizeField = document.getElementById('size-field');
-            if (sizeField) {
-                sizeField.style.display = category === 'Đồ Uống' ? 'block' : 'none';
-            }
-        }
 
         function updateAdminPricePreview() {
             const oldPriceInput = document.getElementById('admin-form-price');
@@ -4576,15 +4545,6 @@
             }
         }
 
-        // Add event listener for category change
-        document.addEventListener('DOMContentLoaded', function() {
-            const categorySelect = document.getElementById('admin-form-category');
-            if (categorySelect) {
-                categorySelect.addEventListener('change', function(e) {
-                    toggleSizeField(e.target.value);
-                });
-            }
-        });
         
         function handleSaveItem() {
             const newPriceValue = document.getElementById('item-modal-new-price').value.trim();
@@ -4597,7 +4557,6 @@
                 category: document.getElementById('item-modal-category').value,
                 status: document.getElementById('item-modal-status').value,
                 itemType: itemType,
-                size: document.getElementById('item-modal-size').value || null,
                 imageUrl: document.getElementById('item-modal-image').value,
                 description: document.getElementById('item-modal-description').value,
             };
@@ -5293,7 +5252,9 @@
                   filteredOrders = filteredOrders.filter(order => order.status === currentOrderFilter);
               }
 
-              // Sort: ưu tiên đơn chờ (ordered) lên đầu, sau đó theo thời gian mới nhất
+              // Sort: ưu tiên đơn chờ (ordered) lên đầu, sau đó theo thời gian
+              // Với tab "ordered" và "preparing": sắp xếp hóa đơn cũ ở trước (tăng dần)
+              // Với các tab khác: sắp xếp hóa đơn mới nhất ở trước (giảm dần)
               filteredOrders.sort((a, b) => {
                   // Ưu tiên ordered
                   if (a.status === 'ordered' && b.status !== 'ordered') return -1;
@@ -5306,6 +5267,13 @@
                   // Cuối cùng theo thời gian
                   const timeA = a.createdAt?.seconds || 0;
                   const timeB = b.createdAt?.seconds || 0;
+                  
+                  // Nếu là tab "ordered" hoặc "preparing": sắp xếp cũ trước (tăng dần)
+                  if (currentOrderFilter === 'ordered' || currentOrderFilter === 'preparing') {
+                      return timeA - timeB;
+                  }
+                  
+                  // Các tab khác: sắp xếp mới nhất trước (giảm dần)
                   return timeB - timeA;
               });
 
