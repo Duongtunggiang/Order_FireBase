@@ -935,6 +935,74 @@
             }
         }
 
+        // Biến để lưu trữ thông tin touch cho việc phân biệt tap và drag
+        let touchStartInfo = null;
+        const TOUCH_MOVE_THRESHOLD = 10; // Ngưỡng di chuyển (pixels) để coi là scroll
+
+        // Xử lý touch events cho các hàng trong bảng để phân biệt tap và scroll
+        function handleTableRowTouch(event, itemId) {
+            // Lấy touch object từ event
+            let touch = null;
+            if (event.touches && event.touches.length > 0) {
+                touch = event.touches[0];
+            } else if (event.changedTouches && event.changedTouches.length > 0) {
+                touch = event.changedTouches[0];
+            }
+            
+            if (!touch) return;
+
+            if (event.type === 'touchstart') {
+                // Lưu vị trí bắt đầu touch
+                touchStartInfo = {
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    itemId: itemId,
+                    target: event.currentTarget || event.target.closest('tr'),
+                    timestamp: Date.now(),
+                    isScrolling: false
+                };
+                // Không preventDefault để cho phép scroll tự nhiên
+            } else if (event.type === 'touchmove') {
+                // Kiểm tra nếu đang scroll (di chuyển nhiều)
+                if (touchStartInfo) {
+                    const deltaX = Math.abs(touch.clientX - touchStartInfo.x);
+                    const deltaY = Math.abs(touch.clientY - touchStartInfo.y);
+                    
+                    // Nếu di chuyển quá ngưỡng, coi như đang scroll
+                    if (deltaX > TOUCH_MOVE_THRESHOLD || deltaY > TOUCH_MOVE_THRESHOLD) {
+                        // Đánh dấu là đang scroll, không mở menu
+                        touchStartInfo.isScrolling = true;
+                    }
+                }
+            } else if (event.type === 'touchend' || event.type === 'touchcancel') {
+                // Chỉ mở menu nếu không phải là scroll và itemId khớp
+                if (touchStartInfo && 
+                    touchStartInfo.itemId === itemId && 
+                    !touchStartInfo.isScrolling) {
+                    
+                    // Kiểm tra thời gian touch (nếu quá ngắn hoặc quá dài có thể là lỗi)
+                    const touchDuration = Date.now() - touchStartInfo.timestamp;
+                    if (touchDuration < 1000) { // Chỉ mở menu nếu touch < 1 giây
+                        // Tạo một event giả để truyền vào showItemContextMenu
+                        const syntheticEvent = {
+                            preventDefault: () => {},
+                            stopPropagation: () => {},
+                            clientX: touch.clientX,
+                            clientY: touch.clientY,
+                            currentTarget: touchStartInfo.target,
+                            target: event.target,
+                            touches: event.changedTouches
+                        };
+                        
+                        showItemContextMenu(syntheticEvent, itemId);
+                    }
+                }
+                
+                // Reset thông tin touch
+                touchStartInfo = null;
+            }
+        }
+
         function showItemContextMenu(event, itemId) {
             event.preventDefault();
             event.stopPropagation();
@@ -967,42 +1035,108 @@
             const footerHeight = 100;
             const safeViewportHeight = viewportHeight - footerHeight;
 
-            // Tính toán vị trí: Ưu tiên hiển thị phía trên nếu click ở nửa dưới màn hình
-            let leftPosition = event.pageX + 10;
-            let topPosition;
+            // Kiểm tra xem có phải mobile/touch không
+            const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
             
-            // Kiểm tra xem có đủ không gian phía dưới không (tính cả footer)
-            const spaceBelow = safeViewportHeight - event.clientY;
-            const spaceAbove = event.clientY;
+            // Tính toán vị trí
+            let leftPosition, topPosition;
+            const padding = 10;
             
-            if (spaceBelow < menuHeight + 20 || event.clientY > safeViewportHeight / 2) {
-                // Không đủ không gian phía dưới HOẶC click ở nửa dưới -> hiển thị phía trên
-                topPosition = event.pageY - menuHeight - 10;
-            } else {
-                // Đủ không gian phía dưới -> hiển thị phía dưới
-                topPosition = event.pageY + 10;
+            // Lấy phần tử row được click
+            // Ưu tiên currentTarget (element có event handler), sau đó tìm closest tr
+            let clickedRow = event.currentTarget;
+            if (!clickedRow || clickedRow.tagName !== 'TR') {
+                clickedRow = event.target.closest('tr');
             }
-
-            // Kiểm tra và điều chỉnh nếu menu tràn ra ngoài bên phải
-            if (event.clientX + menuWidth + 10 > viewportWidth) {
-                // Hiển thị bên trái con trỏ chuột
-                leftPosition = event.pageX - menuWidth - 10;
+            let rowRect = null;
+            if (clickedRow && clickedRow.tagName === 'TR') {
+                rowRect = clickedRow.getBoundingClientRect();
+            }
+            
+            // Lấy vị trí click/touch (ưu tiên clientX/Y để không bị ảnh hưởng bởi scroll)
+            const clickX = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+            const clickY = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+            
+            if (isMobile && rowRect) {
+                // Mobile/Touch: Menu hiển thị PHÍA TRÊN hàng được click
+                // Căn giữa theo chiều ngang của viewport
+                leftPosition = (viewportWidth / 2) - (menuWidth / 2);
+                
+                // Menu hiển thị phía trên hàng (sử dụng getBoundingClientRect để lấy vị trí chính xác)
+                // Tính toán dựa trên vị trí của row trên viewport
+                topPosition = rowRect.top - menuHeight - padding;
+                
+                // Nếu không đủ không gian phía trên, hiển thị phía dưới hàng
+                if (topPosition < padding) {
+                    topPosition = rowRect.bottom + padding;
+                }
+                
+                // Đảm bảo menu không tràn ra ngoài viewport
+                if (topPosition + menuHeight > safeViewportHeight) {
+                    topPosition = safeViewportHeight - menuHeight - padding;
+                }
+                
+                // Đảm bảo không tràn ra ngoài trên cùng
+                if (topPosition < padding) {
+                    topPosition = padding;
+                }
+            } else if (isMobile) {
+                // Fallback nếu không tìm thấy row: căn giữa viewport
+                leftPosition = (viewportWidth / 2) - (menuWidth / 2);
+                topPosition = padding;
+            } else {
+                // Desktop: Hiển thị bên cạnh hoặc phía trên tùy không gian
+                leftPosition = scrollX + clickX + padding;
+                topPosition = scrollY + clickY - (menuHeight / 2);
+                
+                // Kiểm tra không gian phía dưới
+                const spaceBelow = safeViewportHeight - clickY;
+                const spaceAbove = clickY;
+                
+                if (spaceBelow < menuHeight + padding || clickY > safeViewportHeight / 2) {
+                    // Hiển thị phía trên
+                    topPosition = scrollY + clickY - menuHeight - padding;
+                } else {
+                    // Hiển thị phía dưới
+                    topPosition = scrollY + clickY + padding;
+                }
+                
+                // Kiểm tra và điều chỉnh nếu menu tràn ra ngoài bên phải
+                if (clickX + menuWidth + padding > viewportWidth) {
+                    leftPosition = scrollX + clickX - menuWidth - padding;
+                }
             }
 
             // Đảm bảo menu không tràn ra ngoài các cạnh
-            if (leftPosition < scrollX + 10) {
-                leftPosition = scrollX + 10;
-            }
-            if (topPosition < scrollY + 10) {
-                topPosition = scrollY + 10;
-            }
-
-            // Đảm bảo menu luôn hiển thị trong viewport (tính cả footer)
-            if (leftPosition + menuWidth > viewportWidth + scrollX - 10) {
-                leftPosition = viewportWidth + scrollX - menuWidth - 10;
-            }
-            if (topPosition + menuHeight > viewportHeight + scrollY - footerHeight) {
-                topPosition = viewportHeight + scrollY - menuHeight - footerHeight;
+            if (isMobile) {
+                // Mobile: Sử dụng viewport coordinates (không tính scroll)
+                if (leftPosition < padding) {
+                    leftPosition = padding;
+                }
+                if (topPosition < padding) {
+                    topPosition = padding;
+                }
+                if (leftPosition + menuWidth > viewportWidth - padding) {
+                    leftPosition = viewportWidth - menuWidth - padding;
+                }
+                // Kiểm tra bottom để đảm bảo không tràn ra ngoài
+                if (topPosition + menuHeight > safeViewportHeight - padding) {
+                    topPosition = safeViewportHeight - menuHeight - padding;
+                }
+            } else {
+                // Desktop: Sử dụng page coordinates (tính scroll)
+                if (leftPosition < scrollX + padding) {
+                    leftPosition = scrollX + padding;
+                }
+                if (topPosition < scrollY + padding) {
+                    topPosition = scrollY + padding;
+                }
+                if (leftPosition + menuWidth > viewportWidth + scrollX - padding) {
+                    leftPosition = viewportWidth + scrollX - menuWidth - padding;
+                }
+                if (topPosition + menuHeight > viewportHeight + scrollY - footerHeight - padding) {
+                    topPosition = viewportHeight + scrollY - menuHeight - footerHeight - padding;
+                }
             }
 
             // Áp dụng vị trí và hiển thị menu
@@ -1018,6 +1152,7 @@
                     }
                 };
                 document.addEventListener('click', handleClickOutside, { capture: true, once: true });
+                document.addEventListener('touchstart', handleClickOutside, { capture: true, once: true });
             }, 1);
         }
 
@@ -1211,6 +1346,152 @@
 
         function closeItemModal() {
             document.getElementById('item-modal').classList.add('hidden');
+        }
+
+        // Mở modal xem chi tiết món
+        function openItemDetailModal(itemId) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            const modal = document.getElementById('item-detail-modal');
+            const content = document.getElementById('item-detail-content');
+            
+            if (!modal || !content) return;
+
+            // Render chi tiết món
+            const itemPrice = getItemPrice(item);
+            const hasDetails = item.itemType !== 'simple' && item.details;
+            
+            let detailsHtml = '';
+            if (hasDetails) {
+                const details = item.details;
+                detailsHtml = '<div class="mt-3 sm:mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">';
+                detailsHtml += '<h4 class="font-semibold text-blue-900 mb-2 text-sm sm:text-base">📋 Chi tiết cấu hình:</h4>';
+                
+                // Sizes
+                if (details.sizes && details.sizes.length > 0) {
+                    const enabledSizes = details.sizes.filter(s => s.enabled);
+                    if (enabledSizes.length > 0) {
+                        detailsHtml += '<div class="mb-2"><span class="text-xs sm:text-sm font-medium text-gray-700">Size: </span>';
+                        detailsHtml += enabledSizes.map(s => {
+                            const priceAdd = s.priceAdd || s.price || 0;
+                            return `<span class="text-xs sm:text-sm text-gray-600">${s.name} ${priceAdd > 0 ? `(${priceAdd.toLocaleString()}đ)` : '(Giá món)'}</span>`;
+                        }).join(', ');
+                        detailsHtml += '</div>';
+                    }
+                }
+                
+                // Toppings
+                if (details.toppings && details.toppings.length > 0) {
+                    detailsHtml += '<div class="mb-2"><span class="text-xs sm:text-sm font-medium text-gray-700">Topping: </span>';
+                    detailsHtml += details.toppings.map(t => `<span class="text-xs sm:text-sm text-gray-600">${t.name} (+${t.price?.toLocaleString() || 0}đ)</span>`).join(', ');
+                    detailsHtml += '</div>';
+                }
+                
+                // Ice/Sugar options
+                if (details.iceOptions && details.iceOptions.length > 0) {
+                    detailsHtml += `<div class="mb-2"><span class="text-xs sm:text-sm font-medium text-gray-700">Đá: </span><span class="text-xs sm:text-sm text-gray-600">${details.iceOptions.join('%, ')}%</span></div>`;
+                }
+                if (details.sugarOptions && details.sugarOptions.length > 0) {
+                    detailsHtml += `<div class="mb-2"><span class="text-xs sm:text-sm font-medium text-gray-700">Đường: </span><span class="text-xs sm:text-sm text-gray-600">${details.sugarOptions.join('%, ')}%</span></div>`;
+                }
+                
+                // Spice levels
+                if (details.spiceLevels && details.spiceLevels.length > 0) {
+                    detailsHtml += `<div class="mb-2"><span class="text-xs sm:text-sm font-medium text-gray-700">Độ cay: </span><span class="text-xs sm:text-sm text-gray-600">${details.spiceLevels.join(', ')}</span></div>`;
+                }
+                
+                // Noodle types
+                if (details.noodleTypes && details.noodleTypes.length > 0) {
+                    detailsHtml += `<div class="mb-2"><span class="text-xs sm:text-sm font-medium text-gray-700">Loại sợi: </span><span class="text-xs sm:text-sm text-gray-600">${details.noodleTypes.join(', ')}</span></div>`;
+                }
+                
+                detailsHtml += '</div>';
+            }
+
+            content.innerHTML = `
+                <div class="space-y-3 sm:space-y-4">
+                    ${item.imageUrl ? `
+                        <div class="flex justify-center">
+                            <img src="${item.imageUrl}" alt="${item.name}" class="w-full max-w-xs h-48 sm:h-64 object-cover rounded-lg border border-gray-200" onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'">
+                        </div>
+                    ` : ''}
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div>
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Tên món</label>
+                            <p class="text-sm sm:text-base font-semibold text-gray-900">${item.name}</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Danh mục</label>
+                            <p class="text-sm sm:text-base text-gray-900">${item.category}</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Giá</label>
+                            <p class="text-sm sm:text-base font-semibold text-orange-600">
+                                ${item.newPrice ? 
+                                    (parseFloat(item.newPrice) >= parseFloat(item.price) ?
+                                        `${formatCurrency(item.newPrice)}` :
+                                        `${formatCurrency(item.price)} → ${formatCurrency(item.newPrice)}`
+                                    ) :
+                                    formatCurrency(item.price)
+                                }
+                            </p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Loại món</label>
+                            <p class="text-sm sm:text-base text-gray-900">
+                                ${item.itemType === 'simple' ? 'Đơn giản' :
+                                  item.itemType === 'drink' ? 'Đồ uống' :
+                                  item.itemType === 'noodle' ? 'Mì/Phở' :
+                                  item.itemType === 'food' ? 'Đồ ăn' :
+                                  item.itemType === 'alcohol' ? 'Đồ nhậu' : 'Khác'}
+                            </p>
+                        </div>
+                        
+                        ${item.size ? `
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Size</label>
+                                <p class="text-sm sm:text-base text-gray-900">${item.size}</p>
+                            </div>
+                        ` : ''}
+                        
+                        <div>
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+                            <p class="text-sm sm:text-base">${getStatusBadge(item.status) || '<span class="text-green-600">✅ Đang bán</span>'}</p>
+                        </div>
+                    </div>
+                    
+                    ${item.description ? `
+                        <div>
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                            <p class="text-sm sm:text-base text-gray-700">${item.description}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${detailsHtml}
+                    
+                    ${item.createdAt ? `
+                        <div class="pt-3 border-t text-xs sm:text-sm text-gray-500">
+                            <p>Tạo lúc: ${new Date(item.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                            ${item.updatedAt ? `<p>Cập nhật lúc: ${new Date(item.updatedAt.seconds * 1000).toLocaleString('vi-VN')}</p>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Set itemId để các nút có thể sử dụng
+            document.getElementById('item-detail-item-id').value = itemId;
+            
+            modal.classList.remove('hidden');
+            renderLucideIcons();
+        }
+
+        function closeItemDetailModal() {
+            document.getElementById('item-detail-modal').classList.add('hidden');
         }
 
         // ==================== ITEM DETAILS CONFIG ====================
@@ -3679,7 +3960,11 @@
                                         const paginatedItems = filteredItems.slice(startIndex, endIndex);
 
                                         return paginatedItems.map((item, index) => `
-                                        <tr class="hover:bg-gray-50 cursor-pointer transition" onclick="showItemContextMenu(event, '${item.id}')">
+                                        <tr class="hover:bg-gray-50 cursor-pointer transition" 
+                                            onclick="showItemContextMenu(event, '${item.id}')" 
+                                            ontouchstart="handleTableRowTouch(event, '${item.id}')"
+                                            ontouchmove="handleTableRowTouch(event, '${item.id}')"
+                                            ontouchend="handleTableRowTouch(event, '${item.id}')">
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-amber-900">#${startIndex + index + 1}</td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap">
                                                 <img src="${item.imageUrl || 'https://via.placeholder.com/40x40?text=No+Img'}" alt="${item.name}" class="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded border border-gray-200" onerror="this.src='https://via.placeholder.com/40x40?text=No+Img'">
@@ -3733,7 +4018,12 @@
                         })()}
 
                             <!-- Context Menu -->
-                        <div id="item-context-menu" class="fixed bg-white border border-gray-300 rounded-lg shadow-lg py-2 z-[9999] hidden">
+                        <div id="item-context-menu" class="fixed bg-white border border-gray-300 rounded-lg shadow-lg py-2 z-[9999] hidden min-w-[180px]">
+                            <button onclick="openItemDetailModal(window.currentContextItemId); hideContextMenu()" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                                Xem chi tiết món
+                            </button>
+                            <hr class="my-1">
                             <button onclick="openEditItemModal(window.currentContextItemId); hideContextMenu()" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2">
                                 <i data-lucide="edit" class="w-4 h-4"></i>
                                 Chỉnh sửa
@@ -3900,6 +4190,43 @@
                             <div class="flex gap-3">
                                 <button onclick="closeEditCategoryModalAdmin()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
                                 <button onclick="updateCategoryAdmin()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Cập Nhật</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Item Detail View Modal -->
+                    <div id="item-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden p-2 sm:p-4">
+                        <div class="bg-white rounded-lg sm:rounded-xl max-w-2xl w-full mx-4 max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
+                            <!-- Header -->
+                            <div class="flex justify-between items-center p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+                                <h3 class="text-lg sm:text-xl font-bold text-orange-900">📋 Chi Tiết Món</h3>
+                                <button onclick="closeItemDetailModal()" class="text-gray-500 hover:text-gray-700 p-1 sm:p-2">
+                                    <i data-lucide="x" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Content (scrollable) -->
+                            <div id="item-detail-content" class="p-3 sm:p-4 overflow-y-auto flex-1 min-h-0">
+                                <!-- Content will be inserted here by JavaScript -->
+                            </div>
+                            
+                            <!-- Footer với nút Cập nhật và Xóa -->
+                            <div class="p-3 sm:p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                                <input type="hidden" id="item-detail-item-id" value="">
+                                <div class="flex gap-2 sm:gap-3">
+                                    <button onclick="closeItemDetailModal()" 
+                                        class="flex-1 px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium text-sm sm:text-base">
+                                        Đóng
+                                    </button>
+                                    <button onclick="const itemId = document.getElementById('item-detail-item-id').value; closeItemDetailModal(); openEditItemModal(itemId);" 
+                                        class="flex-1 px-3 py-2 sm:px-4 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm sm:text-base">
+                                        ✏️ Cập nhật
+                                    </button>
+                                    <button onclick="const itemId = document.getElementById('item-detail-item-id').value; if(confirm('Bạn có chắc muốn xóa món này không?')) { deleteItem(itemId); closeItemDetailModal(); }" 
+                                        class="flex-1 px-3 py-2 sm:px-4 sm:py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm sm:text-base">
+                                        🗑️ Xóa
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -6632,7 +6959,26 @@
         function toggleMobileMenu() {
             const menu = document.getElementById('mobile-menu');
             const btn = document.getElementById('mobile-menu-btn');
+            
+            // Kiểm tra nếu các element không tồn tại
+            if (!menu || !btn) {
+                console.warn('Mobile menu elements not found');
+                return;
+            }
+            
             const icon = btn.querySelector('i');
+            
+            // Kiểm tra nếu icon không tồn tại
+            if (!icon) {
+                console.warn('Mobile menu icon not found');
+                // Vẫn toggle menu nhưng không đổi icon
+                if (menu.classList.contains('hidden')) {
+                    menu.classList.remove('hidden');
+                } else {
+                    menu.classList.add('hidden');
+                }
+                return;
+            }
 
             if (menu.classList.contains('hidden')) {
                 menu.classList.remove('hidden');
@@ -6648,6 +6994,11 @@
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('mobile-menu');
             const btn = document.getElementById('mobile-menu-btn');
+
+            // Kiểm tra nếu các element không tồn tại
+            if (!menu || !btn) {
+                return;
+            }
 
             if (!btn.contains(event.target) && !menu.contains(event.target)) {
                 menu.classList.add('hidden');
@@ -6829,10 +7180,13 @@
             window.previewAsCustomer = previewAsCustomer;
             window.handleLogoClick = handleLogoClick;
             window.showItemContextMenu = showItemContextMenu;
+            window.handleTableRowTouch = handleTableRowTouch;
             window.hideContextMenu = hideContextMenu;
             window.openAddItemModal = openAddItemModal;
             window.openEditItemModal = openEditItemModal;
             window.closeItemModal = closeItemModal;
+            window.openItemDetailModal = openItemDetailModal;
+            window.closeItemDetailModal = closeItemDetailModal;
             window.openItemDetailsConfig = openItemDetailsConfig;
             window.closeItemDetailsConfig = closeItemDetailsConfig;
             window.saveItemDetailsConfig = saveItemDetailsConfig;
