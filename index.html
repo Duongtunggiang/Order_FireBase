@@ -115,6 +115,47 @@
           let currentCategory = 'Đồ Uống'; // 'Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'
           let currentTableNumber = null; // Số bàn hiện tại (từ QR code)
           let userRole = 'guest'; // 'guest', 'customer', 'admin'
+          let statsTimeFilter = 'month'; // 'day', 'week', 'month', 'year' - cho thống kê trạng thái đơn hàng
+
+          // Filter orders theo khoảng thời gian cho thống kê
+          function filterOrdersByTimeRange(orders, timeFilter) {
+              const now = new Date();
+              let startDate;
+
+              switch(timeFilter) {
+                  case 'day':
+                      startDate = new Date(now);
+                      startDate.setHours(0, 0, 0, 0);
+                      break;
+                  case 'week':
+                      startDate = new Date(now);
+                      startDate.setDate(now.getDate() - now.getDay()); // Monday of current week
+                      startDate.setHours(0, 0, 0, 0);
+                      break;
+                  case 'month':
+                      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                      break;
+                  case 'year':
+                      startDate = new Date(now.getFullYear(), 0, 1);
+                      break;
+                  default:
+                      return orders; // Return all if invalid filter
+              }
+
+              return orders.filter(order => {
+                  if (!order.createdAt || !order.createdAt.seconds) return false;
+                  const orderDate = new Date(order.createdAt.seconds * 1000);
+                  return orderDate >= startDate;
+              });
+          }
+
+          // Handle thay đổi time filter cho thống kê trạng thái đơn hàng
+          function setStatsTimeFilter(filter) {
+              statsTimeFilter = filter;
+              if (currentView === 'admin-stats') {
+                  renderApp(); // Re-render để cập nhật thống kê
+              }
+          }
         let isAdmin = false;
         let isPreviewMode = false; // Admin đang xem như khách hàng
         let categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Danh sách categories mặc định
@@ -1950,24 +1991,38 @@
                     <!-- Thống kê theo trạng thái đơn hàng -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
                         <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg">
-                            <h3 class="text-sm sm:text-base md:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📈 Trạng Thái Đơn Hàng</h3>
+                            <div class="flex justify-between items-center mb-3 sm:mb-4">
+                                <h3 class="text-sm sm:text-base md:text-xl font-bold text-gray-900">📈 Trạng Thái Đơn Hàng</h3>
+                                <select onchange="setStatsTimeFilter(this.value)" class="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="day" ${statsTimeFilter === 'day' ? 'selected' : ''}>Theo ngày</option>
+                                    <option value="week" ${statsTimeFilter === 'week' ? 'selected' : ''}>Theo tuần</option>
+                                    <option value="month" ${statsTimeFilter === 'month' ? 'selected' : ''}>Theo tháng</option>
+                                    <option value="year" ${statsTimeFilter === 'year' ? 'selected' : ''}>Theo năm</option>
+                                </select>
+                            </div>
                             <div class="space-y-2 sm:space-y-3">
-                                ${[
-                                    { status: 'ordered', label: 'Chờ nhận', color: 'blue', count: orders.filter(o => o.status === 'ordered').length },
-                                    { status: 'preparing', label: 'Đang làm', color: 'yellow', count: orders.filter(o => o.status === 'preparing').length },
-                                    { status: 'completed', label: 'Hoàn thành', color: 'green', count: orders.filter(o => o.status === 'completed').length },
-                                    { status: 'cancelled', label: 'Đã hủy', color: 'red', count: orders.filter(o => o.status === 'cancelled').length }
-                                ].map(stat => `
+                                ${(() => {
+                                    // Filter orders theo khoảng thời gian đã chọn
+                                    const filteredOrders = filterOrdersByTimeRange(orders, statsTimeFilter);
+                                    const totalFiltered = filteredOrders.length;
+
+                                    return [
+                                        { status: 'ordered', label: 'Chờ nhận', color: 'blue', count: filteredOrders.filter(o => o.status === 'ordered').length },
+                                        { status: 'preparing', label: 'Đang làm', color: 'yellow', count: filteredOrders.filter(o => o.status === 'preparing').length },
+                                        { status: 'completed', label: 'Hoàn thành', color: 'green', count: filteredOrders.filter(o => o.status === 'completed').length },
+                                        { status: 'cancelled', label: 'Đã hủy', color: 'red', count: filteredOrders.filter(o => o.status === 'cancelled').length }
+                                    ].map(stat => `
                                     <div class="flex justify-between items-center">
                                         <span class="text-xs sm:text-sm text-gray-700">${stat.label}</span>
                                         <div class="flex items-center gap-1.5 sm:gap-2">
                                             <div class="w-16 sm:w-20 md:w-24 bg-gray-200 rounded-full h-1.5 sm:h-2">
-                                                <div class="bg-${stat.color}-500 h-1.5 sm:h-2 rounded-full transition-all duration-300" style="width: ${orders.length > 0 ? (stat.count / orders.length * 100) : 0}%"></div>
+                                                <div class="bg-${stat.color}-500 h-1.5 sm:h-2 rounded-full transition-all duration-300" style="width: ${totalFiltered > 0 ? (stat.count / totalFiltered * 100) : 0}%"></div>
                                             </div>
                                             <span class="text-[10px] sm:text-xs md:text-sm font-semibold text-${stat.color}-600 min-w-[1.5rem] sm:min-w-[2rem]">${stat.count}</span>
                                         </div>
                                     </div>
-                                `).join('')}
+                                `).join('');
+                                })()}
                             </div>
                         </div>
 
@@ -4658,6 +4713,7 @@
             window.closeMyOrdersModal = closeMyOrdersModal;
             window.cleanupOrderRealtimeListeners = cleanupOrderRealtimeListeners;
             window.setOrderFilter = setOrderFilter;
+            window.setStatsTimeFilter = setStatsTimeFilter;
             window.toggleDateFilter = toggleDateFilter;
             window.applyDateFilter = applyDateFilter;
             window.clearDateFilter = clearDateFilter;
