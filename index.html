@@ -4363,6 +4363,19 @@
                               `).join('')}
                           </div>
 
+                          ${order.status === 'cancelled' && order.cancelReason && order.cancelReason.trim() ? `
+                              <div class="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                  <div class="flex items-start gap-2">
+                                      <i data-lucide="info" class="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0"></i>
+                                      <div>
+                                          <p class="text-sm font-medium text-red-800 mb-1">Lý do hủy đơn hàng:</p>
+                                          <p class="text-sm text-red-700">${order.cancelReason}</p>
+                                          ${order.cancelledAt ? `<p class="text-xs text-red-600 mt-1">Thời gian hủy: ${order.cancelledAt.seconds ? new Date(order.cancelledAt.seconds * 1000).toLocaleString('vi-VN') : new Date(order.cancelledAt).toLocaleString('vi-VN')}</p>` : ''}
+                                      </div>
+                                  </div>
+                              </div>
+                          ` : ''}
+
                           <div class="flex justify-between items-center pt-2 border-t border-gray-300">
                               <span class="font-bold text-lg text-orange-600">Tổng: ${formatCurrency(order.total)}</span>
                               <span class="text-xs text-gray-500">
