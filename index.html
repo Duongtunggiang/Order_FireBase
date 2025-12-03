@@ -3248,6 +3248,11 @@
                       if (currentView === 'admin-orders') {
                           renderOrdersManagementList();
                       }
+
+                      // Render nếu đang ở trang admin stats
+                      if (currentView === 'admin-stats') {
+                          renderApp(); // Re-render toàn bộ app để cập nhật thống kê
+                      }
                       
                       // NOTE: Guest orders realtime updates now handled by individual order listeners
                       // (more efficient than listening to all orders and filtering)
