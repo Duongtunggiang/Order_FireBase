@@ -3249,56 +3249,8 @@
                           renderOrdersManagementList();
                       }
                       
-                      // Cập nhật guest orders nếu có thay đổi (REALTIME UPDATE)
-                      let hasGuestOrderUpdate = false;
-                      snapshot.docChanges().forEach(change => {
-                          if (userRole === 'guest' && (change.type === 'modified' || change.type === 'added')) {
-                              const orderData = change.doc.data();
-                              const guestOrder = guestOrders.find(o => o.orderId === change.doc.id);
-                              if (guestOrder) {
-                                  // Cập nhật thông tin order
-                                  guestOrder.status = orderData.status;
-                                  guestOrder.updatedAt = orderData.updatedAt;
-                                  
-                                  // Cập nhật cancelReason nếu có
-                                  if (orderData.status === 'cancelled' && orderData.cancelReason) {
-                                      guestOrder.cancelReason = orderData.cancelReason;
-                                      guestOrder.cancelledAt = orderData.cancelledAt;
-                                  }
-                                  
-                                  saveSessionToCookie();
-                                  hasGuestOrderUpdate = true;
-                                  console.log('📝 Guest order updated realtime:', {
-                                      orderId: guestOrder.shortId,
-                                      status: guestOrder.status,
-                                      cancelReason: guestOrder.cancelReason
-                                  });
-                                  
-                                  // Hiển thị thông báo cho khách hàng
-                                  const statusMessages = {
-                                      'preparing': `🍳 Đơn hàng #${guestOrder.shortId} đang được chuẩn bị!`,
-                                      'completed': `✅ Đơn hàng #${guestOrder.shortId} đã hoàn thành!`,
-                                      'cancelled': `❌ Đơn hàng #${guestOrder.shortId} đã bị hủy`
-                                  };
-                                  
-                                  if (statusMessages[orderData.status]) {
-                                      showMessage(statusMessages[orderData.status], 
-                                          orderData.status === 'completed' ? 'success' : 
-                                          orderData.status === 'cancelled' ? 'error' : 'info');
-                                  }
-                              }
-                          }
-                      });
-                      
-                      // Tự động cập nhật modal "Đơn hàng của tôi" nếu đang mở
-                      if (hasGuestOrderUpdate) {
-                          const myOrdersModal = document.getElementById('my-orders-modal');
-                          if (myOrdersModal && !myOrdersModal.classList.contains('hidden')) {
-                              // Modal đang mở -> refresh nội dung
-                              console.log('🔄 Refreshing My Orders modal (realtime update)');
-                              showGuestOrders();
-                          }
-                      }
+                      // NOTE: Guest orders realtime updates now handled by individual order listeners
+                      // (more efficient than listening to all orders and filtering)
                   }, (error) => {
                       console.error("Error in orders listener:", error);
                   });
@@ -4091,10 +4043,101 @@
           }
 
           // ==================== CUSTOMER ORDER HISTORY ====================
-          
-          // Biến lưu unsubscribe function cho customer orders listener
+
+          // Biến lưu unsubscribe functions cho các order listeners
           let customerOrdersUnsubscribe = null;
-          
+          let orderRealtimeListeners = {}; // { orderId: unsubscribeFunction }
+
+          // Setup realtime listener cho một order cụ thể (hiệu quả hơn listen tất cả orders)
+          function setupOrderRealtimeListener(orderId) {
+              if (!db || !orderId) return;
+
+              // Hủy listener cũ nếu có
+              if (orderRealtimeListeners[orderId]) {
+                  orderRealtimeListeners[orderId]();
+                  console.log(`🔌 Unsubscribed old listener for order: ${orderId.slice(-6)}`);
+              }
+
+              try {
+                  console.log(`📡 Setting up realtime listener for order: ${orderId.slice(-6)} (full ID: ${orderId})`);
+
+                  // Listen chỉ order này thay vì tất cả orders
+                  const orderRef = doc(db, 'orders', orderId);
+                  const unsubscribe = onSnapshot(orderRef, (doc) => {
+                      if (!doc.exists()) {
+                          console.log(`⚠️ Order ${orderId.slice(-6)} no longer exists`);
+                          return;
+                      }
+
+                      const orderData = doc.data();
+                      console.log(`🔄 Order ${orderId.slice(-6)} updated:`, orderData.status);
+
+                      // Tìm và cập nhật trong guestOrders
+                      const guestOrder = guestOrders.find(o => o.orderId === orderId);
+                      if (guestOrder) {
+                          const oldStatus = guestOrder.status;
+
+                          // Cập nhật thông tin order
+                          guestOrder.status = orderData.status;
+                          guestOrder.updatedAt = orderData.updatedAt;
+
+                          // Cập nhật cancelReason nếu có
+                          if (orderData.status === 'cancelled' && orderData.cancelReason) {
+                              guestOrder.cancelReason = orderData.cancelReason;
+                              guestOrder.cancelledAt = orderData.cancelledAt;
+                          }
+
+                          // Lưu vào cookie
+                          saveSessionToCookie();
+
+                          console.log(`📝 Guest order updated: ${guestOrder.shortId} (${oldStatus} → ${orderData.status})`);
+
+                          // Hiển thị thông báo cho khách hàng (chỉ khi status thay đổi)
+                          if (oldStatus !== orderData.status) {
+                              const statusMessages = {
+                                  'preparing': `🍳 Đơn hàng #${guestOrder.shortId} đang được chuẩn bị!`,
+                                  'completed': `✅ Đơn hàng #${guestOrder.shortId} đã hoàn thành!`,
+                                  'cancelled': `❌ Đơn hàng #${guestOrder.shortId} đã bị hủy`
+                              };
+
+                              if (statusMessages[orderData.status]) {
+                                  showMessage(statusMessages[orderData.status],
+                                      orderData.status === 'completed' ? 'success' :
+                                      orderData.status === 'cancelled' ? 'error' : 'info');
+                              }
+                          }
+
+                          // Tự động cập nhật modal "Đơn hàng của tôi" nếu đang mở
+                          const myOrdersModal = document.getElementById('my-orders-modal');
+                          if (myOrdersModal && !myOrdersModal.classList.contains('hidden')) {
+                              console.log('🔄 Refreshing My Orders modal (specific order update)');
+                              showGuestOrders(false); // false = don't setup listeners again
+                          }
+                      }
+                  }, (error) => {
+                      console.error(`❌ Error in order listener for ${orderId.slice(-6)}:`, error);
+                  });
+
+                  // Lưu unsubscribe function
+                  orderRealtimeListeners[orderId] = unsubscribe;
+
+              } catch (error) {
+                  console.error(`❌ Error setting up listener for order ${orderId.slice(-6)}:`, error);
+              }
+          }
+
+          // Hủy tất cả order realtime listeners
+          function cleanupOrderRealtimeListeners() {
+              console.log('🧹 Cleaning up order realtime listeners...');
+              Object.values(orderRealtimeListeners).forEach(unsubscribe => {
+                  if (typeof unsubscribe === 'function') {
+                      unsubscribe();
+                  }
+              });
+              orderRealtimeListeners = {};
+              console.log('✅ All order realtime listeners cleaned up');
+          }
+
           async function showMyOrders() {
               // Guest: xem từ cookie session
               if (userRole === 'guest') {
@@ -4260,17 +4303,20 @@
 
           function closeMyOrdersModal() {
               document.getElementById('my-orders-modal').classList.add('hidden');
-              
+
               // Hủy listener khi đóng modal để tiết kiệm tài nguyên
               if (customerOrdersUnsubscribe) {
                   customerOrdersUnsubscribe();
                   customerOrdersUnsubscribe = null;
                   console.log('🔌 Customer orders listener unsubscribed');
               }
+
+              // Cleanup tất cả order realtime listeners
+              cleanupOrderRealtimeListeners();
           }
 
           // Hiển thị đơn hàng của guest từ session
-          function showGuestOrders() {
+          function showGuestOrders(setupRealtimeListeners = true) {
               const modalContent = document.getElementById('my-orders-content');
 
               if (guestOrders.length === 0) {
@@ -4328,6 +4374,15 @@
                           </div>
                       </div>
                   `).join('');
+
+                  // Setup realtime listeners cho từng order (hiệu quả hơn listen tất cả)
+                  if (setupRealtimeListeners) {
+                      console.log(`📡 Setting up ${sortedOrders.length} realtime listeners for guest orders`);
+                      sortedOrders.forEach(order => {
+                          console.log(`📡 Setting up listener for order: ${order.shortId} (${order.orderId})`);
+                          setupOrderRealtimeListener(order.orderId);
+                      });
+                  }
               }
 
               document.getElementById('my-orders-modal').classList.remove('hidden');
@@ -4583,6 +4638,7 @@
             window.handleOrder = handleOrder;
             window.showMyOrders = showMyOrders;
             window.closeMyOrdersModal = closeMyOrdersModal;
+            window.cleanupOrderRealtimeListeners = cleanupOrderRealtimeListeners;
             window.setOrderFilter = setOrderFilter;
             window.toggleDateFilter = toggleDateFilter;
             window.applyDateFilter = applyDateFilter;
@@ -4885,6 +4941,10 @@
         // Optional: Thêm event listener để clear timer khi đóng tab/window
         window.addEventListener('beforeunload', function() {
             console.log('🚪 Trang đang đóng, timer sẽ bị hủy');
+            // Cleanup order realtime listeners
+            if (typeof cleanupOrderRealtimeListeners === 'function') {
+                cleanupOrderRealtimeListeners();
+            }
         });
     </script>
 </body>
