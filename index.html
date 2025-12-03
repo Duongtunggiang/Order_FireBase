@@ -116,6 +116,7 @@
           let currentTableNumber = null; // Số bàn hiện tại (từ QR code)
           let userRole = 'guest'; // 'guest', 'customer', 'admin'
           let statsTimeFilter = 'month'; // 'day', 'week', 'month', 'year' - cho thống kê trạng thái đơn hàng
+          let currentItemDetails = null; // Lưu tạm thời details của món đang config
 
           // Filter orders theo khoảng thời gian cho thống kê
           function filterOrdersByTimeRange(orders, timeFilter) {
@@ -402,10 +403,15 @@
             document.getElementById('item-modal-price').value = '';
             document.getElementById('item-modal-new-price').value = '';
             document.getElementById('item-modal-status').value = 'active';
+            document.getElementById('item-modal-item-type').value = 'simple';
             document.getElementById('item-modal-size').value = '';
             document.getElementById('item-modal-image').value = '';
             document.getElementById('item-modal-description').value = '';
             document.getElementById('item-modal-size-field').style.display = 'none';
+            document.getElementById('item-modal-config-button-field').style.display = 'none';
+
+            // Reset item details
+            currentItemDetails = null;
 
             document.getElementById('item-modal').classList.remove('hidden');
 
@@ -414,6 +420,19 @@
             categorySelect.addEventListener('change', function() {
                 const sizeField = document.getElementById('item-modal-size-field');
                 sizeField.style.display = this.value === 'Đồ Uống' ? 'block' : 'none';
+            });
+
+            // Setup item type change listener
+            const itemTypeSelect = document.getElementById('item-modal-item-type');
+            itemTypeSelect.addEventListener('change', function() {
+                const configButton = document.getElementById('item-modal-config-button-field');
+                configButton.style.display = this.value !== 'simple' ? 'block' : 'none';
+                // Reset details when changing type
+                if (this.value !== 'simple') {
+                    currentItemDetails = getDefaultDetails(this.value);
+                } else {
+                    currentItemDetails = null;
+                }
             });
 
             // Setup image preview
@@ -468,13 +487,21 @@
             document.getElementById('item-modal-new-price').value = item.newPrice || '';
             document.getElementById('item-modal-category').value = item.category;
             document.getElementById('item-modal-status').value = item.status;
+            document.getElementById('item-modal-item-type').value = item.itemType || 'simple';
             document.getElementById('item-modal-size').value = item.size || '';
             document.getElementById('item-modal-image').value = item.imageUrl || '';
             document.getElementById('item-modal-description').value = item.description || '';
 
+            // Load item details
+            currentItemDetails = item.details || null;
+
             // Show/hide size field
             const sizeField = document.getElementById('item-modal-size-field');
             sizeField.style.display = item.category === 'Đồ Uống' ? 'block' : 'none';
+
+            // Show/hide config button
+            const configButton = document.getElementById('item-modal-config-button-field');
+            configButton.style.display = (item.itemType && item.itemType !== 'simple') ? 'block' : 'none';
 
             document.getElementById('item-modal').classList.remove('hidden');
 
@@ -483,6 +510,19 @@
             categorySelect.addEventListener('change', function() {
                 const sizeField = document.getElementById('item-modal-size-field');
                 sizeField.style.display = this.value === 'Đồ Uống' ? 'block' : 'none';
+            });
+
+            // Setup item type change listener
+            const itemTypeSelect = document.getElementById('item-modal-item-type');
+            itemTypeSelect.addEventListener('change', function() {
+                const configButton = document.getElementById('item-modal-config-button-field');
+                configButton.style.display = this.value !== 'simple' ? 'block' : 'none';
+                // Reset details when changing type (but ask confirmation if already configured)
+                if (this.value !== 'simple' && !currentItemDetails) {
+                    currentItemDetails = getDefaultDetails(this.value);
+                } else if (this.value === 'simple') {
+                    currentItemDetails = null;
+                }
             });
 
             // Setup image preview and update with current image
@@ -500,6 +540,426 @@
 
         function closeItemModal() {
             document.getElementById('item-modal').classList.add('hidden');
+        }
+
+        // ==================== ITEM DETAILS CONFIG ====================
+        
+        function openItemDetailsConfig() {
+            const itemType = document.getElementById('item-modal-item-type').value;
+            if (itemType === 'simple') {
+                showMessage("Món đơn giản không cần cấu hình chi tiết", "info");
+                return;
+            }
+
+            // Load current details if editing
+            const itemId = document.getElementById('item-modal-id').value;
+            if (itemId) {
+                const item = menuItems.find(i => i.id === itemId);
+                currentItemDetails = item?.details || getDefaultDetails(itemType);
+            } else {
+                currentItemDetails = currentItemDetails || getDefaultDetails(itemType);
+            }
+
+            renderItemDetailsConfig(itemType);
+            document.getElementById('item-details-modal').classList.remove('hidden');
+        }
+
+        function closeItemDetailsConfig() {
+            document.getElementById('item-details-modal').classList.add('hidden');
+        }
+
+        function getDefaultDetails(itemType) {
+            switch (itemType) {
+                case 'drink':
+                    return {
+                        sizes: [
+                            { name: 'S', priceAdd: 0, enabled: true },
+                            { name: 'M', priceAdd: 5000, enabled: true },
+                            { name: 'L', priceAdd: 10000, enabled: true }
+                        ],
+                        toppings: [],
+                        iceOptions: [0, 25, 50, 75, 100],
+                        sugarOptions: [0, 25, 50, 75, 100]
+                    };
+                case 'noodle':
+                    return {
+                        spiceLevels: [0, 1, 2, 3, 4, 5, 6, 7], // 0 = không cay, 1-7 = cấp độ cay
+                        toppings: []
+                    };
+                case 'food':
+                    return {
+                        sizes: [
+                            { name: 'Nhỏ', priceAdd: 0, enabled: true },
+                            { name: 'Vừa', priceAdd: 10000, enabled: true },
+                            { name: 'Lớn', priceAdd: 20000, enabled: true }
+                        ]
+                    };
+                case 'alcohol':
+                    return {
+                        sizes: [
+                            { name: 'Nhỏ', priceAdd: 0, enabled: true },
+                            { name: 'Lớn', priceAdd: 20000, enabled: true }
+                        ]
+                    };
+                default:
+                    return {};
+            }
+        }
+
+        function renderItemDetailsConfig(itemType) {
+            const content = document.getElementById('item-details-content');
+            
+            switch (itemType) {
+                case 'drink':
+                    content.innerHTML = renderDrinkConfig();
+                    break;
+                case 'noodle':
+                    content.innerHTML = renderNoodleConfig();
+                    break;
+                case 'food':
+                    content.innerHTML = renderFoodConfig();
+                    break;
+                case 'alcohol':
+                    content.innerHTML = renderAlcoholConfig();
+                    break;
+                default:
+                    content.innerHTML = '<p class="text-gray-500">Không có cấu hình cho loại này</p>';
+            }
+
+            renderLucideIcons();
+        }
+
+        function renderDrinkConfig() {
+            const itemPrice = parseFloat(document.getElementById('item-modal-price')?.value) || 0;
+            const itemNewPrice = parseFloat(document.getElementById('item-modal-new-price')?.value) || 0;
+            const basePrice = itemNewPrice > 0 ? itemNewPrice : itemPrice;
+            
+            const enabledSizes = currentItemDetails.sizes.filter(s => s.enabled);
+            const smallestEnabledIdx = enabledSizes.length > 0 ? 
+                currentItemDetails.sizes.findIndex(s => s.enabled) : -1;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Sizes -->
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="font-bold text-blue-900">📏 Size (Kích cỡ)</h4>
+                            <button onclick="addDrinkSize()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">+ Thêm Size</button>
+                        </div>
+                        <p class="text-xs text-gray-600 mb-2">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
+                        <div id="drink-sizes-list" class="space-y-2">
+                            ${currentItemDetails.sizes.map((size, idx) => {
+                                const isSmallest = idx === smallestEnabledIdx;
+                                const displayPrice = isSmallest && size.enabled ? basePrice : size.priceAdd;
+                                return `
+                                    <div class="flex gap-2 items-center bg-white p-2 rounded ${size.enabled ? '' : 'opacity-60'}">
+                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleDrinkSize(${idx}, this.checked)" class="w-4 h-4">
+                                        <input type="text" value="${size.name}" onchange="updateDrinkSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 px-2 py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
+                                        <input type="number" value="${displayPrice}" onchange="updateDrinkSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-32 px-2 py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <button onclick="removeDrinkSize(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Toppings -->
+                    <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="font-bold text-purple-900">🧋 Topping</h4>
+                            <button onclick="addDrinkTopping()" class="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600">+ Thêm Topping</button>
+                        </div>
+                        <div id="drink-toppings-list" class="space-y-2">
+                            ${currentItemDetails.toppings.map((topping, idx) => `
+                                <div class="flex gap-2 items-center bg-white p-2 rounded">
+                                    <input type="text" value="${topping.name}" onchange="updateDrinkTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 px-2 py-1 border rounded text-sm">
+                                    <input type="number" value="${topping.price}" onchange="updateDrinkTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-32 px-2 py-1 border rounded text-sm">
+                                    <button onclick="removeDrinkTopping(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Ice Options -->
+                    <div class="bg-cyan-50 p-4 rounded-lg border border-cyan-200">
+                        <h4 class="font-bold text-cyan-900 mb-3">🧊 Tùy chọn Đá (%)</h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${[0, 25, 50, 75, 100].map(val => `
+                                <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-cyan-100">
+                                    <input type="checkbox" ${currentItemDetails.iceOptions.includes(val) ? 'checked' : ''} onchange="toggleIceOption(${val}, this.checked)">
+                                    <span class="text-sm">${val}%</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Sugar Options -->
+                    <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                        <h4 class="font-bold text-yellow-900 mb-3">🍯 Tùy chọn Đường (%)</h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${[0, 25, 50, 75, 100].map(val => `
+                                <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-yellow-100">
+                                    <input type="checkbox" ${currentItemDetails.sugarOptions.includes(val) ? 'checked' : ''} onchange="toggleSugarOption(${val}, this.checked)">
+                                    <span class="text-sm">${val}%</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderNoodleConfig() {
+            const maxLevel = Math.max(...currentItemDetails.spiceLevels);
+            return `
+                <div class="space-y-6">
+                    <!-- Spice Levels -->
+                    <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <h4 class="font-bold text-red-900 mb-3">🌶️ Độ Cay (Cấp độ)</h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${[0, 1, 2, 3, 4, 5, 6, 7].map(val => {
+                                const label = val === 0 ? 'Không cay' : `Cấp ${val}`;
+                                return `
+                                    <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-red-100">
+                                        <input type="checkbox" ${currentItemDetails.spiceLevels.includes(val) ? 'checked' : ''} onchange="toggleSpiceLevel(${val}, this.checked)">
+                                        <span class="text-sm">${label}</span>
+                                    </label>
+                                `;
+                            }).join('')}
+                            ${currentItemDetails.spiceLevels.filter(l => l > 7).map(val => `
+                                <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-red-100 relative group">
+                                    <input type="checkbox" checked disabled class="opacity-50">
+                                    <span class="text-sm">Cấp ${val}</span>
+                                    <button onclick="event.preventDefault(); removeCustomSpiceLevel(${val})" class="text-red-600 hover:text-red-800 ml-1">🗑️</button>
+                                </label>
+                            `).join('')}
+                        </div>
+                        <button onclick="addCustomSpiceLevel()" class="mt-3 bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600 w-full">
+                            + Thêm Cấp Độ Cao Hơn (Cấp ${maxLevel + 1})
+                        </button>
+                        <p class="text-xs text-gray-500 mt-2">💡 Chọn các cấp độ cay cơ bản 0-7, hoặc thêm cấp độ cao hơn nếu cần</p>
+                    </div>
+
+                    <!-- Toppings -->
+                    <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="font-bold text-purple-900">🍜 Topping</h4>
+                            <button onclick="addNoodleTopping()" class="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600">+ Thêm Topping</button>
+                        </div>
+                        <div id="noodle-toppings-list" class="space-y-2">
+                            ${currentItemDetails.toppings.map((topping, idx) => `
+                                <div class="flex gap-2 items-center bg-white p-2 rounded">
+                                    <input type="text" value="${topping.name}" onchange="updateNoodleTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 px-2 py-1 border rounded text-sm">
+                                    <input type="number" value="${topping.price}" onchange="updateNoodleTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-32 px-2 py-1 border rounded text-sm">
+                                    <button onclick="removeNoodleTopping(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFoodConfig() {
+            const itemPrice = parseFloat(document.getElementById('item-modal-price')?.value) || 0;
+            const itemNewPrice = parseFloat(document.getElementById('item-modal-new-price')?.value) || 0;
+            const basePrice = itemNewPrice > 0 ? itemNewPrice : itemPrice;
+            
+            const enabledSizes = currentItemDetails.sizes.filter(s => s.enabled);
+            const smallestEnabledIdx = enabledSizes.length > 0 ? 
+                currentItemDetails.sizes.findIndex(s => s.enabled) : -1;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Sizes -->
+                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="font-bold text-green-900">📏 Size/Phần</h4>
+                            <button onclick="addFoodSize()" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">+ Thêm Size</button>
+                        </div>
+                        <p class="text-xs text-gray-600 mb-2">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
+                        <div id="food-sizes-list" class="space-y-2">
+                            ${currentItemDetails.sizes.map((size, idx) => {
+                                const isSmallest = idx === smallestEnabledIdx;
+                                const displayPrice = isSmallest && size.enabled ? basePrice : size.priceAdd;
+                                return `
+                                    <div class="flex gap-2 items-center bg-white p-2 rounded ${size.enabled ? '' : 'opacity-60'}">
+                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleFoodSize(${idx}, this.checked)" class="w-4 h-4">
+                                        <input type="text" value="${size.name}" onchange="updateFoodSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 px-2 py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
+                                        <input type="number" value="${displayPrice}" onchange="updateFoodSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-32 px-2 py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <button onclick="removeFoodSize(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAlcoholConfig() {
+            const itemPrice = parseFloat(document.getElementById('item-modal-price')?.value) || 0;
+            const itemNewPrice = parseFloat(document.getElementById('item-modal-new-price')?.value) || 0;
+            const basePrice = itemNewPrice > 0 ? itemNewPrice : itemPrice;
+            
+            const enabledSizes = currentItemDetails.sizes.filter(s => s.enabled);
+            const smallestEnabledIdx = enabledSizes.length > 0 ? 
+                currentItemDetails.sizes.findIndex(s => s.enabled) : -1;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Sizes -->
+                    <div class="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="font-bold text-amber-900">🍺 Size</h4>
+                            <button onclick="addAlcoholSize()" class="bg-amber-500 text-white px-3 py-1 rounded text-sm hover:bg-amber-600">+ Thêm Size</button>
+                        </div>
+                        <p class="text-xs text-gray-600 mb-2">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
+                        <div id="alcohol-sizes-list" class="space-y-2">
+                            ${currentItemDetails.sizes.map((size, idx) => {
+                                const isSmallest = idx === smallestEnabledIdx;
+                                const displayPrice = isSmallest && size.enabled ? basePrice : size.priceAdd;
+                                return `
+                                    <div class="flex gap-2 items-center bg-white p-2 rounded ${size.enabled ? '' : 'opacity-60'}">
+                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleAlcoholSize(${idx}, this.checked)" class="w-4 h-4">
+                                        <input type="text" value="${size.name}" onchange="updateAlcoholSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 px-2 py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
+                                        <input type="number" value="${displayPrice}" onchange="updateAlcoholSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-32 px-2 py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <button onclick="removeAlcoholSize(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function saveItemDetailsConfig() {
+            // Details đã được update qua các hàm update* rồi, chỉ cần đóng modal
+            showMessage("✅ Đã lưu cấu hình chi tiết", "success");
+            closeItemDetailsConfig();
+        }
+
+        // === DRINK HELPERS ===
+        function addDrinkSize() {
+            currentItemDetails.sizes.push({ name: '', priceAdd: 0, enabled: true });
+            renderItemDetailsConfig('drink');
+        }
+        function updateDrinkSize(idx, field, value) {
+            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parseFloat(value) || 0 : value;
+        }
+        function toggleDrinkSize(idx, checked) {
+            currentItemDetails.sizes[idx].enabled = checked;
+            renderItemDetailsConfig('drink');
+        }
+        function removeDrinkSize(idx) {
+            currentItemDetails.sizes.splice(idx, 1);
+            renderItemDetailsConfig('drink');
+        }
+        function addDrinkTopping() {
+            currentItemDetails.toppings.push({ name: '', price: 0 });
+            renderItemDetailsConfig('drink');
+        }
+        function updateDrinkTopping(idx, field, value) {
+            currentItemDetails.toppings[idx][field] = field === 'price' ? parseFloat(value) || 0 : value;
+        }
+        function removeDrinkTopping(idx) {
+            currentItemDetails.toppings.splice(idx, 1);
+            renderItemDetailsConfig('drink');
+        }
+        function toggleIceOption(val, checked) {
+            if (checked) {
+                if (!currentItemDetails.iceOptions.includes(val)) {
+                    currentItemDetails.iceOptions.push(val);
+                    currentItemDetails.iceOptions.sort((a, b) => a - b);
+                }
+            } else {
+                currentItemDetails.iceOptions = currentItemDetails.iceOptions.filter(v => v !== val);
+            }
+        }
+        function toggleSugarOption(val, checked) {
+            if (checked) {
+                if (!currentItemDetails.sugarOptions.includes(val)) {
+                    currentItemDetails.sugarOptions.push(val);
+                    currentItemDetails.sugarOptions.sort((a, b) => a - b);
+                }
+            } else {
+                currentItemDetails.sugarOptions = currentItemDetails.sugarOptions.filter(v => v !== val);
+            }
+        }
+
+        // === NOODLE HELPERS ===
+        function toggleSpiceLevel(val, checked) {
+            if (checked) {
+                if (!currentItemDetails.spiceLevels.includes(val)) {
+                    currentItemDetails.spiceLevels.push(val);
+                    currentItemDetails.spiceLevels.sort((a, b) => a - b);
+                }
+            } else {
+                currentItemDetails.spiceLevels = currentItemDetails.spiceLevels.filter(v => v !== val);
+            }
+        }
+        function addCustomSpiceLevel() {
+            const maxLevel = Math.max(...currentItemDetails.spiceLevels);
+            const newLevel = maxLevel + 1;
+            currentItemDetails.spiceLevels.push(newLevel);
+            currentItemDetails.spiceLevels.sort((a, b) => a - b);
+            renderItemDetailsConfig('noodle');
+            showMessage(`✅ Đã thêm Cấp ${newLevel}`, "success");
+        }
+        function removeCustomSpiceLevel(val) {
+            if (val <= 7) {
+                showMessage("❌ Không thể xóa cấp độ cơ bản 0-7", "error");
+                return;
+            }
+            currentItemDetails.spiceLevels = currentItemDetails.spiceLevels.filter(v => v !== val);
+            renderItemDetailsConfig('noodle');
+            showMessage(`✅ Đã xóa Cấp ${val}`, "success");
+        }
+        function addNoodleTopping() {
+            currentItemDetails.toppings.push({ name: '', price: 0 });
+            renderItemDetailsConfig('noodle');
+        }
+        function updateNoodleTopping(idx, field, value) {
+            currentItemDetails.toppings[idx][field] = field === 'price' ? parseFloat(value) || 0 : value;
+        }
+        function removeNoodleTopping(idx) {
+            currentItemDetails.toppings.splice(idx, 1);
+            renderItemDetailsConfig('noodle');
+        }
+
+        // === FOOD HELPERS ===
+        function addFoodSize() {
+            currentItemDetails.sizes.push({ name: '', priceAdd: 0, enabled: true });
+            renderItemDetailsConfig('food');
+        }
+        function updateFoodSize(idx, field, value) {
+            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parseFloat(value) || 0 : value;
+        }
+        function toggleFoodSize(idx, checked) {
+            currentItemDetails.sizes[idx].enabled = checked;
+            renderItemDetailsConfig('food');
+        }
+        function removeFoodSize(idx) {
+            currentItemDetails.sizes.splice(idx, 1);
+            renderItemDetailsConfig('food');
+        }
+
+        // === ALCOHOL HELPERS ===
+        function addAlcoholSize() {
+            currentItemDetails.sizes.push({ name: '', priceAdd: 0, enabled: true });
+            renderItemDetailsConfig('alcohol');
+        }
+        function updateAlcoholSize(idx, field, value) {
+            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parseFloat(value) || 0 : value;
+        }
+        function toggleAlcoholSize(idx, checked) {
+            currentItemDetails.sizes[idx].enabled = checked;
+            renderItemDetailsConfig('alcohol');
+        }
+        function removeAlcoholSize(idx) {
+            currentItemDetails.sizes.splice(idx, 1);
+            renderItemDetailsConfig('alcohol');
         }
         
         function formatCurrency(amount) {
@@ -2608,6 +3068,16 @@
                                         </select>
                                     </div>
                                     <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Loại Chi Tiết</label>
+                                        <select id="item-modal-item-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                            <option value="simple">🍽️ Món đơn giản (Không có tùy chọn)</option>
+                                            <option value="drink">🥤 Nước uống (Size, Topping, Đá, Đường)</option>
+                                            <option value="noodle">🍜 Mì/Bún (Độ cay, Topping)</option>
+                                            <option value="food">🍱 Đồ ăn (Size/Phần)</option>
+                                            <option value="alcohol">🍺 Đồ nhậu (Size Lớn/Nhỏ)</option>
+                                        </select>
+                                    </div>
+                                    <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Trạng Thái</label>
                                         <select id="item-modal-status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
                                             <option value="active">✅ Đang bán</option>
@@ -2625,6 +3095,13 @@
                                             <option value="">Không chọn size</option>
                                             ${drinkSizes.map(size => `<option value="${size}">${size}</option>`).join('')}
                                         </select>
+                                    </div>
+                                    <div id="item-modal-config-button-field" class="md:col-span-2" style="display: none;">
+                                        <button type="button" onclick="openItemDetailsConfig()" class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 transition flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg">
+                                            <i data-lucide="settings" class="w-5 h-5"></i>
+                                            <span>⚙️ Cấu Hình Chi Tiết (Size, Topping, ...)</span>
+                                        </button>
+                                        <p class="text-xs text-gray-500 mt-1 text-center">Click để thiết lập các tùy chọn chi tiết cho món này</p>
                                     </div>
                                 </div>
                                 <!-- Image Preview -->
@@ -2657,6 +3134,25 @@
                                     <button type="submit" id="item-modal-submit" class="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700">Thêm Món</button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+
+                    <!-- Item Details Config Modal -->
+                    <div id="item-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110] hidden overflow-y-auto">
+                        <div class="bg-white p-6 rounded-xl max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-2xl font-bold text-purple-900">⚙️ Cấu Hình Chi Tiết Món</h3>
+                                <button onclick="closeItemDetailsConfig()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                            </div>
+
+                            <div id="item-details-content">
+                                <!-- Content will be dynamically loaded based on itemType -->
+                            </div>
+
+                            <div class="mt-6 flex justify-end space-x-3">
+                                <button type="button" onclick="closeItemDetailsConfig()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
+                                <button type="button" onclick="saveItemDetailsConfig()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">💾 Lưu Cấu Hình</button>
+                            </div>
                         </div>
                     </div>
 
@@ -3051,12 +3547,15 @@
         
         function handleSaveItem() {
             const newPriceValue = document.getElementById('item-modal-new-price').value.trim();
+            const itemType = document.getElementById('item-modal-item-type').value;
+            
             const item = {
                 id: document.getElementById('item-modal-id').value,
                 name: document.getElementById('item-modal-name').value,
                 price: parseFloat(document.getElementById('item-modal-price').value),
                 category: document.getElementById('item-modal-category').value,
                 status: document.getElementById('item-modal-status').value,
+                itemType: itemType,
                 size: document.getElementById('item-modal-size').value || null,
                 imageUrl: document.getElementById('item-modal-image').value,
                 description: document.getElementById('item-modal-description').value,
@@ -3065,6 +3564,11 @@
             // Add newPrice if provided
             if (newPriceValue && parseFloat(newPriceValue) > 0) {
                 item.newPrice = parseFloat(newPriceValue);
+            }
+
+            // Add details if itemType is not simple
+            if (itemType !== 'simple' && currentItemDetails) {
+                item.details = currentItemDetails;
             }
 
             saveItem(item);
@@ -5238,6 +5742,32 @@
             window.openAddItemModal = openAddItemModal;
             window.openEditItemModal = openEditItemModal;
             window.closeItemModal = closeItemModal;
+            window.openItemDetailsConfig = openItemDetailsConfig;
+            window.closeItemDetailsConfig = closeItemDetailsConfig;
+            window.saveItemDetailsConfig = saveItemDetailsConfig;
+            window.addDrinkSize = addDrinkSize;
+            window.updateDrinkSize = updateDrinkSize;
+            window.toggleDrinkSize = toggleDrinkSize;
+            window.removeDrinkSize = removeDrinkSize;
+            window.addDrinkTopping = addDrinkTopping;
+            window.updateDrinkTopping = updateDrinkTopping;
+            window.removeDrinkTopping = removeDrinkTopping;
+            window.toggleIceOption = toggleIceOption;
+            window.toggleSugarOption = toggleSugarOption;
+            window.toggleSpiceLevel = toggleSpiceLevel;
+            window.addCustomSpiceLevel = addCustomSpiceLevel;
+            window.removeCustomSpiceLevel = removeCustomSpiceLevel;
+            window.addNoodleTopping = addNoodleTopping;
+            window.updateNoodleTopping = updateNoodleTopping;
+            window.removeNoodleTopping = removeNoodleTopping;
+            window.addFoodSize = addFoodSize;
+            window.updateFoodSize = updateFoodSize;
+            window.toggleFoodSize = toggleFoodSize;
+            window.removeFoodSize = removeFoodSize;
+            window.addAlcoholSize = addAlcoholSize;
+            window.updateAlcoholSize = updateAlcoholSize;
+            window.toggleAlcoholSize = toggleAlcoholSize;
+            window.removeAlcoholSize = removeAlcoholSize;
             window.setItemsPerPage = setItemsPerPage;
             window.setPage = setPage;
             window.setMenuPage = setMenuPage;
