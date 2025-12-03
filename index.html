@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="logo.ico">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#d4a574">
     <title>Chill Coffee</title>
     <!-- Tailwind CSS via CDN (for development) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -2671,8 +2673,10 @@
                             setupMenuListener();
                             setupTablesListener(); // Always setup for table selection modal
 
-                            // Load categories from Firebase
-                            loadCategories();
+                            // Load categories from Firebase and re-render after loading
+                            loadCategories().then(() => {
+                                renderApp(); // Re-render after categories are loaded
+                            });
 
                             // Setup listeners for admin
                             if (isAdmin) {
@@ -2733,8 +2737,10 @@
                             // Optional: Lưu timer ID để có thể hủy nếu cần (ví dụ: khi user logout)
                             window.autoCleanupTimerId = autoCleanupTimer;
 
-                            // Load categories from Firebase
-                            loadCategories();
+                            // Load categories from Firebase and re-render after loading
+                            loadCategories().then(() => {
+                                renderApp(); // Re-render after categories are loaded
+                            });
                         }
                         setView('customer');
                     }
@@ -6350,8 +6356,52 @@
 
         // ==================== BROWSER NOTIFICATIONS ====================
 
+        // Đăng ký Service Worker cho PWA và notifications
+        let serviceWorkerRegistration = null;
+        
+        async function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                try {
+                    // Sử dụng đường dẫn tương đối để hoạt động trên mọi server
+                    const swPath = './service-worker.js';
+                    const registration = await navigator.serviceWorker.register(swPath, {
+                        scope: './'
+                    });
+                    serviceWorkerRegistration = registration;
+                    console.log('✅ Service Worker registered:', registration);
+                    
+                    // Kiểm tra nếu có update
+                    registration.addEventListener('updatefound', () => {
+                        console.log('🔄 Service Worker update found');
+                    });
+                    
+                    return registration;
+                } catch (error) {
+                    console.error('❌ Service Worker registration failed:', error);
+                    // Thử với đường dẫn tuyệt đối
+                    try {
+                        const registration = await navigator.serviceWorker.register('/service-worker.js');
+                        serviceWorkerRegistration = registration;
+                        console.log('✅ Service Worker registered with absolute path');
+                        return registration;
+                    } catch (error2) {
+                        console.error('❌ Service Worker registration failed with absolute path:', error2);
+                        return null;
+                    }
+                }
+            } else {
+                console.log('⚠️ Service Worker not supported');
+                return null;
+            }
+        }
+
         // Yêu cầu quyền thông báo trình duyệt
-        function requestNotificationPermission() {
+        async function requestNotificationPermission() {
+            // Đăng ký service worker trước (cần thiết cho mobile)
+            if (!serviceWorkerRegistration && 'serviceWorker' in navigator) {
+                serviceWorkerRegistration = await registerServiceWorker();
+            }
+            
             if ('Notification' in window) {
                 if (Notification.permission === 'default') {
                     Notification.requestPermission().then(permission => {
@@ -6364,6 +6414,7 @@
                         }
                     });
                 } else if (Notification.permission === 'granted') {
+                    showMessage("✅ Quyền thông báo đã được cấp!", "success");
                     console.log("🔔 Notification permission already granted");
                 } else {
                     showMessage("⚠️ Thông báo trình duyệt bị chặn. Vui lòng cho phép trong cài đặt trình duyệt.", "warning");
@@ -6375,43 +6426,79 @@
         }
 
         // Hiển thị thông báo trình duyệt với âm thanh
-        function showBrowserNotification(title, body, icon = null) {
+        async function showBrowserNotification(title, body, icon = null) {
+            // Đảm bảo service worker đã được đăng ký (cần thiết cho mobile)
+            if (!serviceWorkerRegistration && 'serviceWorker' in navigator) {
+                serviceWorkerRegistration = await registerServiceWorker();
+            }
+            
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
-                    const notification = new Notification(title, {
-                        body: body,
-                        icon: icon || 'logo.png', // Sử dụng logo mặc định nếu không có icon
-                        badge: 'logo.png',
-                        tag: 'order-notification', // Tag để nhóm thông báo
-                        requireInteraction: false, // Tự động đóng sau 5 giây
-                        silent: false // Cho phép âm thanh mặc định của trình duyệt
-                    });
+                    // Sử dụng Service Worker API nếu có (cho mobile và PWA)
+                    if (serviceWorkerRegistration && 'showNotification' in serviceWorkerRegistration) {
+                        await serviceWorkerRegistration.showNotification(title, {
+                            body: body,
+                            icon: icon || '/logo.png',
+                            badge: '/logo.png',
+                            tag: 'order-notification',
+                            requireInteraction: false,
+                            silent: false,
+                            vibrate: [200, 100, 200], // Rung trên mobile
+                            data: {
+                                url: window.location.href
+                            }
+                        });
+                        console.log('✅ Notification shown via Service Worker');
+                    } else {
+                        // Fallback: Sử dụng Notification API trực tiếp (cho desktop)
+                        const notification = new Notification(title, {
+                            body: body,
+                            icon: icon || 'logo.png',
+                            badge: 'logo.png',
+                            tag: 'order-notification',
+                            requireInteraction: false,
+                            silent: false
+                        });
+
+                        // Tự động đóng sau 5 giây
+                        setTimeout(() => {
+                            notification.close();
+                        }, 5000);
+
+                        // Xử lý click vào thông báo
+                        notification.onclick = function() {
+                            window.focus();
+                            if (isAdmin && currentView !== 'admin-orders') {
+                                setView('admin-orders');
+                            }
+                            notification.close();
+                        };
+                    }
 
                     // Phát âm thanh dong_xu.mp3
                     playNotificationSound();
 
-                    // Tự động đóng sau 5 giây
-                    setTimeout(() => {
-                        notification.close();
-                    }, 5000);
-
-                    // Xử lý click vào thông báo
-                    notification.onclick = function() {
-                        // Focus vào tab hiện tại
-                        window.focus();
-                        // Có thể thêm logic chuyển đến trang đơn hàng
-                        if (isAdmin && currentView !== 'admin-orders') {
-                            setView('admin-orders');
-                        }
-                        notification.close();
-                    };
-
-                    return notification;
+                    return true;
                 } catch (error) {
                     console.error("❌ Error showing browser notification:", error);
+                    // Thử fallback với Notification API trực tiếp
+                    try {
+                        const notification = new Notification(title, {
+                            body: body,
+                            icon: icon || 'logo.png',
+                            tag: 'order-notification'
+                        });
+                        playNotificationSound();
+                        setTimeout(() => notification.close(), 5000);
+                        return true;
+                    } catch (fallbackError) {
+                        console.error("❌ Fallback notification also failed:", fallbackError);
+                    }
                 }
+            } else {
+                console.warn("⚠️ Notification permission not granted");
             }
-            return null;
+            return false;
         }
 
         // Phát âm thanh thông báo
@@ -7075,6 +7162,9 @@
         // --- Khởi tạo Ứng dụng ---
         window.onload = function() {
             console.log("🌟 Ứng dụng Chill Coffee khởi động...");
+
+            // Đăng ký Service Worker cho PWA và notifications
+            registerServiceWorker();
 
             initFirebase();
             window.updateCart = updateCart;
