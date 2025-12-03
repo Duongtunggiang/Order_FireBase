@@ -72,6 +72,14 @@ self.addEventListener('notificationclick', (event) => {
           return clients.openWindow('./');
         }
       })
+      .then(() => {
+        // Gửi message đến client để rung (nếu client hỗ trợ)
+        return clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({ type: 'vibrate', pattern: [50] });
+          });
+        });
+      })
   );
 });
 
@@ -82,10 +90,11 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Chill Coffee';
   const options = {
     body: data.body || 'Bạn có thông báo mới',
-    icon: data.icon || '/logo.png',
-    badge: '/logo.png',
+    icon: data.icon || './logo.png',
+    badge: './logo.png',
     tag: data.tag || 'order-notification',
     requireInteraction: false,
+    vibrate: [200, 100, 200, 100, 200], // Rung khi có push notification
     data: data
   };
   

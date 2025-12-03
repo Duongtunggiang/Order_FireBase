@@ -3664,8 +3664,11 @@
                             <button onclick="playNotificationSound()" class="bg-purple-500 text-white px-3 py-2 rounded hover:bg-purple-600 text-xs sm:text-sm active:scale-95 transition">
                                 Test Âm Thanh
                             </button>
+                            <button onclick="vibrateDevice([200, 100, 200, 100, 200])" class="bg-orange-500 text-white px-3 py-2 rounded hover:bg-orange-600 text-xs sm:text-sm active:scale-95 transition">
+                                📳 Test Rung
+                            </button>
                         </div>
-                        <p class="text-xs text-gray-500 mt-2">Sử dụng các nút này để test tính năng thông báo trình duyệt và âm thanh.</p>
+                        <p class="text-xs text-gray-500 mt-2">Sử dụng các nút này để test tính năng thông báo trình duyệt, âm thanh và rung.</p>
                     </div>
                 </div>
             `;
@@ -6425,7 +6428,21 @@
             }
         }
 
-        // Hiển thị thông báo trình duyệt với âm thanh
+        // Hàm rung thiết bị (Vibration API)
+        function vibrateDevice(pattern = [200, 100, 200, 100, 200]) {
+            if ('vibrate' in navigator) {
+                try {
+                    navigator.vibrate(pattern);
+                    console.log('📳 Device vibrated:', pattern);
+                } catch (error) {
+                    console.error('❌ Vibration failed:', error);
+                }
+            } else {
+                console.log('⚠️ Vibration API not supported');
+            }
+        }
+
+        // Hiển thị thông báo trình duyệt với âm thanh và rung
         async function showBrowserNotification(title, body, icon = null) {
             // Đảm bảo service worker đã được đăng ký (cần thiết cho mobile)
             if (!serviceWorkerRegistration && 'serviceWorker' in navigator) {
@@ -6434,6 +6451,9 @@
             
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
+                    // Rung thiết bị ngay khi có thông báo (pattern: rung 200ms, nghỉ 100ms, rung 200ms, nghỉ 100ms, rung 200ms)
+                    vibrateDevice([200, 100, 200, 100, 200]);
+                    
                     // Sử dụng Service Worker API nếu có (cho mobile và PWA)
                     if (serviceWorkerRegistration && 'showNotification' in serviceWorkerRegistration) {
                         await serviceWorkerRegistration.showNotification(title, {
@@ -6443,12 +6463,12 @@
                             tag: 'order-notification',
                             requireInteraction: false,
                             silent: false,
-                            vibrate: [200, 100, 200], // Rung trên mobile
+                            vibrate: [200, 100, 200, 100, 200], // Rung trên mobile qua notification
                             data: {
                                 url: window.location.href
                             }
                         });
-                        console.log('✅ Notification shown via Service Worker');
+                        console.log('✅ Notification shown via Service Worker with vibration');
                     } else {
                         // Fallback: Sử dụng Notification API trực tiếp (cho desktop)
                         const notification = new Notification(title, {
@@ -6457,7 +6477,8 @@
                             badge: 'logo.png',
                             tag: 'order-notification',
                             requireInteraction: false,
-                            silent: false
+                            silent: false,
+                            vibrate: [200, 100, 200, 100, 200] // Rung trên desktop nếu hỗ trợ
                         });
 
                         // Tự động đóng sau 5 giây
@@ -6483,10 +6504,14 @@
                     console.error("❌ Error showing browser notification:", error);
                     // Thử fallback với Notification API trực tiếp
                     try {
+                        // Vẫn rung ngay cả khi fallback
+                        vibrateDevice([200, 100, 200]);
+                        
                         const notification = new Notification(title, {
                             body: body,
                             icon: icon || 'logo.png',
-                            tag: 'order-notification'
+                            tag: 'order-notification',
+                            vibrate: [200, 100, 200]
                         });
                         playNotificationSound();
                         setTimeout(() => notification.close(), 5000);
@@ -7164,7 +7189,16 @@
             console.log("🌟 Ứng dụng Chill Coffee khởi động...");
 
             // Đăng ký Service Worker cho PWA và notifications
-            registerServiceWorker();
+            registerServiceWorker().then(() => {
+                // Lắng nghe message từ service worker để rung thiết bị
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.addEventListener('message', (event) => {
+                        if (event.data && event.data.type === 'vibrate') {
+                            vibrateDevice(event.data.pattern || [50]);
+                        }
+                    });
+                }
+            });
 
             initFirebase();
             window.updateCart = updateCart;
@@ -7177,6 +7211,7 @@
             window.requestNotificationPermission = requestNotificationPermission;
             window.showBrowserNotification = showBrowserNotification;
             window.playNotificationSound = playNotificationSound;
+            window.vibrateDevice = vibrateDevice;
             window.toggleAdminMode = toggleAdminMode;
             window.saveItem = saveItem;
             window.deleteItem = deleteItem;
