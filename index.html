@@ -269,6 +269,7 @@
 
         // --- Customer Item Details Modal ---
         let currentSelectingItem = null;
+        let modalMode = 'add'; // 'add' hoặc 'edit'
         
         // So sánh 2 details objects có giống nhau không
         function areDetailsEqual(details1, details2) {
@@ -352,10 +353,10 @@
             const itemBasePrice = getItemPrice(item); // Lấy giá mới nhất (newPrice nếu có, không thì price)
             
             let html = `
-                <div class="mb-4">
-                    <h4 class="text-lg font-bold text-gray-800 mb-2">${item.name}</h4>
-                    <p class="text-sm text-gray-600 mb-2">${item.description || ''}</p>
-                    <p class="text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
+                <div class="mb-3 sm:mb-4">
+                    <h4 class="text-base sm:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2">${item.name}</h4>
+                    <p class="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2">${item.description || ''}</p>
+                    <p class="text-sm sm:text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
                 </div>
             `;
             
@@ -364,22 +365,22 @@
                 const enabledSizes = details.sizes.filter(s => s.enabled);
                 if (enabledSizes.length > 0) {
                     html += `
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Size</label>
-                            <div class="space-y-2">
+                        <div class="mb-3 sm:mb-4">
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Size</label>
+                            <div class="space-y-1.5 sm:space-y-2">
                                 ${enabledSizes.map((size, idx) => {
                                     const priceAdd = size.priceAdd || size.price || 0;
                                     // Nếu priceAdd = 0 thì dùng giá món mới nhất, nếu không thì dùng priceAdd
                                     const displayPrice = priceAdd > 0 ? priceAdd : itemBasePrice;
                                     return `
-                                        <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                        <label class="flex items-center justify-between p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer text-sm sm:text-base">
                                             <div class="flex items-center">
                                                 <input type="radio" name="customer-size" value="${size.name}" ${idx === 0 ? 'checked' : ''} 
                                                     onchange="updateCustomerItemPrice()" 
-                                                    class="mr-2">
+                                                    class="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5">
                                                 <span>${size.name}</span>
                                             </div>
-                                            <span class="text-teal-600">${displayPrice.toLocaleString()}đ</span>
+                                            <span class="text-teal-600 text-xs sm:text-sm font-medium">${displayPrice.toLocaleString()}đ</span>
                                         </label>
                                     `;
                                 }).join('')}
@@ -392,18 +393,18 @@
             // Toppings
             if (details.toppings && details.toppings.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Topping (có thể chọn nhiều)</label>
-                        <div class="space-y-2">
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Topping (có thể chọn nhiều)</label>
+                        <div class="space-y-1.5 sm:space-y-2">
                             ${details.toppings.map(topping => `
-                                <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                <label class="flex items-center justify-between p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer text-sm sm:text-base">
                                     <div class="flex items-center">
                                         <input type="checkbox" name="customer-topping" value="${topping.name}" 
                                             onchange="updateCustomerItemPrice()" 
-                                            class="mr-2">
+                                            class="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5">
                                         <span>${topping.name}</span>
                                     </div>
-                                    <span class="text-teal-600">+${topping.price?.toLocaleString() || 0}đ</span>
+                                    <span class="text-teal-600 text-xs sm:text-sm font-medium">+${topping.price?.toLocaleString() || 0}đ</span>
                                 </label>
                             `).join('')}
                         </div>
@@ -414,15 +415,15 @@
             // Ice/Sugar level - radio buttons vuông
             if (details.iceOptions && details.iceOptions.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">🧊 Đá (%)</label>
-                        <div class="grid grid-cols-3 gap-2">
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🧊 Đá (%)</label>
+                        <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
                             ${details.iceOptions.map((opt, idx) => `
-                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="customer-ice" value="${opt}" ${idx === 0 ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
-                                        class="mr-2">
-                                    <span class="text-sm">${opt}%</span>
+                                        class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
+                                    <span class="text-xs sm:text-sm">${opt}%</span>
                                 </label>
                             `).join('')}
                         </div>
@@ -432,15 +433,15 @@
             
             if (details.sugarOptions && details.sugarOptions.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">🍯 Đường (%)</label>
-                        <div class="grid grid-cols-3 gap-2">
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🍯 Đường (%)</label>
+                        <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
                             ${details.sugarOptions.map((opt, idx) => `
-                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="customer-sugar" value="${opt}" ${idx === 0 ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
-                                        class="mr-2">
-                                    <span class="text-sm">${opt}%</span>
+                                        class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
+                                    <span class="text-xs sm:text-sm">${opt}%</span>
                                 </label>
                             `).join('')}
                         </div>
@@ -451,10 +452,10 @@
             // Spice level
             if (details.spiceLevels && details.spiceLevels.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Độ cay</label>
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Độ cay</label>
                         <select name="customer-spice" onchange="updateCustomerItemPrice()" 
-                            class="w-full px-3 py-2 border rounded">
+                            class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base">
                             ${details.spiceLevels.map((opt, idx) => `
                                 <option value="${opt}" ${idx === 0 ? 'selected' : ''}>${opt}</option>
                             `).join('')}
@@ -466,10 +467,10 @@
             // Noodle type
             if (details.noodleTypes && details.noodleTypes.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Loại sợi</label>
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Loại sợi</label>
                         <select name="customer-noodle" onchange="updateCustomerItemPrice()" 
-                            class="w-full px-3 py-2 border rounded">
+                            class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base">
                             ${details.noodleTypes.map((opt, idx) => `
                                 <option value="${opt}" ${idx === 0 ? 'selected' : ''}>${opt}</option>
                             `).join('')}
@@ -480,25 +481,29 @@
             
             // Special requests
             html += `
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú đặc biệt</label>
+                <div class="mb-3 sm:mb-4">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Ghi chú đặc biệt</label>
                     <textarea name="customer-notes" rows="2" 
-                        class="w-full px-3 py-2 border rounded" 
+                        class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base" 
                         placeholder="Ví dụ: Ít đá, không hành..."></textarea>
                 </div>
             `;
             
             // Final price display
             html += `
-                <div class="mb-4 p-3 bg-teal-50 rounded">
+                <div class="mb-3 sm:mb-4 p-2 sm:p-3 bg-teal-50 rounded">
                     <div class="flex justify-between items-center">
-                        <span class="text-base font-medium text-gray-700">Tổng cộng:</span>
-                        <span id="customer-item-final-price" class="text-xl font-bold text-teal-600">${item.price?.toLocaleString() || 0}đ</span>
+                        <span class="text-sm sm:text-base font-medium text-gray-700">Tổng cộng:</span>
+                        <span id="customer-item-final-price" class="text-lg sm:text-xl font-bold text-teal-600">${item.price?.toLocaleString() || 0}đ</span>
                     </div>
                 </div>
             `;
             
             detailsContent.innerHTML = html;
+            
+            // Set mode = 'add' (thêm mới)
+            modalMode = 'add';
+            updateModalButtonText();
             
             // Hiển thị modal
             modal.classList.remove('hidden');
@@ -575,6 +580,22 @@
             return Object.keys(selectedDetails).length > 0 ? selectedDetails : null;
         }
 
+        // Cập nhật text button trong modal
+        function updateModalButtonText() {
+            const button = document.querySelector('#customer-item-details-modal button[onclick="addItemWithDetailsToCart()"]');
+            if (!button) return;
+            
+            if (modalMode === 'edit') {
+                button.textContent = 'Cập nhật';
+            } else if (currentAdminAddingOrderId) {
+                // Admin đang thêm món vào order
+                button.textContent = 'Thêm mới';
+            } else {
+                // Khách hàng thêm vào giỏ hàng
+                button.textContent = 'Thêm vào giỏ';
+            }
+        }
+
         // Đóng modal chọn details
         function closeCustomerItemDetailsModal() {
             const modal = document.getElementById('customer-item-details-modal');
@@ -582,11 +603,18 @@
                 modal.classList.add('hidden');
             }
             currentSelectingItem = null;
+            modalMode = 'add'; // Reset về add
             
             // Reset biến nếu đang thêm từ giỏ hàng
             if (window.addingFromCart) {
                 window.addingFromCart = false;
                 window.addingFromCartItemId = null;
+            }
+            
+            // Reset biến nếu admin đang thêm món vào order
+            if (currentAdminAddingOrderId) {
+                currentAdminAddingOrderId = null;
+                window.adminAddingItemId = null;
             }
         }
         
@@ -598,6 +626,20 @@
             if (!currentSelectingItem) return;
             
             const selectedDetails = getCustomerSelectedDetails();
+            
+            // Nếu admin đang thêm món vào order
+            if (currentAdminAddingOrderId && window.adminAddingItemId) {
+                const menuItem = menuItems.find(item => item.id === window.adminAddingItemId);
+                if (menuItem) {
+                    addItemToOrderDirectly(currentAdminAddingOrderId, menuItem, selectedDetails);
+                }
+                currentAdminAddingOrderId = null;
+                window.adminAddingItemId = null;
+                
+                // Đóng modal
+                closeCustomerItemDetailsModal();
+                return;
+            }
             
             // Nếu đang edit order item
             if (currentEditingOrderId && currentEditingItemIndex !== null) {
@@ -685,10 +727,10 @@
             const itemBasePrice = getItemPrice(item); // Lấy giá mới nhất (newPrice nếu có, không thì price)
             
             let html = `
-                <div class="mb-4">
-                    <h4 class="text-lg font-bold text-gray-800 mb-2">${item.name}</h4>
-                    <p class="text-sm text-gray-600 mb-2">${item.description || ''}</p>
-                    <p class="text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
+                <div class="mb-3 sm:mb-4">
+                    <h4 class="text-base sm:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2">${item.name}</h4>
+                    <p class="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2">${item.description || ''}</p>
+                    <p class="text-sm sm:text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
                 </div>
             `;
             
@@ -697,22 +739,22 @@
                 const enabledSizes = details.sizes.filter(s => s.enabled);
                 if (enabledSizes.length > 0) {
                     html += `
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Size</label>
-                            <div class="space-y-2">
+                        <div class="mb-3 sm:mb-4">
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Size</label>
+                            <div class="space-y-1.5 sm:space-y-2">
                                 ${enabledSizes.map((size) => {
                                     const priceAdd = size.priceAdd || size.price || 0;
                                     // Nếu priceAdd = 0 thì dùng giá món mới nhất, nếu không thì dùng priceAdd
                                     const displayPrice = priceAdd > 0 ? priceAdd : itemBasePrice;
                                     return `
-                                        <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                        <label class="flex items-center justify-between p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer text-sm sm:text-base">
                                             <div class="flex items-center">
                                                 <input type="radio" name="customer-size" value="${size.name}" ${currentDetails.size === size.name ? 'checked' : ''} 
                                                     onchange="updateCustomerItemPrice()" 
-                                                    class="mr-2">
+                                                    class="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5">
                                                 <span>${size.name}</span>
                                             </div>
-                                            <span class="text-teal-600">${displayPrice.toLocaleString()}đ</span>
+                                            <span class="text-teal-600 text-xs sm:text-sm font-medium">${displayPrice.toLocaleString()}đ</span>
                                         </label>
                                     `;
                                 }).join('')}
@@ -725,20 +767,20 @@
             // Toppings
             if (details.toppings && details.toppings.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Topping (có thể chọn nhiều)</label>
-                        <div class="space-y-2">
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Topping (có thể chọn nhiều)</label>
+                        <div class="space-y-1.5 sm:space-y-2">
                             ${details.toppings.map(topping => {
                                 const isChecked = currentDetails.toppings && currentDetails.toppings.includes(topping.name);
                                 return `
-                                    <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                    <label class="flex items-center justify-between p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer text-sm sm:text-base">
                                         <div class="flex items-center">
                                             <input type="checkbox" name="customer-topping" value="${topping.name}" ${isChecked ? 'checked' : ''}
                                                 onchange="updateCustomerItemPrice()" 
-                                                class="mr-2">
+                                                class="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5">
                                             <span>${topping.name}</span>
                                         </div>
-                                        <span class="text-teal-600">+${topping.price?.toLocaleString() || 0}đ</span>
+                                        <span class="text-teal-600 text-xs sm:text-sm font-medium">+${topping.price?.toLocaleString() || 0}đ</span>
                                     </label>
                                 `;
                             }).join('')}
@@ -750,15 +792,15 @@
             // Ice/Sugar level - radio buttons vuông
             if (details.iceOptions && details.iceOptions.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">🧊 Đá (%)</label>
-                        <div class="grid grid-cols-3 gap-2">
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🧊 Đá (%)</label>
+                        <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
                             ${details.iceOptions.map((opt) => `
-                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="customer-ice" value="${opt}" ${currentDetails.ice === opt || (!currentDetails.ice && opt === details.iceOptions[0]) ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
-                                        class="mr-2">
-                                    <span class="text-sm">${opt}%</span>
+                                        class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
+                                    <span class="text-xs sm:text-sm">${opt}%</span>
                                 </label>
                             `).join('')}
                         </div>
@@ -768,15 +810,15 @@
             
             if (details.sugarOptions && details.sugarOptions.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">🍯 Đường (%)</label>
-                        <div class="grid grid-cols-3 gap-2">
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🍯 Đường (%)</label>
+                        <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
                             ${details.sugarOptions.map((opt) => `
-                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="customer-sugar" value="${opt}" ${currentDetails.sugar === opt || (!currentDetails.sugar && opt === details.sugarOptions[0]) ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
-                                        class="mr-2">
-                                    <span class="text-sm">${opt}%</span>
+                                        class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
+                                    <span class="text-xs sm:text-sm">${opt}%</span>
                                 </label>
                             `).join('')}
                         </div>
@@ -787,10 +829,10 @@
             // Spice level
             if (details.spiceLevels && details.spiceLevels.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Độ cay</label>
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Độ cay</label>
                         <select name="customer-spice" onchange="updateCustomerItemPrice()" 
-                            class="w-full px-3 py-2 border rounded">
+                            class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base">
                             ${details.spiceLevels.map((opt) => `
                                 <option value="${opt}" ${currentDetails.spice === opt ? 'selected' : ''}>${opt}</option>
                             `).join('')}
@@ -802,10 +844,10 @@
             // Noodle type
             if (details.noodleTypes && details.noodleTypes.length > 0) {
                 html += `
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Loại sợi</label>
+                    <div class="mb-3 sm:mb-4">
+                        <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Loại sợi</label>
                         <select name="customer-noodle" onchange="updateCustomerItemPrice()" 
-                            class="w-full px-3 py-2 border rounded">
+                            class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base">
                             ${details.noodleTypes.map((opt) => `
                                 <option value="${opt}" ${currentDetails.noodle === opt ? 'selected' : ''}>${opt}</option>
                             `).join('')}
@@ -816,25 +858,29 @@
             
             // Special requests
             html += `
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú đặc biệt</label>
+                <div class="mb-3 sm:mb-4">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Ghi chú đặc biệt</label>
                     <textarea name="customer-notes" rows="2" 
-                        class="w-full px-3 py-2 border rounded" 
+                        class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base" 
                         placeholder="Ví dụ: Ít đá, không hành...">${currentDetails.notes || ''}</textarea>
                 </div>
             `;
             
             // Final price display
             html += `
-                <div class="mb-4 p-3 bg-teal-50 rounded">
+                <div class="mb-3 sm:mb-4 p-2 sm:p-3 bg-teal-50 rounded">
                     <div class="flex justify-between items-center">
-                        <span class="text-base font-medium text-gray-700">Tổng cộng:</span>
-                        <span id="customer-item-final-price" class="text-xl font-bold text-teal-600">${(cartEntry.finalPrice || item.price)?.toLocaleString() || 0}đ</span>
+                        <span class="text-sm sm:text-base font-medium text-gray-700">Tổng cộng:</span>
+                        <span id="customer-item-final-price" class="text-lg sm:text-xl font-bold text-teal-600">${(cartEntry.finalPrice || item.price)?.toLocaleString() || 0}đ</span>
                     </div>
                 </div>
             `;
             
             detailsContent.innerHTML = html;
+            
+            // Set mode = 'edit' (cập nhật trong giỏ hàng)
+            modalMode = 'edit';
+            updateModalButtonText();
             
             // Hiển thị modal
             modal.classList.remove('hidden');
@@ -5628,6 +5674,9 @@
               }
           }
 
+          // Biến để lưu orderId khi admin đang thêm món vào order
+          let currentAdminAddingOrderId = null;
+
           async function addItemToOrder(orderId) {
               const selectElement = document.getElementById(`add-item-${orderId}`);
               const itemId = selectElement.value;
@@ -5643,35 +5692,75 @@
 
                   if (!order || !menuItem) return;
 
-                  // Check if item already exists in order
-                  const existingItem = order.items.find(item => item.id === itemId);
+                  // Nếu món có details, mở modal chọn details
+                  if (menuItem.itemType !== 'simple' && menuItem.details) {
+                      currentAdminAddingOrderId = orderId;
+                      // Lưu itemId để sau khi chọn details sẽ thêm vào order
+                      window.adminAddingItemId = itemId;
+                      // Reset select
+                      selectElement.value = '';
+                      // Mở modal chọn details
+                      openCustomerItemDetailsModal(menuItem);
+                      return;
+                  }
+
+                  // Nếu món không có details, thêm trực tiếp
+                  addItemToOrderDirectly(orderId, menuItem, null);
+
+              } catch (error) {
+                  console.error("Error adding item to order:", error);
+                  showMessage("Lỗi thêm món: " + error.message, "error");
+              }
+          }
+
+          // Thêm món vào order trực tiếp (không qua modal)
+          function addItemToOrderDirectly(orderId, menuItem, selectedDetails) {
+              try {
+                  const order = orders.find(o => o.id === orderId);
+                  if (!order) return;
+
+                  const itemPrice = selectedDetails ? calculateItemPrice(menuItem, selectedDetails) : getItemPrice(menuItem);
+
+                  // Check if item already exists in order with same details
+                  const existingItem = order.items.find(item => {
+                      if (item.id !== menuItem.id) return false;
+                      return areDetailsEqual(item.selectedDetails, selectedDetails);
+                  });
+
                   if (existingItem) {
                       existingItem.quantity += 1;
                   } else {
-                      order.items.push({
+                      const newItem = {
                           id: menuItem.id,
                           name: menuItem.name,
-                          price: menuItem.price,
+                          price: itemPrice,
+                          basePrice: menuItem.price,
                           quantity: 1,
                           size: menuItem.size || null,
                           category: menuItem.category
-                      });
+                      };
+                      
+                      // Thêm selectedDetails nếu có
+                      if (selectedDetails) {
+                          newItem.selectedDetails = selectedDetails;
+                      }
+                      
+                      order.items.push(newItem);
                   }
 
                   // Recalculate total
-                  order.total = order.items.reduce((sum, item) => sum + ((item.newPrice || item.price) * item.quantity), 0);
+                  order.total = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
                   // Mark order as having pending changes
                   order.hasPendingChanges = true;
 
-                  selectElement.value = '';
                   showMessage(`📝 Đã thêm ${menuItem.name} (chưa lưu)`, "info");
 
                   // Re-render to show updated order
                   renderOrdersManagementList();
 
               } catch (error) {
-                  console.error("Error adding item to order:", error);
+                  console.error("Error adding item to order directly:", error);
                   showMessage("Lỗi thêm món: " + error.message, "error");
               }
           }
@@ -5689,7 +5778,7 @@
                   order.items = order.items.filter(item => item.id !== itemId);
 
                   // Recalculate total
-                  order.total = order.items.reduce((sum, item) => sum + ((item.newPrice || item.price) * item.quantity), 0);
+                  order.total = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
                   // Mark order as having pending changes
                   order.hasPendingChanges = true;
@@ -5751,10 +5840,10 @@
               const itemBasePrice = getItemPrice(menuItem); // Lấy giá mới nhất (newPrice nếu có, không thì price)
               
               let html = `
-                  <div class="mb-4">
-                      <h4 class="text-lg font-bold text-gray-800 mb-2">${menuItem.name}</h4>
-                      <p class="text-sm text-gray-600 mb-2">${menuItem.description || ''}</p>
-                      <p class="text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
+                  <div class="mb-3 sm:mb-4">
+                      <h4 class="text-base sm:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2">${menuItem.name}</h4>
+                      <p class="text-xs sm:text-sm text-gray-600 mb-1.5 sm:mb-2">${menuItem.description || ''}</p>
+                      <p class="text-sm sm:text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
                   </div>
               `;
               
@@ -5763,22 +5852,22 @@
                   const enabledSizes = details.sizes.filter(s => s.enabled);
                   if (enabledSizes.length > 0) {
                       html += `
-                          <div class="mb-4">
-                              <label class="block text-sm font-medium text-gray-700 mb-2">Size</label>
-                              <div class="space-y-2">
+                          <div class="mb-3 sm:mb-4">
+                              <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Size</label>
+                              <div class="space-y-1.5 sm:space-y-2">
                                   ${enabledSizes.map((size) => {
                                       const priceAdd = size.priceAdd || size.price || 0;
                                       // Nếu priceAdd = 0 thì dùng giá món mới nhất, nếu không thì dùng priceAdd
                                       const displayPrice = priceAdd > 0 ? priceAdd : itemBasePrice;
                                       return `
-                                          <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                          <label class="flex items-center justify-between p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer text-sm sm:text-base">
                                               <div class="flex items-center">
                                                   <input type="radio" name="customer-size" value="${size.name}" ${currentDetails.size === size.name ? 'checked' : ''} 
                                                       onchange="updateCustomerItemPrice()" 
-                                                      class="mr-2">
+                                                      class="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5">
                                                   <span>${size.name}</span>
                                               </div>
-                                              <span class="text-teal-600">${displayPrice.toLocaleString()}đ</span>
+                                              <span class="text-teal-600 text-xs sm:text-sm font-medium">${displayPrice.toLocaleString()}đ</span>
                                           </label>
                                       `;
                                   }).join('')}
@@ -5791,20 +5880,20 @@
               // Toppings
               if (details.toppings && details.toppings.length > 0) {
                   html += `
-                      <div class="mb-4">
-                          <label class="block text-sm font-medium text-gray-700 mb-2">Topping (có thể chọn nhiều)</label>
-                          <div class="space-y-2">
+                      <div class="mb-3 sm:mb-4">
+                          <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Topping (có thể chọn nhiều)</label>
+                          <div class="space-y-1.5 sm:space-y-2">
                               ${details.toppings.map(topping => {
                                   const isChecked = currentDetails.toppings && currentDetails.toppings.includes(topping.name);
                                   return `
-                                      <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                      <label class="flex items-center justify-between p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer text-sm sm:text-base">
                                           <div class="flex items-center">
                                               <input type="checkbox" name="customer-topping" value="${topping.name}" ${isChecked ? 'checked' : ''}
                                                   onchange="updateCustomerItemPrice()" 
-                                                  class="mr-2">
+                                                  class="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5">
                                               <span>${topping.name}</span>
                                           </div>
-                                          <span class="text-teal-600">+${topping.price?.toLocaleString() || 0}đ</span>
+                                          <span class="text-teal-600 text-xs sm:text-sm font-medium">+${topping.price?.toLocaleString() || 0}đ</span>
                                       </label>
                                   `;
                               }).join('')}
@@ -5816,15 +5905,15 @@
               // Ice/Sugar level - radio buttons vuông
               if (details.iceOptions && details.iceOptions.length > 0) {
                   html += `
-                      <div class="mb-4">
-                          <label class="block text-sm font-medium text-gray-700 mb-2">🧊 Đá (%)</label>
-                          <div class="grid grid-cols-3 gap-2">
+                      <div class="mb-3 sm:mb-4">
+                          <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🧊 Đá (%)</label>
+                          <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
                               ${details.iceOptions.map((opt) => `
-                                  <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                  <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                       <input type="radio" name="customer-ice" value="${opt}" ${currentDetails.ice === opt || (!currentDetails.ice && opt === details.iceOptions[0]) ? 'checked' : ''} 
                                           onchange="updateCustomerItemPrice()" 
-                                          class="mr-2">
-                                      <span class="text-sm">${opt}%</span>
+                                          class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
+                                      <span class="text-xs sm:text-sm">${opt}%</span>
                                   </label>
                               `).join('')}
                           </div>
@@ -5834,15 +5923,15 @@
               
               if (details.sugarOptions && details.sugarOptions.length > 0) {
                   html += `
-                      <div class="mb-4">
-                          <label class="block text-sm font-medium text-gray-700 mb-2">🍯 Đường (%)</label>
-                          <div class="grid grid-cols-3 gap-2">
+                      <div class="mb-3 sm:mb-4">
+                          <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🍯 Đường (%)</label>
+                          <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
                               ${details.sugarOptions.map((opt) => `
-                                  <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                  <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                       <input type="radio" name="customer-sugar" value="${opt}" ${currentDetails.sugar === opt || (!currentDetails.sugar && opt === details.sugarOptions[0]) ? 'checked' : ''} 
                                           onchange="updateCustomerItemPrice()" 
-                                          class="mr-2">
-                                      <span class="text-sm">${opt}%</span>
+                                          class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
+                                      <span class="text-xs sm:text-sm">${opt}%</span>
                                   </label>
                               `).join('')}
                           </div>
@@ -5853,10 +5942,10 @@
               // Spice level
               if (details.spiceLevels && details.spiceLevels.length > 0) {
                   html += `
-                      <div class="mb-4">
-                          <label class="block text-sm font-medium text-gray-700 mb-2">Độ cay</label>
+                      <div class="mb-3 sm:mb-4">
+                          <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Độ cay</label>
                           <select name="customer-spice" onchange="updateCustomerItemPrice()" 
-                              class="w-full px-3 py-2 border rounded">
+                              class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base">
                               ${details.spiceLevels.map((opt) => `
                                   <option value="${opt}" ${currentDetails.spice === opt ? 'selected' : ''}>${opt}</option>
                               `).join('')}
@@ -5868,10 +5957,10 @@
               // Noodle type
               if (details.noodleTypes && details.noodleTypes.length > 0) {
                   html += `
-                      <div class="mb-4">
-                          <label class="block text-sm font-medium text-gray-700 mb-2">Loại sợi</label>
+                      <div class="mb-3 sm:mb-4">
+                          <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Loại sợi</label>
                           <select name="customer-noodle" onchange="updateCustomerItemPrice()" 
-                              class="w-full px-3 py-2 border rounded">
+                              class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base">
                               ${details.noodleTypes.map((opt) => `
                                   <option value="${opt}" ${currentDetails.noodle === opt ? 'selected' : ''}>${opt}</option>
                               `).join('')}
@@ -5882,25 +5971,29 @@
               
               // Special requests
               html += `
-                  <div class="mb-4">
-                      <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú đặc biệt</label>
+                  <div class="mb-3 sm:mb-4">
+                      <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Ghi chú đặc biệt</label>
                       <textarea name="customer-notes" rows="2" 
-                          class="w-full px-3 py-2 border rounded" 
+                          class="w-full px-2 sm:px-3 py-1.5 sm:py-2 border rounded text-sm sm:text-base" 
                           placeholder="Ví dụ: Ít đá, không hành...">${currentDetails.notes || ''}</textarea>
                   </div>
               `;
               
               // Final price display
               html += `
-                  <div class="mb-4 p-3 bg-teal-50 rounded">
+                  <div class="mb-3 sm:mb-4 p-2 sm:p-3 bg-teal-50 rounded">
                       <div class="flex justify-between items-center">
-                          <span class="text-base font-medium text-gray-700">Tổng cộng:</span>
-                          <span id="customer-item-final-price" class="text-xl font-bold text-teal-600">${(orderItem.price || menuItem.price)?.toLocaleString() || 0}đ</span>
+                          <span class="text-sm sm:text-base font-medium text-gray-700">Tổng cộng:</span>
+                          <span id="customer-item-final-price" class="text-lg sm:text-xl font-bold text-teal-600">${(orderItem.price || menuItem.price)?.toLocaleString() || 0}đ</span>
                       </div>
                   </div>
               `;
               
               detailsContent.innerHTML = html;
+              
+              // Set mode = 'edit' (cập nhật trong order)
+              modalMode = 'edit';
+              updateModalButtonText();
               
               // Hiển thị modal
               modal.classList.remove('hidden');
@@ -6273,18 +6366,44 @@
                               ` : ''}
 
                               <div class="space-y-2 mb-3">
-                                  ${order.items.map(item => `
-                                      <div class="flex justify-between items-center bg-white p-2 rounded">
-                                          <div class="flex-1">
-                                              <span class="font-medium">${item.name}</span>
-                                              ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
-                                              <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                  ${order.items.map(item => {
+                                      const hasDetails = item.selectedDetails && Object.keys(item.selectedDetails).length > 0;
+                                      let detailsHtml = '';
+                                      
+                                      if (hasDetails) {
+                                          const details = item.selectedDetails;
+                                          const detailsParts = [];
+                                          
+                                          if (details.size) detailsParts.push(`Size: ${details.size}`);
+                                          if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
+                                          if (details.ice) detailsParts.push(`Đá: ${details.ice}`);
+                                          if (details.sugar) detailsParts.push(`Đường: ${details.sugar}`);
+                                          if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
+                                          if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
+                                          if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
+                                          
+                                          if (detailsParts.length > 0) {
+                                              detailsHtml = `<div class="text-xs text-gray-600 mt-1">${detailsParts.join(' • ')}</div>`;
+                                          }
+                                      }
+                                      
+                                      return `
+                                          <div class="bg-white p-2 rounded">
+                                              <div class="flex justify-between items-start">
+                                                  <div class="flex-1">
+                                                      <div class="flex items-center gap-1">
+                                                          <span class="font-medium">${item.name}</span>
+                                                          <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                                      </div>
+                                                      ${detailsHtml}
+                                                  </div>
+                                                  <div class="text-right ml-2">
+                                                      <span class="text-sm font-semibold text-orange-600">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
+                                                  </div>
+                                              </div>
                                           </div>
-                                          <div class="text-right">
-                                              <span class="text-sm font-semibold text-orange-600">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
-                                          </div>
-                                      </div>
-                                  `).join('')}
+                                      `;
+                                  }).join('')}
                               </div>
 
                               <div class="flex justify-between items-center pt-2 border-t border-gray-300">
@@ -6365,18 +6484,44 @@
                           </div>
 
                           <div class="space-y-2 mb-3">
-                              ${order.items.map(item => `
-                                  <div class="flex justify-between items-center bg-white p-2 rounded">
-                                      <div class="flex-1">
-                                          <span class="font-medium">${item.name}</span>
-                                          ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
-                                          <span class="text-sm text-gray-600">x${item.quantity}</span>
+                              ${order.items.map(item => {
+                                  const hasDetails = item.selectedDetails && Object.keys(item.selectedDetails).length > 0;
+                                  let detailsHtml = '';
+                                  
+                                  if (hasDetails) {
+                                      const details = item.selectedDetails;
+                                      const detailsParts = [];
+                                      
+                                      if (details.size) detailsParts.push(`Size: ${details.size}`);
+                                      if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
+                                      if (details.ice) detailsParts.push(`Đá: ${details.ice}`);
+                                      if (details.sugar) detailsParts.push(`Đường: ${details.sugar}`);
+                                      if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
+                                      if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
+                                      if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
+                                      
+                                      if (detailsParts.length > 0) {
+                                          detailsHtml = `<div class="text-xs text-gray-600 mt-1">${detailsParts.join(' • ')}</div>`;
+                                      }
+                                  }
+                                  
+                                  return `
+                                      <div class="bg-white p-2 rounded">
+                                          <div class="flex justify-between items-start">
+                                              <div class="flex-1">
+                                                  <div class="flex items-center gap-1">
+                                                      <span class="font-medium">${item.name}</span>
+                                                      <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                                  </div>
+                                                  ${detailsHtml}
+                                              </div>
+                                              <div class="text-right ml-2">
+                                                  <span class="text-sm font-semibold text-orange-600">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
+                                              </div>
+                                          </div>
                                       </div>
-                                      <div class="text-right">
-                                          <span class="text-sm font-semibold text-orange-600">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
-                                      </div>
-                                  </div>
-                              `).join('')}
+                                  `;
+                              }).join('')}
                           </div>
 
                           ${order.status === 'cancelled' && order.cancelReason && order.cancelReason.trim() ? `
@@ -7001,30 +7146,30 @@
     </script>
 
     <!-- Modal chọn details cho khách hàng -->
-    <div id="customer-item-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] hidden">
-        <div class="bg-white rounded-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <div id="customer-item-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] hidden p-2 sm:p-4">
+        <div class="bg-white rounded-lg sm:rounded-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
             <!-- Header -->
-            <div class="flex justify-between items-center p-4 border-b border-gray-200">
-                <h3 class="text-xl font-bold text-teal-600">🍴 Tùy chỉnh món</h3>
-                <button onclick="closeCustomerItemDetailsModal()" class="text-gray-500 hover:text-gray-700 p-1">
-                    <i data-lucide="x" class="w-6 h-6"></i>
+            <div class="flex justify-between items-center p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+                <h3 class="text-lg sm:text-xl font-bold text-teal-600">🍴 Tùy chỉnh món</h3>
+                <button onclick="closeCustomerItemDetailsModal()" class="text-gray-500 hover:text-gray-700 p-1 sm:p-2">
+                    <i data-lucide="x" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                 </button>
             </div>
             
             <!-- Content (scrollable) -->
-            <div id="customer-item-details-content" class="p-4 overflow-y-auto flex-1">
+            <div id="customer-item-details-content" class="p-3 sm:p-4 overflow-y-auto flex-1 min-h-0">
                 <!-- Content will be inserted here by JavaScript -->
             </div>
             
             <!-- Footer -->
-            <div class="p-4 border-t border-gray-200 bg-gray-50">
-                <div class="flex gap-3">
+            <div class="p-3 sm:p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                <div class="flex gap-2 sm:gap-3">
                     <button onclick="closeCustomerItemDetailsModal()" 
-                        class="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium">
+                        class="flex-1 px-3 py-2.5 sm:px-4 sm:py-3 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium text-sm sm:text-base">
                         Hủy
                     </button>
                     <button onclick="addItemWithDetailsToCart()" 
-                        class="flex-1 px-4 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-bold">
+                        class="flex-1 px-3 py-2.5 sm:px-4 sm:py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-bold text-sm sm:text-base">
                         Thêm vào giỏ
                     </button>
                 </div>
