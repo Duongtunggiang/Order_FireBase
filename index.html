@@ -169,35 +169,67 @@
 
 
         // --- Quản lý Giỏ hàng ---
-        function updateCart(itemId, change) {
+        function updateCart(itemId, change, selectedDetails = null, cartEntryId = null) {
             const item = menuItems.find(i => i.id === itemId);
             if (!item) return;
 
+            // Nếu đang thêm món mới (change > 0) và món có details nhưng chưa chọn details
+            // Bao gồm cả trường hợp bấm "+" từ giỏ hàng
+            if (change > 0 && item.itemType !== 'simple' && item.details && !selectedDetails) {
+                // Nếu có cartEntryId (bấm "+" từ giỏ hàng), lưu lại để sau khi chọn details sẽ thêm món mới
+                // Nếu không có cartEntryId (bấm "+" từ menu), mở modal bình thường
+                if (cartEntryId) {
+                    // Lưu context để biết đây là thêm món mới từ giỏ hàng
+                    window.addingFromCart = true;
+                    window.addingFromCartItemId = itemId;
+                }
+                // Mở modal chọn details
+                openCustomerItemDetailsModal(item);
+                return;
+            }
+
             const wasEmpty = Object.keys(cart).length === 0;
-            const previousQty = cart[itemId]?.quantity || 0;
             
             // Lưu trạng thái giỏ hàng trước khi render lại
             const cartWasOpen = !document.getElementById('cart-sidebar')?.classList.contains('translate-x-full');
 
-            if (cart[itemId]) {
-                cart[itemId].quantity += change;
+            // Nếu có cartEntryId (đang update từ giỏ hàng), tìm entry đó
+            if (cartEntryId && cart[cartEntryId]) {
+                cart[cartEntryId].quantity += change;
+                
+                if (cart[cartEntryId].quantity <= 0) {
+                    delete cart[cartEntryId];
+                }
             } else if (change > 0) {
-                cart[itemId] = { item: item, quantity: 1 };
-            }
-
-            if (cart[itemId] && cart[itemId].quantity <= 0) {
-                delete cart[itemId];
+                // Kiểm tra xem có item nào trong giỏ có cùng itemId và details không
+                const existingEntry = findCartEntryWithSameDetails(itemId, selectedDetails);
+                
+                if (existingEntry) {
+                    // Tăng quantity của item đã có
+                    existingEntry.quantity += 1;
+                    // Hiện thông báo khi tăng quantity
+                    showMessage(`✅ Đã thêm "${item.name}" (x${existingEntry.quantity})`, 'success');
+                } else {
+                    // Tạo unique ID cho cart entry mới
+                    const uniqueId = `${itemId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    cart[uniqueId] = { 
+                        id: uniqueId,
+                        item: item, 
+                        quantity: 1,
+                        selectedDetails: selectedDetails,
+                        finalPrice: selectedDetails ? calculateItemPrice(item, selectedDetails) : getItemPrice(item)
+                    };
+                    // Hiện thông báo khi thêm món mới từ menu (không từ giỏ hàng)
+                    if (!cartWasOpen) {
+                        showMessage(`✅ Đã thêm "${item.name}" vào giỏ hàng!`, 'success');
+                    }
+                }
             }
 
             // Tự động đóng giỏ hàng CHỈ KHI xóa hết món
             if (Object.keys(cart).length === 0 && !wasEmpty) {
                 closeCart();
                 showMessage("Giỏ hàng trống", 'info');
-            }
-
-            // Hiện thông báo khi thêm món từ menu (không từ giỏ hàng)
-            if (change > 0 && cart[itemId] && !cartWasOpen) {
-                showMessage(`✅ Đã thêm "${item.name}" vào giỏ hàng!`, 'success');
             }
 
             localStorage.setItem('cart', JSON.stringify(cart));
@@ -233,6 +265,582 @@
             if (cartOverlay) {
                 cartOverlay.classList.remove('hidden');
             }
+        }
+
+        // --- Customer Item Details Modal ---
+        let currentSelectingItem = null;
+        
+        // So sánh 2 details objects có giống nhau không
+        function areDetailsEqual(details1, details2) {
+            if (!details1 && !details2) return true;
+            if (!details1 || !details2) return false;
+            
+            // So sánh từng field
+            if (details1.size !== details2.size) return false;
+            
+            // So sánh toppings (array)
+            const toppings1 = (details1.toppings || []).sort().join(',');
+            const toppings2 = (details2.toppings || []).sort().join(',');
+            if (toppings1 !== toppings2) return false;
+            
+            // So sánh các field khác
+            if (details1.ice !== details2.ice) return false;
+            if (details1.sugar !== details2.sugar) return false;
+            if (details1.spice !== details2.spice) return false;
+            if (details1.noodle !== details2.noodle) return false;
+            if (details1.notes !== details2.notes) return false;
+            
+            return true;
+        }
+        
+        // Tìm item trong giỏ có cùng itemId và details
+        function findCartEntryWithSameDetails(itemId, selectedDetails) {
+            const entries = Object.values(cart);
+            return entries.find(entry => {
+                if (entry.item.id !== itemId) return false;
+                return areDetailsEqual(entry.selectedDetails, selectedDetails);
+            });
+        }
+
+        // Tính giá cuối cùng dựa trên item và details đã chọn
+        function calculateItemPrice(item, selectedDetails) {
+            const itemBasePrice = getItemPrice(item); // Lấy giá mới nhất (newPrice nếu có, không thì price)
+            
+            if (!selectedDetails) return itemBasePrice;
+            
+            // Bắt đầu với giá của size đã chọn (thay thế giá món), hoặc giá món mới nhất nếu không có size
+            let finalPrice = itemBasePrice;
+            
+            // Nếu có chọn size, thì giá = giá của size đó (THAY THẾ giá món, không cộng thêm)
+            if (selectedDetails.size && item.details?.sizes) {
+                const sizeOption = item.details.sizes.find(s => s.name === selectedDetails.size);
+                if (sizeOption) {
+                    const sizePrice = sizeOption.priceAdd || sizeOption.price || 0;
+                    // Nếu priceAdd > 0 thì dùng priceAdd làm giá cuối (thay thế giá món)
+                    // Nếu priceAdd = 0 thì giữ nguyên giá món mới nhất
+                    if (sizePrice > 0) {
+                        finalPrice = parseFloat(sizePrice);
+                    }
+                }
+            }
+            
+            // Cộng thêm giá của các topping đã chọn
+            if (selectedDetails.toppings && item.details?.toppings) {
+                selectedDetails.toppings.forEach(toppingName => {
+                    const topping = item.details.toppings.find(t => t.name === toppingName);
+                    if (topping && topping.price) {
+                        finalPrice += parseFloat(topping.price);
+                    }
+                });
+            }
+            
+            return finalPrice;
+        }
+
+        // Mở modal chọn details cho khách hàng
+        function openCustomerItemDetailsModal(item) {
+            currentSelectingItem = item;
+            
+            const modal = document.getElementById('customer-item-details-modal');
+            if (!modal) return;
+            
+            // Render nội dung modal
+            const detailsContent = document.getElementById('customer-item-details-content');
+            const itemType = item.itemType || 'simple';
+            const details = item.details || {};
+            
+            const itemBasePrice = getItemPrice(item); // Lấy giá mới nhất (newPrice nếu có, không thì price)
+            
+            let html = `
+                <div class="mb-4">
+                    <h4 class="text-lg font-bold text-gray-800 mb-2">${item.name}</h4>
+                    <p class="text-sm text-gray-600 mb-2">${item.description || ''}</p>
+                    <p class="text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
+                </div>
+            `;
+            
+            // Sizes - chỉ hiển thị size có enabled = true
+            if (details.sizes && details.sizes.length > 0) {
+                const enabledSizes = details.sizes.filter(s => s.enabled);
+                if (enabledSizes.length > 0) {
+                    html += `
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Size</label>
+                            <div class="space-y-2">
+                                ${enabledSizes.map((size, idx) => {
+                                    const priceAdd = size.priceAdd || size.price || 0;
+                                    // Nếu priceAdd = 0 thì dùng giá món mới nhất, nếu không thì dùng priceAdd
+                                    const displayPrice = priceAdd > 0 ? priceAdd : itemBasePrice;
+                                    return `
+                                        <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                            <div class="flex items-center">
+                                                <input type="radio" name="customer-size" value="${size.name}" ${idx === 0 ? 'checked' : ''} 
+                                                    onchange="updateCustomerItemPrice()" 
+                                                    class="mr-2">
+                                                <span>${size.name}</span>
+                                            </div>
+                                            <span class="text-teal-600">${displayPrice.toLocaleString()}đ</span>
+                                        </label>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Toppings
+            if (details.toppings && details.toppings.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Topping (có thể chọn nhiều)</label>
+                        <div class="space-y-2">
+                            ${details.toppings.map(topping => `
+                                <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                    <div class="flex items-center">
+                                        <input type="checkbox" name="customer-topping" value="${topping.name}" 
+                                            onchange="updateCustomerItemPrice()" 
+                                            class="mr-2">
+                                        <span>${topping.name}</span>
+                                    </div>
+                                    <span class="text-teal-600">+${topping.price?.toLocaleString() || 0}đ</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Ice/Sugar level - radio buttons vuông
+            if (details.iceOptions && details.iceOptions.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">🧊 Đá (%)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${details.iceOptions.map((opt, idx) => `
+                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                    <input type="radio" name="customer-ice" value="${opt}" ${idx === 0 ? 'checked' : ''} 
+                                        onchange="updateCustomerItemPrice()" 
+                                        class="mr-2">
+                                    <span class="text-sm">${opt}%</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (details.sugarOptions && details.sugarOptions.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">🍯 Đường (%)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${details.sugarOptions.map((opt, idx) => `
+                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                    <input type="radio" name="customer-sugar" value="${opt}" ${idx === 0 ? 'checked' : ''} 
+                                        onchange="updateCustomerItemPrice()" 
+                                        class="mr-2">
+                                    <span class="text-sm">${opt}%</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Spice level
+            if (details.spiceLevels && details.spiceLevels.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Độ cay</label>
+                        <select name="customer-spice" onchange="updateCustomerItemPrice()" 
+                            class="w-full px-3 py-2 border rounded">
+                            ${details.spiceLevels.map((opt, idx) => `
+                                <option value="${opt}" ${idx === 0 ? 'selected' : ''}>${opt}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+            
+            // Noodle type
+            if (details.noodleTypes && details.noodleTypes.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Loại sợi</label>
+                        <select name="customer-noodle" onchange="updateCustomerItemPrice()" 
+                            class="w-full px-3 py-2 border rounded">
+                            ${details.noodleTypes.map((opt, idx) => `
+                                <option value="${opt}" ${idx === 0 ? 'selected' : ''}>${opt}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+            
+            // Special requests
+            html += `
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú đặc biệt</label>
+                    <textarea name="customer-notes" rows="2" 
+                        class="w-full px-3 py-2 border rounded" 
+                        placeholder="Ví dụ: Ít đá, không hành..."></textarea>
+                </div>
+            `;
+            
+            // Final price display
+            html += `
+                <div class="mb-4 p-3 bg-teal-50 rounded">
+                    <div class="flex justify-between items-center">
+                        <span class="text-base font-medium text-gray-700">Tổng cộng:</span>
+                        <span id="customer-item-final-price" class="text-xl font-bold text-teal-600">${item.price?.toLocaleString() || 0}đ</span>
+                    </div>
+                </div>
+            `;
+            
+            detailsContent.innerHTML = html;
+            
+            // Hiển thị modal
+            modal.classList.remove('hidden');
+            
+            // Tính giá ban đầu
+            updateCustomerItemPrice();
+        }
+
+        // Cập nhật giá khi khách chọn details
+        function updateCustomerItemPrice() {
+            if (!currentSelectingItem) return;
+            
+            const selectedDetails = getCustomerSelectedDetails();
+            const finalPrice = calculateItemPrice(currentSelectingItem, selectedDetails);
+            
+            const priceElement = document.getElementById('customer-item-final-price');
+            if (priceElement) {
+                priceElement.textContent = `${finalPrice.toLocaleString()}đ`;
+            }
+        }
+        
+        // Expose to global scope for inline event handlers
+        window.updateCustomerItemPrice = updateCustomerItemPrice;
+
+        // Lấy details đã chọn từ form
+        function getCustomerSelectedDetails() {
+            const modal = document.getElementById('customer-item-details-modal');
+            if (!modal) return null;
+            
+            const selectedDetails = {};
+            
+            // Size
+            const sizeRadio = modal.querySelector('input[name="customer-size"]:checked');
+            if (sizeRadio) {
+                selectedDetails.size = sizeRadio.value;
+            }
+            
+            // Toppings
+            const toppingCheckboxes = modal.querySelectorAll('input[name="customer-topping"]:checked');
+            if (toppingCheckboxes.length > 0) {
+                selectedDetails.toppings = Array.from(toppingCheckboxes).map(cb => cb.value);
+            }
+            
+            // Ice
+            const iceSelect = modal.querySelector('select[name="customer-ice"]');
+            if (iceSelect) {
+                selectedDetails.ice = iceSelect.value;
+            }
+            
+            // Sugar
+            const sugarSelect = modal.querySelector('select[name="customer-sugar"]');
+            if (sugarSelect) {
+                selectedDetails.sugar = sugarSelect.value;
+            }
+            
+            // Spice
+            const spiceSelect = modal.querySelector('select[name="customer-spice"]');
+            if (spiceSelect) {
+                selectedDetails.spice = spiceSelect.value;
+            }
+            
+            // Noodle
+            const noodleSelect = modal.querySelector('select[name="customer-noodle"]');
+            if (noodleSelect) {
+                selectedDetails.noodle = noodleSelect.value;
+            }
+            
+            // Notes
+            const notesTextarea = modal.querySelector('textarea[name="customer-notes"]');
+            if (notesTextarea && notesTextarea.value.trim()) {
+                selectedDetails.notes = notesTextarea.value.trim();
+            }
+            
+            return Object.keys(selectedDetails).length > 0 ? selectedDetails : null;
+        }
+
+        // Đóng modal chọn details
+        function closeCustomerItemDetailsModal() {
+            const modal = document.getElementById('customer-item-details-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+            currentSelectingItem = null;
+            
+            // Reset biến nếu đang thêm từ giỏ hàng
+            if (window.addingFromCart) {
+                window.addingFromCart = false;
+                window.addingFromCartItemId = null;
+            }
+        }
+        
+        // Expose to global scope
+        window.closeCustomerItemDetailsModal = closeCustomerItemDetailsModal;
+
+        // Thêm item với details vào giỏ hàng
+        function addItemWithDetailsToCart() {
+            if (!currentSelectingItem) return;
+            
+            const selectedDetails = getCustomerSelectedDetails();
+            
+            // Nếu đang edit order item
+            if (currentEditingOrderId && currentEditingItemIndex !== null) {
+                const order = orders.find(o => o.id === currentEditingOrderId);
+                if (order && order.items[currentEditingItemIndex]) {
+                    const orderItem = order.items[currentEditingItemIndex];
+                    orderItem.selectedDetails = selectedDetails;
+                    orderItem.price = calculateItemPrice(currentSelectingItem, selectedDetails);
+                    
+                    // Recalculate order total
+                    order.total = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    
+                    // Mark order as having pending changes
+                    order.hasPendingChanges = true;
+                    
+                    showMessage(`✅ Đã cập nhật chi tiết món "${orderItem.name}" (chưa lưu)`, 'info');
+                    renderOrdersManagementList();
+                }
+                currentEditingOrderId = null;
+                currentEditingItemIndex = null;
+                
+                // Đóng modal
+                closeCustomerItemDetailsModal();
+                return;
+            }
+            
+            // Nếu đang edit cart item
+            if (currentEditingCartEntryId) {
+                const cartEntry = cart[currentEditingCartEntryId];
+                if (cartEntry) {
+                    cartEntry.selectedDetails = selectedDetails;
+                    cartEntry.finalPrice = calculateItemPrice(cartEntry.item, selectedDetails);
+                    localStorage.setItem('cart', JSON.stringify(cart));
+                    renderApp();
+                    showMessage(`✅ Đã cập nhật chi tiết món "${cartEntry.item.name}"!`, 'success');
+                }
+                currentEditingCartEntryId = null;
+            } else {
+                // Thêm vào giỏ hàng với details
+                const itemId = currentSelectingItem.id;
+                updateCart(itemId, 1, selectedDetails);
+                
+                // Reset biến nếu đang thêm từ giỏ hàng
+                if (window.addingFromCart) {
+                    window.addingFromCart = false;
+                    window.addingFromCartItemId = null;
+                }
+            }
+            
+            // Đóng modal
+            closeCustomerItemDetailsModal();
+        }
+        
+        // Expose to global scope
+        window.addItemWithDetailsToCart = addItemWithDetailsToCart;
+
+        // Edit details của item trong giỏ hàng
+        let currentEditingCartEntryId = null;
+        
+        function editCartItemDetails(cartEntryId) {
+            const cartEntry = cart[cartEntryId];
+            if (!cartEntry) return;
+            
+            currentEditingCartEntryId = cartEntryId;
+            
+            // Mở modal với details hiện tại
+            openCustomerItemDetailsModalForEdit(cartEntry);
+        }
+        
+        // Expose to global scope
+        window.editCartItemDetails = editCartItemDetails;
+
+        function openCustomerItemDetailsModalForEdit(cartEntry) {
+            currentSelectingItem = cartEntry.item;
+            const item = cartEntry.item;
+            const currentDetails = cartEntry.selectedDetails || {};
+            
+            const modal = document.getElementById('customer-item-details-modal');
+            if (!modal) return;
+            
+            // Render nội dung modal (giống như openCustomerItemDetailsModal nhưng với giá trị hiện tại)
+            const detailsContent = document.getElementById('customer-item-details-content');
+            const details = item.details || {};
+            
+            const itemBasePrice = getItemPrice(item); // Lấy giá mới nhất (newPrice nếu có, không thì price)
+            
+            let html = `
+                <div class="mb-4">
+                    <h4 class="text-lg font-bold text-gray-800 mb-2">${item.name}</h4>
+                    <p class="text-sm text-gray-600 mb-2">${item.description || ''}</p>
+                    <p class="text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
+                </div>
+            `;
+            
+            // Sizes - chỉ hiển thị size có enabled = true
+            if (details.sizes && details.sizes.length > 0) {
+                const enabledSizes = details.sizes.filter(s => s.enabled);
+                if (enabledSizes.length > 0) {
+                    html += `
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Size</label>
+                            <div class="space-y-2">
+                                ${enabledSizes.map((size) => {
+                                    const priceAdd = size.priceAdd || size.price || 0;
+                                    // Nếu priceAdd = 0 thì dùng giá món mới nhất, nếu không thì dùng priceAdd
+                                    const displayPrice = priceAdd > 0 ? priceAdd : itemBasePrice;
+                                    return `
+                                        <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                            <div class="flex items-center">
+                                                <input type="radio" name="customer-size" value="${size.name}" ${currentDetails.size === size.name ? 'checked' : ''} 
+                                                    onchange="updateCustomerItemPrice()" 
+                                                    class="mr-2">
+                                                <span>${size.name}</span>
+                                            </div>
+                                            <span class="text-teal-600">${displayPrice.toLocaleString()}đ</span>
+                                        </label>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Toppings
+            if (details.toppings && details.toppings.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Topping (có thể chọn nhiều)</label>
+                        <div class="space-y-2">
+                            ${details.toppings.map(topping => {
+                                const isChecked = currentDetails.toppings && currentDetails.toppings.includes(topping.name);
+                                return `
+                                    <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                        <div class="flex items-center">
+                                            <input type="checkbox" name="customer-topping" value="${topping.name}" ${isChecked ? 'checked' : ''}
+                                                onchange="updateCustomerItemPrice()" 
+                                                class="mr-2">
+                                            <span>${topping.name}</span>
+                                        </div>
+                                        <span class="text-teal-600">+${topping.price?.toLocaleString() || 0}đ</span>
+                                    </label>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Ice/Sugar level - radio buttons vuông
+            if (details.iceOptions && details.iceOptions.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">🧊 Đá (%)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${details.iceOptions.map((opt) => `
+                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                    <input type="radio" name="customer-ice" value="${opt}" ${currentDetails.ice === opt || (!currentDetails.ice && opt === details.iceOptions[0]) ? 'checked' : ''} 
+                                        onchange="updateCustomerItemPrice()" 
+                                        class="mr-2">
+                                    <span class="text-sm">${opt}%</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (details.sugarOptions && details.sugarOptions.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">🍯 Đường (%)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${details.sugarOptions.map((opt) => `
+                                <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                    <input type="radio" name="customer-sugar" value="${opt}" ${currentDetails.sugar === opt || (!currentDetails.sugar && opt === details.sugarOptions[0]) ? 'checked' : ''} 
+                                        onchange="updateCustomerItemPrice()" 
+                                        class="mr-2">
+                                    <span class="text-sm">${opt}%</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Spice level
+            if (details.spiceLevels && details.spiceLevels.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Độ cay</label>
+                        <select name="customer-spice" onchange="updateCustomerItemPrice()" 
+                            class="w-full px-3 py-2 border rounded">
+                            ${details.spiceLevels.map((opt) => `
+                                <option value="${opt}" ${currentDetails.spice === opt ? 'selected' : ''}>${opt}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+            
+            // Noodle type
+            if (details.noodleTypes && details.noodleTypes.length > 0) {
+                html += `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Loại sợi</label>
+                        <select name="customer-noodle" onchange="updateCustomerItemPrice()" 
+                            class="w-full px-3 py-2 border rounded">
+                            ${details.noodleTypes.map((opt) => `
+                                <option value="${opt}" ${currentDetails.noodle === opt ? 'selected' : ''}>${opt}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+            
+            // Special requests
+            html += `
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú đặc biệt</label>
+                    <textarea name="customer-notes" rows="2" 
+                        class="w-full px-3 py-2 border rounded" 
+                        placeholder="Ví dụ: Ít đá, không hành...">${currentDetails.notes || ''}</textarea>
+                </div>
+            `;
+            
+            // Final price display
+            html += `
+                <div class="mb-4 p-3 bg-teal-50 rounded">
+                    <div class="flex justify-between items-center">
+                        <span class="text-base font-medium text-gray-700">Tổng cộng:</span>
+                        <span id="customer-item-final-price" class="text-xl font-bold text-teal-600">${(cartEntry.finalPrice || item.price)?.toLocaleString() || 0}đ</span>
+                    </div>
+                </div>
+            `;
+            
+            detailsContent.innerHTML = html;
+            
+            // Hiển thị modal
+            modal.classList.remove('hidden');
+            
+            // Tính giá ban đầu
+            updateCustomerItemPrice();
         }
 
         // --- Quản lý State View ---
@@ -492,8 +1100,25 @@
             document.getElementById('item-modal-image').value = item.imageUrl || '';
             document.getElementById('item-modal-description').value = item.description || '';
 
-            // Load item details
-            currentItemDetails = item.details || null;
+            // Load item details - deep clone để tránh reference issues
+            if (item.details && item.itemType && item.itemType !== 'simple') {
+                const clonedDetails = JSON.parse(JSON.stringify(item.details));
+                const defaultDetails = getDefaultDetails(item.itemType);
+                // Merge: giữ nguyên giá trị cũ, thêm các field mới từ default nếu thiếu
+                currentItemDetails = {
+                    ...defaultDetails,
+                    ...clonedDetails,
+                    // Đảm bảo arrays tồn tại và giữ nguyên giá trị cũ
+                    sizes: clonedDetails.sizes || defaultDetails.sizes || [],
+                    toppings: clonedDetails.toppings || defaultDetails.toppings || [],
+                    iceOptions: clonedDetails.iceOptions || defaultDetails.iceOptions || [],
+                    sugarOptions: clonedDetails.sugarOptions || defaultDetails.sugarOptions || [],
+                    spiceLevels: clonedDetails.spiceLevels || defaultDetails.spiceLevels || [],
+                    noodleTypes: clonedDetails.noodleTypes || defaultDetails.noodleTypes || []
+                };
+            } else {
+                currentItemDetails = null;
+            }
 
             // Show/hide size field
             const sizeField = document.getElementById('item-modal-size-field');
@@ -551,12 +1176,21 @@
                 return;
             }
 
-            // Load current details if editing
+            // Load current details if editing - ưu tiên dùng currentItemDetails đã được set khi mở edit modal
             const itemId = document.getElementById('item-modal-id').value;
             if (itemId) {
                 const item = menuItems.find(i => i.id === itemId);
-                currentItemDetails = item?.details || getDefaultDetails(itemType);
+                // Nếu chưa có currentItemDetails hoặc currentItemDetails là null, thì load từ item
+                if (!currentItemDetails && item?.details) {
+                    // Deep clone để không bị reference
+                    currentItemDetails = JSON.parse(JSON.stringify(item.details));
+                } else if (!currentItemDetails) {
+                    // Nếu không có details từ item, dùng default
+                    currentItemDetails = getDefaultDetails(itemType);
+                }
+                // Nếu đã có currentItemDetails rồi (từ khi mở edit modal), giữ nguyên - không override
             } else {
+                // Nếu là món mới, dùng currentItemDetails hiện tại hoặc default
                 currentItemDetails = currentItemDetails || getDefaultDetails(itemType);
             }
 
@@ -971,6 +1605,27 @@
             return item.newPrice ? parseFloat(item.newPrice) : parseFloat(item.price);
         }
 
+        // Normalize item details: Set priceAdd = 0 cho size nhỏ nhất được enabled
+        function normalizeItemDetails(details) {
+            if (!details || !details.sizes) return details;
+            
+            // Deep clone để không ảnh hưởng đến original
+            const normalized = JSON.parse(JSON.stringify(details));
+            
+            // Tìm size nhỏ nhất được enabled (enabled = true đầu tiên)
+            const enabledSizes = normalized.sizes.filter(s => s.enabled);
+            if (enabledSizes.length > 0) {
+                // Tìm index của size nhỏ nhất trong mảng gốc
+                const smallestEnabledIndex = normalized.sizes.findIndex(s => s.enabled);
+                if (smallestEnabledIndex !== -1) {
+                    // Set priceAdd = 0 cho size nhỏ nhất
+                    normalized.sizes[smallestEnabledIndex].priceAdd = 0;
+                }
+            }
+            
+            return normalized;
+        }
+
         // --- Quản lý Dữ liệu Firebase ---
         const PUBLIC_DATA_PATH = `menuItems`; // Đơn giản hóa path cho development
         const PRIVATE_SALES_PATH = `sales/${userId}`;
@@ -1105,6 +1760,18 @@
                     imageUrl: imageUrl,
                     updatedAt: new Date(),
                 };
+
+                // Add itemType if provided
+                if (item.itemType) {
+                    itemToSave.itemType = item.itemType;
+                }
+
+                // Add details if provided (for drink, noodle, food, alcohol types)
+                if (item.details) {
+                    // Normalize details: Set priceAdd = 0 cho size nhỏ nhất được enabled
+                    const normalizedDetails = normalizeItemDetails(item.details);
+                    itemToSave.details = normalizedDetails;
+                }
 
                 // Add size if provided (for drinks)
                 if (item.size && item.size.trim() !== '') {
@@ -2637,11 +3304,12 @@
                                     `;
                                 }).join('')}
                                 <hr class="my-2 sm:my-3">
-                                <div class="flex justify-between items-center font-bold">
+                                
+                            </div>
+                            <div class="flex justify-between mt-2 items-center font-bold">
                                     <span class="text-xs sm:text-sm text-gray-900">Tổng cộng</span>
                                     <span class="text-[10px] sm:text-xs md:text-sm text-orange-600">${activeItems} món</span>
                                 </div>
-                            </div>
                         </div>
                     </div>
 
@@ -2672,7 +3340,7 @@
                     </div>
 
                     <!-- Test Thông Báo (chỉ hiển thị cho admin) -->
-                    <div class="bg-white p-3 sm:p-4 rounded-lg sm:rounded-xl shadow-lg border-2 border-dashed border-gray-300">
+                    <div class="bg-white p-3 mt-3 sm:p-4 rounded-lg sm:rounded-xl shadow-lg border-2 border-dashed border-gray-300">
                         <h3 class="text-sm sm:text-base font-bold text-gray-900 mb-3">🔔 Test Thông Báo</h3>
                         <div class="flex flex-wrap gap-2">
                             <button onclick="requestNotificationPermission()" class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 text-xs sm:text-sm active:scale-95 transition">
@@ -3758,7 +4426,10 @@
         
         function renderCartSidebar() {
             const itemsInCart = Object.values(cart);
-            const total = itemsInCart.reduce((sum, entry) => sum + (getItemPrice(entry.item) * entry.quantity), 0);
+            const total = itemsInCart.reduce((sum, entry) => {
+                const price = entry.finalPrice || getItemPrice(entry.item);
+                return sum + (price * entry.quantity);
+            }, 0);
             const cartClasses = Object.keys(cart).length === 0 
                 ? 'translate-x-full' // Ẩn khi không có món
                 : ''; // Giữ trạng thái ẩn/hiện dựa trên click
@@ -3779,23 +4450,54 @@
                     </div>
                     
                     <div class="p-4 overflow-y-auto h-[calc(100%-140px)]">
-                        ${itemsInCart.length > 0 ? itemsInCart.map(entry => `
-                            <div class="flex items-center justify-between py-3 border-b border-dashed border-amber-100">
-                                <div class="flex-grow pr-4">
-                                    <p class="font-semibold text-amber-900">${entry.item.name}</p>
-                                    <p class="text-sm text-orange-600">${formatCurrency(getItemPrice(entry.item))} x ${entry.quantity}</p>
+                        ${itemsInCart.length > 0 ? itemsInCart.map(entry => {
+                            const price = entry.finalPrice || getItemPrice(entry.item);
+                            const hasDetails = entry.selectedDetails && Object.keys(entry.selectedDetails).length > 0;
+                            
+                            let detailsHtml = '';
+                            if (hasDetails) {
+                                const details = entry.selectedDetails;
+                                const detailsParts = [];
+                                
+                                if (details.size) detailsParts.push(`Size: ${details.size}`);
+                                if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
+                                if (details.ice) detailsParts.push(`Đá: ${details.ice}`);
+                                if (details.sugar) detailsParts.push(`Đường: ${details.sugar}`);
+                                if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
+                                if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
+                                if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
+                                
+                                if (detailsParts.length > 0) {
+                                    detailsHtml = `<p class="text-xs text-gray-600 mt-1">${detailsParts.join(' • ')}</p>`;
+                                }
+                            }
+                            
+                            return `
+                                <div class="py-3 border-b border-dashed border-amber-100">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-grow pr-4">
+                                            <div class="flex items-center gap-2">
+                                                <p class="font-semibold text-amber-900">${entry.item.name}</p>
+                                                ${hasDetails ? `<button onclick="editCartItemDetails('${entry.id}')" class="text-xs text-blue-600 hover:text-blue-800" title="Chỉnh sửa chi tiết">
+                                                    <i data-lucide="edit-2" class="w-3 h-3"></i>
+                                                </button>` : ''}
+                                            </div>
+                                            <p class="text-sm text-orange-600">${formatCurrency(price)} x ${entry.quantity}</p>
+                                            ${detailsHtml}
+                                        </div>
+                                        <div class="flex items-center space-x-1">
+                                            <button onclick="updateCart('${entry.item.id}', -1, null, '${entry.id}')" class="p-1 text-sm bg-amber-200 rounded-full hover:bg-amber-300 transition duration-150">
+                                                <i data-lucide="minus" class="w-4 h-4"></i>
+                                            </button>
+                                            <span class="w-6 text-center text-amber-900 font-medium">${entry.quantity}</span>
+                                            <button onclick="updateCart('${entry.item.id}', 1, null, '${entry.id}')" class="p-1 text-sm bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150">
+                                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="flex items-center space-x-1">
-                                    <button onclick="updateCart('${entry.item.id}', -1)" class="p-1 text-sm bg-amber-200 rounded-full hover:bg-amber-300 transition duration-150">
-                                        <i data-lucide="minus" class="w-4 h-4"></i>
-                                    </button>
-                                    <span class="w-6 text-center text-amber-900 font-medium">${entry.quantity}</span>
-                                    <button onclick="updateCart('${entry.item.id}', 1)" class="p-1 text-sm bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150">
-                                        <i data-lucide="plus" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('') : '<p class="text-center text-gray-500 mt-10">Giỏ hàng trống.</p>'}
+                            `;
+                        }).join('') : '<p class="text-center text-gray-500 mt-10">Giỏ hàng trống.</p>'}
                     </div>
                     
                     <div class="absolute bottom-0 w-full p-4 border-t border-amber-300 bg-white">
@@ -3829,7 +4531,10 @@
           }
 
           async function handleOrder() {
-              const total = Object.values(cart).reduce((sum, entry) => sum + (getItemPrice(entry.item) * entry.quantity), 0);
+              const total = Object.values(cart).reduce((sum, entry) => {
+                  const price = entry.finalPrice || getItemPrice(entry.item);
+                  return sum + (price * entry.quantity);
+              }, 0);
 
               if (total === 0) {
                   showMessage("Giỏ hàng trống! Vui lòng chọn món.", 'warning');
@@ -3854,14 +4559,24 @@
 
               try {
                   // Tạo order object
-                  const orderItems = Object.values(cart).map(entry => ({
-                      id: entry.item.id,
-                      name: entry.item.name,
-                      price: getItemPrice(entry.item),
-                      quantity: entry.quantity,
-                      size: entry.item.size || null,
-                      category: entry.item.category
-                  }));
+                  const orderItems = Object.values(cart).map(entry => {
+                      const orderItem = {
+                          id: entry.item.id,
+                          name: entry.item.name,
+                          price: entry.finalPrice || getItemPrice(entry.item),
+                          basePrice: entry.item.price, // Giá gốc của món
+                          quantity: entry.quantity,
+                          size: entry.item.size || null,
+                          category: entry.item.category
+                      };
+                      
+                      // Thêm selectedDetails nếu có
+                      if (entry.selectedDetails) {
+                          orderItem.selectedDetails = entry.selectedDetails;
+                      }
+                      
+                      return orderItem;
+                  });
 
                   const orderData = {
                       items: orderItems,
@@ -4416,23 +5131,55 @@
                               ` : ''}
 
                               <div class="space-y-1.5 sm:space-y-2 mb-2 sm:mb-3">
-                                  ${order.items.map(item => `
-                                      <div class="flex justify-between items-center bg-white p-1.5 sm:p-2 rounded">
-                                          <div class="flex-1 min-w-0">
-                                              <span class="font-medium text-xs sm:text-sm md:text-base">${item.name}</span>
-                                              ${item.size ? `<span class="text-[10px] sm:text-xs text-blue-600 ml-1">(${item.size})</span>` : ''}
-                                              <span class="text-[10px] sm:text-xs text-gray-600 ml-1">x${item.quantity}</span>
+                                  ${order.items.map((item, itemIndex) => {
+                                      const hasDetails = item.selectedDetails && Object.keys(item.selectedDetails).length > 0;
+                                      let detailsHtml = '';
+                                      
+                                      if (hasDetails) {
+                                          const details = item.selectedDetails;
+                                          const detailsParts = [];
+                                          
+                                          if (details.size) detailsParts.push(`Size: ${details.size}`);
+                                          if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
+                                          if (details.ice) detailsParts.push(`Đá: ${details.ice}`);
+                                          if (details.sugar) detailsParts.push(`Đường: ${details.sugar}`);
+                                          if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
+                                          if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
+                                          if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
+                                          
+                                          if (detailsParts.length > 0) {
+                                              detailsHtml = `<div class="text-[9px] sm:text-[10px] text-gray-600 mt-0.5">${detailsParts.join(' • ')}</div>`;
+                                          }
+                                      }
+                                      
+                                      return `
+                                          <div class="bg-white p-1.5 sm:p-2 rounded">
+                                              <div class="flex justify-between items-start">
+                                                  <div class="flex-1 min-w-0">
+                                                      <div class="flex items-center gap-1">
+                                                          <span class="font-medium text-xs sm:text-sm md:text-base">${item.name}</span>
+                                                          ${item.size ? `<span class="text-[10px] sm:text-xs text-blue-600">(${item.size})</span>` : ''}
+                                                          <span class="text-[10px] sm:text-xs text-gray-600">x${item.quantity}</span>
+                                                          ${hasDetails && order.status === 'preparing' ? `
+                                                              <button onclick="editOrderItemDetails('${order.id}', ${itemIndex})" class="text-xs text-blue-600 hover:text-blue-800 ml-1" title="Chỉnh sửa chi tiết">
+                                                                  <i data-lucide="edit-2" class="w-2.5 h-2.5 sm:w-3 sm:h-3"></i>
+                                                              </button>
+                                                          ` : ''}
+                                                      </div>
+                                                      ${detailsHtml}
+                                                  </div>
+                                                  <div class="flex items-center gap-1 sm:gap-2 ml-2">
+                                                      <span class="text-[11px] sm:text-xs md:text-sm font-semibold text-orange-600 whitespace-nowrap">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
+                                                      ${order.status === 'preparing' ? `
+                                                          <button onclick="removeItemFromOrder('${order.id}', '${item.id}')" class="text-red-500 hover:text-red-700 p-0.5 sm:p-1 active:scale-95 transition" title="Xóa món">
+                                                              <i data-lucide="x" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                                                          </button>
+                                                      ` : ''}
+                                                  </div>
+                                              </div>
                                           </div>
-                                          <div class="flex items-center gap-1 sm:gap-2">
-                                              <span class="text-[11px] sm:text-xs md:text-sm font-semibold text-orange-600 whitespace-nowrap">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
-                                              ${order.status === 'preparing' ? `
-                                                  <button onclick="removeItemFromOrder('${order.id}', '${item.id}')" class="text-red-500 hover:text-red-700 p-0.5 sm:p-1 active:scale-95 transition" title="Xóa món">
-                                                      <i data-lucide="x" class="w-3 h-3 sm:w-4 sm:h-4"></i>
-                                                  </button>
-                                              ` : ''}
-                                          </div>
-                                      </div>
-                                  `).join('')}
+                                      `;
+                                  }).join('')}
                               </div>
 
                               ${order.status === 'preparing' ? `
@@ -4961,6 +5708,205 @@
                   console.error("Error removing item from order:", error);
                   showMessage("Lỗi xóa món: " + error.message, "error");
               }
+          }
+
+          // Edit details của item trong order
+          let currentEditingOrderId = null;
+          let currentEditingItemIndex = null;
+          
+          function editOrderItemDetails(orderId, itemIndex) {
+              const order = orders.find(o => o.id === orderId);
+              if (!order || !order.items[itemIndex]) return;
+              
+              currentEditingOrderId = orderId;
+              currentEditingItemIndex = itemIndex;
+              
+              const orderItem = order.items[itemIndex];
+              
+              // Tìm menu item để lấy details configuration
+              const menuItem = menuItems.find(m => m.id === orderItem.id);
+              if (!menuItem || !menuItem.details) {
+                  showMessage("Món này không có chi tiết để chỉnh sửa", 'info');
+                  return;
+              }
+              
+              // Mở modal với details hiện tại
+              openOrderItemDetailsModalForEdit(orderItem, menuItem);
+          }
+          
+          // Expose to global scope
+          window.editOrderItemDetails = editOrderItemDetails;
+
+          function openOrderItemDetailsModalForEdit(orderItem, menuItem) {
+              currentSelectingItem = menuItem;
+              const currentDetails = orderItem.selectedDetails || {};
+              
+              const modal = document.getElementById('customer-item-details-modal');
+              if (!modal) return;
+              
+              // Render nội dung modal (giống như openCustomerItemDetailsModal nhưng với giá trị hiện tại)
+              const detailsContent = document.getElementById('customer-item-details-content');
+              const details = menuItem.details || {};
+              
+              const itemBasePrice = getItemPrice(menuItem); // Lấy giá mới nhất (newPrice nếu có, không thì price)
+              
+              let html = `
+                  <div class="mb-4">
+                      <h4 class="text-lg font-bold text-gray-800 mb-2">${menuItem.name}</h4>
+                      <p class="text-sm text-gray-600 mb-2">${menuItem.description || ''}</p>
+                      <p class="text-base font-semibold text-teal-600">Giá gốc: ${itemBasePrice.toLocaleString()}đ</p>
+                  </div>
+              `;
+              
+              // Sizes - chỉ hiển thị size có enabled = true
+              if (details.sizes && details.sizes.length > 0) {
+                  const enabledSizes = details.sizes.filter(s => s.enabled);
+                  if (enabledSizes.length > 0) {
+                      html += `
+                          <div class="mb-4">
+                              <label class="block text-sm font-medium text-gray-700 mb-2">Size</label>
+                              <div class="space-y-2">
+                                  ${enabledSizes.map((size) => {
+                                      const priceAdd = size.priceAdd || size.price || 0;
+                                      // Nếu priceAdd = 0 thì dùng giá món mới nhất, nếu không thì dùng priceAdd
+                                      const displayPrice = priceAdd > 0 ? priceAdd : itemBasePrice;
+                                      return `
+                                          <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                              <div class="flex items-center">
+                                                  <input type="radio" name="customer-size" value="${size.name}" ${currentDetails.size === size.name ? 'checked' : ''} 
+                                                      onchange="updateCustomerItemPrice()" 
+                                                      class="mr-2">
+                                                  <span>${size.name}</span>
+                                              </div>
+                                              <span class="text-teal-600">${displayPrice.toLocaleString()}đ</span>
+                                          </label>
+                                      `;
+                                  }).join('')}
+                              </div>
+                          </div>
+                      `;
+                  }
+              }
+              
+              // Toppings
+              if (details.toppings && details.toppings.length > 0) {
+                  html += `
+                      <div class="mb-4">
+                          <label class="block text-sm font-medium text-gray-700 mb-2">Topping (có thể chọn nhiều)</label>
+                          <div class="space-y-2">
+                              ${details.toppings.map(topping => {
+                                  const isChecked = currentDetails.toppings && currentDetails.toppings.includes(topping.name);
+                                  return `
+                                      <label class="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                          <div class="flex items-center">
+                                              <input type="checkbox" name="customer-topping" value="${topping.name}" ${isChecked ? 'checked' : ''}
+                                                  onchange="updateCustomerItemPrice()" 
+                                                  class="mr-2">
+                                              <span>${topping.name}</span>
+                                          </div>
+                                          <span class="text-teal-600">+${topping.price?.toLocaleString() || 0}đ</span>
+                                      </label>
+                                  `;
+                              }).join('')}
+                          </div>
+                      </div>
+                  `;
+              }
+              
+              // Ice/Sugar level - radio buttons vuông
+              if (details.iceOptions && details.iceOptions.length > 0) {
+                  html += `
+                      <div class="mb-4">
+                          <label class="block text-sm font-medium text-gray-700 mb-2">🧊 Đá (%)</label>
+                          <div class="grid grid-cols-3 gap-2">
+                              ${details.iceOptions.map((opt) => `
+                                  <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                      <input type="radio" name="customer-ice" value="${opt}" ${currentDetails.ice === opt || (!currentDetails.ice && opt === details.iceOptions[0]) ? 'checked' : ''} 
+                                          onchange="updateCustomerItemPrice()" 
+                                          class="mr-2">
+                                      <span class="text-sm">${opt}%</span>
+                                  </label>
+                              `).join('')}
+                          </div>
+                      </div>
+                  `;
+              }
+              
+              if (details.sugarOptions && details.sugarOptions.length > 0) {
+                  html += `
+                      <div class="mb-4">
+                          <label class="block text-sm font-medium text-gray-700 mb-2">🍯 Đường (%)</label>
+                          <div class="grid grid-cols-3 gap-2">
+                              ${details.sugarOptions.map((opt) => `
+                                  <label class="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                      <input type="radio" name="customer-sugar" value="${opt}" ${currentDetails.sugar === opt || (!currentDetails.sugar && opt === details.sugarOptions[0]) ? 'checked' : ''} 
+                                          onchange="updateCustomerItemPrice()" 
+                                          class="mr-2">
+                                      <span class="text-sm">${opt}%</span>
+                                  </label>
+                              `).join('')}
+                          </div>
+                      </div>
+                  `;
+              }
+              
+              // Spice level
+              if (details.spiceLevels && details.spiceLevels.length > 0) {
+                  html += `
+                      <div class="mb-4">
+                          <label class="block text-sm font-medium text-gray-700 mb-2">Độ cay</label>
+                          <select name="customer-spice" onchange="updateCustomerItemPrice()" 
+                              class="w-full px-3 py-2 border rounded">
+                              ${details.spiceLevels.map((opt) => `
+                                  <option value="${opt}" ${currentDetails.spice === opt ? 'selected' : ''}>${opt}</option>
+                              `).join('')}
+                          </select>
+                      </div>
+                  `;
+              }
+              
+              // Noodle type
+              if (details.noodleTypes && details.noodleTypes.length > 0) {
+                  html += `
+                      <div class="mb-4">
+                          <label class="block text-sm font-medium text-gray-700 mb-2">Loại sợi</label>
+                          <select name="customer-noodle" onchange="updateCustomerItemPrice()" 
+                              class="w-full px-3 py-2 border rounded">
+                              ${details.noodleTypes.map((opt) => `
+                                  <option value="${opt}" ${currentDetails.noodle === opt ? 'selected' : ''}>${opt}</option>
+                              `).join('')}
+                          </select>
+                      </div>
+                  `;
+              }
+              
+              // Special requests
+              html += `
+                  <div class="mb-4">
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú đặc biệt</label>
+                      <textarea name="customer-notes" rows="2" 
+                          class="w-full px-3 py-2 border rounded" 
+                          placeholder="Ví dụ: Ít đá, không hành...">${currentDetails.notes || ''}</textarea>
+                  </div>
+              `;
+              
+              // Final price display
+              html += `
+                  <div class="mb-4 p-3 bg-teal-50 rounded">
+                      <div class="flex justify-between items-center">
+                          <span class="text-base font-medium text-gray-700">Tổng cộng:</span>
+                          <span id="customer-item-final-price" class="text-xl font-bold text-teal-600">${(orderItem.price || menuItem.price)?.toLocaleString() || 0}đ</span>
+                      </div>
+                  </div>
+              `;
+              
+              detailsContent.innerHTML = html;
+              
+              // Hiển thị modal
+              modal.classList.remove('hidden');
+              
+              // Tính giá ban đầu
+              updateCustomerItemPrice();
           }
 
           async function updateOrder(orderId) {
@@ -6053,5 +6999,37 @@
             }
         });
     </script>
+
+    <!-- Modal chọn details cho khách hàng -->
+    <div id="customer-item-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] hidden">
+        <div class="bg-white rounded-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 class="text-xl font-bold text-teal-600">🍴 Tùy chỉnh món</h3>
+                <button onclick="closeCustomerItemDetailsModal()" class="text-gray-500 hover:text-gray-700 p-1">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <!-- Content (scrollable) -->
+            <div id="customer-item-details-content" class="p-4 overflow-y-auto flex-1">
+                <!-- Content will be inserted here by JavaScript -->
+            </div>
+            
+            <!-- Footer -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="flex gap-3">
+                    <button onclick="closeCustomerItemDetailsModal()" 
+                        class="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium">
+                        Hủy
+                    </button>
+                    <button onclick="addItemWithDetailsToCart()" 
+                        class="flex-1 px-4 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-bold">
+                        Thêm vào giỏ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
