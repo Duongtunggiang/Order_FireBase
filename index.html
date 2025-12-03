@@ -1733,6 +1733,115 @@
             currentPriceUpdateItem = null;
         }
 
+        let currentCancelOrderId = null;
+
+        function openCancelModal(orderId) {
+            const order = orders.find(o => o.id === orderId);
+            if (!order) return;
+
+            currentCancelOrderId = orderId;
+
+            const modalContent = document.getElementById('cancel-modal-content');
+
+            modalContent.innerHTML = `
+                <div class="mb-4">
+                    <h4 class="font-semibold text-gray-900 mb-2">Đơn hàng #${orderId.slice(-6).toUpperCase()}</h4>
+                    <div class="text-sm text-gray-600 mb-4">
+                        <p><strong>Tổng tiền:</strong> ${formatCurrency(order.total)}</p>
+                        <p><strong>Thời gian:</strong> ${new Date(order.createdAt.seconds * 1000).toLocaleString('vi-VN')}</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Lý do hủy đơn hàng *</label>
+                            <textarea id="cancel-reason-input" placeholder="Nhập lý do hủy đơn hàng..."
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 resize-none"
+                                rows="3" required></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Gợi ý lý do:</label>
+                            <div class="space-y-1">
+                                <button onclick="selectCancelReason('Khách hàng thay đổi đơn hàng')" type="button"
+                                    class="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition">
+                                    🔄 Khách hàng thay đổi đơn hàng
+                                </button>
+                                <button onclick="selectCancelReason('Khách hàng yêu cầu hủy')" type="button"
+                                    class="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition">
+                                    🙋 Khách hàng yêu cầu hủy
+                                </button>
+                                <button onclick="selectCancelReason('Đơn hàng quá hạn')" type="button"
+                                    class="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition">
+                                    ⏰ Đơn hàng quá hạn
+                                </button>
+                                <button onclick="selectCancelReason('Khách hàng muốn đổi đơn khác')" type="button"
+                                    class="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition">
+                                    🔄 Khách hàng muốn đổi đơn khác
+                                </button>
+                                <button onclick="selectCancelReason('Không đủ nguyên liệu')" type="button"
+                                    class="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition">
+                                    🍳 Không đủ nguyên liệu
+                                </button>
+                                <button onclick="selectCancelReason('Lỗi hệ thống')" type="button"
+                                    class="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition">
+                                    ⚠️ Lỗi hệ thống
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('cancel-order-modal').classList.remove('hidden');
+        }
+
+        function selectCancelReason(reason) {
+            document.getElementById('cancel-reason-input').value = reason;
+        }
+
+        function closeCancelModal() {
+            document.getElementById('cancel-order-modal').classList.add('hidden');
+            currentCancelOrderId = null;
+            // Clear the input
+            const input = document.getElementById('cancel-reason-input');
+            if (input) input.value = '';
+        }
+
+        async function confirmCancelOrder() {
+            if (!currentCancelOrderId) return;
+
+            const reasonInput = document.getElementById('cancel-reason-input');
+            const cancelReason = reasonInput.value.trim();
+
+            if (!cancelReason) {
+                showMessage("Vui lòng nhập lý do hủy đơn hàng!", "error");
+                reasonInput.focus();
+                return;
+            }
+
+            try {
+                console.log("Cancelling order with reason:", cancelReason);
+                await updateDoc(doc(db, 'orders', currentCancelOrderId), {
+                    status: 'cancelled',
+                    cancelReason: cancelReason,
+                    cancelledAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+                    cancelledBy: 'admin',
+                    updatedAt: new Date()
+                });
+
+                console.log("Order cancelled successfully with reason:", cancelReason);
+                showMessage(`❌ Đã hủy đơn #${currentCancelOrderId.slice(-6).toUpperCase()}`, "warning");
+                closeCancelModal();
+
+                // Always reload orders to reflect the changes
+                loadOrders();
+
+            } catch (error) {
+                console.error("Error cancelling order:", error);
+                showMessage("Lỗi hủy đơn: " + error.message, "error");
+            }
+        }
+
         async function savePriceUpdate() {
             if (!currentPriceUpdateItem) return;
 
@@ -3543,6 +3652,19 @@
                                   </div>
                               </div>
 
+                              ${order.status === 'cancelled' && order.cancelReason && order.cancelReason.trim() ? `
+                                  <div class="mb-2 sm:mb-3 p-2 sm:p-3 bg-red-50 border border-red-200 rounded-lg">
+                                      <div class="flex items-start gap-1.5 sm:gap-2">
+                                          <i data-lucide="info" class="w-3 h-3 sm:w-4 sm:h-4 text-red-600 mt-0.5 flex-shrink-0"></i>
+                                          <div class="flex-1 min-w-0">
+                                              <p class="text-[11px] sm:text-xs font-medium text-red-800 mb-0.5 sm:mb-1">Lý do hủy:</p>
+                                              <p class="text-[10px] sm:text-xs text-red-700">${order.cancelReason}</p>
+                                              ${order.cancelledAt ? `<p class="text-[9px] sm:text-[10px] text-red-600 mt-0.5 sm:mt-1">Hủy lúc: ${new Date(order.cancelledAt.seconds * 1000).toLocaleString('vi-VN')}</p>` : ''}
+                                          </div>
+                                      </div>
+                                  </div>
+                              ` : ''}
+
                               <div class="space-y-1.5 sm:space-y-2 mb-2 sm:mb-3">
                                   ${order.items.map(item => `
                                       <div class="flex justify-between items-center bg-white p-1.5 sm:p-2 rounded">
@@ -3660,6 +3782,10 @@
                   orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
                   console.log("Loaded orders:", orders.length);
+                  // Debug: check if cancelled orders have cancelReason
+                  orders.filter(o => o.status === 'cancelled').forEach(order => {
+                      console.log(`Order ${order.id.slice(-6)} cancelled reason:`, order.cancelReason);
+                  });
                   renderOrdersList();
 
               } catch (error) {
@@ -3723,6 +3849,19 @@
                               ` : ''}
                           </div>
                       </div>
+
+                      ${order.status === 'cancelled' && order.cancelReason && order.cancelReason.trim() ? `
+                          <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                              <div class="flex items-start gap-2">
+                                  <i data-lucide="info" class="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0"></i>
+                                  <div>
+                                      <p class="text-sm font-medium text-red-800 mb-1">Lý do hủy đơn hàng:</p>
+                                      <p class="text-sm text-red-700">${order.cancelReason}</p>
+                                      ${order.cancelledAt ? `<p class="text-xs text-red-600 mt-1">Thời gian hủy: ${new Date(order.cancelledAt.seconds * 1000).toLocaleString('vi-VN')}</p>` : ''}
+                                  </div>
+                              </div>
+                          </div>
+                      ` : ''}
 
                       <div class="space-y-2 mb-3">
                           ${order.items.map(item => `
@@ -3823,22 +3962,7 @@
 
           // Hủy đơn hàng
           async function cancelOrder(orderId) {
-              if (!confirm("Bạn có chắc muốn HỦY đơn hàng này?")) return;
-
-              try {
-                  await updateDoc(doc(db, 'orders', orderId), {
-                      status: 'cancelled',
-                      cancelledAt: new Date(),
-                      cancelledBy: 'admin',
-                      updatedAt: new Date()
-                  });
-
-                  showMessage(`❌ Đã hủy đơn #${orderId.slice(-6).toUpperCase()}`, "warning");
-
-              } catch (error) {
-                  console.error("Error cancelling order:", error);
-                  showMessage("Lỗi hủy đơn: " + error.message, "error");
-              }
+              openCancelModal(orderId);
           }
 
           // Hoàn thành đơn hàng và lưu thống kê
@@ -4029,6 +4153,10 @@
                   const myOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
                   console.log("Loaded customer orders:", myOrders.length);
+                  // Debug: check if cancelled orders have cancelReason
+                  myOrders.filter(o => o.status === 'cancelled').forEach(order => {
+                      console.log(`Customer order ${order.id.slice(-6)} cancelled reason:`, order.cancelReason);
+                  });
 
                   const modalContent = document.getElementById('my-orders-content');
 
@@ -4059,6 +4187,19 @@
                                       </span>
                                   </div>
                               </div>
+
+                              ${order.status === 'cancelled' && order.cancelReason && order.cancelReason.trim() ? `
+                                  <div class="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                      <div class="flex items-start gap-2">
+                                          <i data-lucide="info" class="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0"></i>
+                                          <div>
+                                              <p class="text-sm font-medium text-red-800 mb-1">Lý do hủy đơn hàng:</p>
+                                              <p class="text-sm text-red-700">${order.cancelReason}</p>
+                                              ${order.cancelledAt ? `<p class="text-xs text-red-600 mt-1">Thời gian hủy: ${new Date(order.cancelledAt.seconds * 1000).toLocaleString('vi-VN')}</p>` : ''}
+                                          </div>
+                                      </div>
+                                  </div>
+                              ` : ''}
 
                               <div class="space-y-2 mb-3">
                                   ${order.items.map(item => `
@@ -4390,6 +4531,10 @@
             window.loadMenuItemsOnce = loadMenuItemsOnce;
             window.openPriceModal = openPriceModal;
             window.closePriceModal = closePriceModal;
+            window.openCancelModal = openCancelModal;
+            window.closeCancelModal = closeCancelModal;
+            window.confirmCancelOrder = confirmCancelOrder;
+            window.selectCancelReason = selectCancelReason;
             window.savePriceUpdate = savePriceUpdate;
             window.openCategoryModal = openCategoryModal;
             window.closeCategoryModalAdmin = closeCategoryModalAdmin;
@@ -4647,6 +4792,22 @@
                     </button>
                     <button onclick="closeQRModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Đóng</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cancel Order Modal -->
+    <div id="cancel-order-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold text-red-600 mb-4">❌ Hủy Đơn Hàng</h3>
+
+            <div id="cancel-modal-content">
+                <!-- Content sẽ được render bởi JavaScript -->
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeCancelModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button>
+                <button onclick="confirmCancelOrder()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Xác Nhận Hủy</button>
             </div>
         </div>
     </div>
