@@ -3536,8 +3536,8 @@
             );
 
             return `
-                <div class="flex justify-center p-2 sm:p-3 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
-                    <div class="flex space-x-1 sm:space-x-2 min-w-max">
+                <div class="p-5 sm:p-3 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
+                    <div class="flex space-x-1 sm:space-x-2 min-w-max **px-2 sm:px-3**">
                         ${activeCategories.map(cat => `
                             <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-medium py-1.5 px-3 sm:px-4 rounded-full transition duration-150 text-xs sm:text-sm whitespace-nowrap active:scale-95">
                                 ${cat}
