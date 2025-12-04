@@ -170,7 +170,29 @@
           }
         let isAdmin = false;
         let isPreviewMode = false; // Admin đang xem như khách hàng
-        let categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Danh sách categories mặc định
+        // Categories structure: [{name: string, statusCate: 'active'|'deleted'}]
+        let categories = [
+            {name: 'Đồ Uống', statusCate: 'active'},
+            {name: 'Đồ Ăn', statusCate: 'active'},
+            {name: 'Đồ Nhậu', statusCate: 'active'}
+        ];
+        
+        // Helper functions for categories
+        function getCategoryName(cat) {
+            return typeof cat === 'string' ? cat : cat.name;
+        }
+        
+        function getCategoryStatus(cat) {
+            return typeof cat === 'string' ? 'active' : (cat.statusCate || 'active');
+        }
+        
+        function getActiveCategories() {
+            return categories.filter(cat => getCategoryStatus(cat) === 'active').map(cat => getCategoryName(cat));
+        }
+        
+        function getCategoryIndex(categoryName) {
+            return categories.findIndex(cat => getCategoryName(cat) === categoryName);
+        }
         let drinkSizes = ['S', 'M', 'L', 'Big Size']; // Size cho đồ uống
 
         // --- Hàm hỗ trợ chung ---
@@ -2351,17 +2373,38 @@
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    categories = data.categories || ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
+                    const loadedCategories = data.categories || [];
+                    
+                    // Migrate from old format (array of strings) to new format (array of objects)
+                    if (loadedCategories.length > 0 && typeof loadedCategories[0] === 'string') {
+                        categories = loadedCategories.map(name => ({name: name, statusCate: 'active'}));
+                        // Save migrated format
+                        await saveCategories();
+                    } else {
+                        categories = loadedCategories.length > 0 ? loadedCategories : [
+                            {name: 'Đồ Uống', statusCate: 'active'},
+                            {name: 'Đồ Ăn', statusCate: 'active'},
+                            {name: 'Đồ Nhậu', statusCate: 'active'}
+                        ];
+                    }
                     // console.log("✅ Loaded categories:", categories); // Ẩn để bảo mật
                 } else {
                     // Nếu chưa có, tạo document mặc định
-                    categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu'];
+                    categories = [
+                        {name: 'Đồ Uống', statusCate: 'active'},
+                        {name: 'Đồ Ăn', statusCate: 'active'},
+                        {name: 'Đồ Nhậu', statusCate: 'active'}
+                    ];
                     await setDoc(docRef, { categories: categories, updatedAt: new Date() });
                     // console.log("✅ Created default categories in Firebase"); // Ẩn để bảo mật
                 }
             } catch (error) {
                 // console.error("❌ Error loading categories:", error); // Ẩn để bảo mật
-                categories = ['Đồ Uống', 'Đồ Ăn', 'Đồ Nhậu']; // Fallback
+                categories = [
+                    {name: 'Đồ Uống', statusCate: 'active'},
+                    {name: 'Đồ Ăn', statusCate: 'active'},
+                    {name: 'Đồ Nhậu', statusCate: 'active'}
+                ]; // Fallback
             }
         }
 
@@ -2392,9 +2435,14 @@
                 // console.log("🔍 Raw snapshot:", snapshot.docs.map(...)); // Ẩn để bảo mật
 
                 // Kiểm tra currentCategory có còn active không (có món không)
-                const activeCategories = categories.filter(cat =>
-                    menuItems.some(item => item.category === cat && item.status !== 'deleted')
-                );
+                const activeCategories = categories
+                    .filter(cat => {
+                        const catName = getCategoryName(cat);
+                        const catStatus = getCategoryStatus(cat);
+                        if (catStatus === 'deleted') return false;
+                        return menuItems.some(item => item.category === catName && item.status !== 'deleted');
+                    })
+                    .map(cat => getCategoryName(cat));
                 if (!activeCategories.includes(currentCategory) && activeCategories.length > 0) {
                     // Nếu currentCategory không còn active, chuyển về category đầu tiên
                     currentCategory = activeCategories[0];
@@ -3216,7 +3264,8 @@
                         ${(() => {
                             const deletedOrdersCount = orders.filter(o => o.status === 'deleted').length;
                             const deletedMenuCount = menuItems.filter(m => m.status === 'deleted').length;
-                            const totalDeleted = deletedOrdersCount + deletedMenuCount;
+                            const deletedCategoriesCount = categories.filter(cat => getCategoryStatus(cat) === 'deleted').length;
+                            const totalDeleted = deletedOrdersCount + deletedMenuCount + deletedCategoriesCount;
                             return totalDeleted > 0 ? `
                                 <span class="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform bg-red-600 rounded-full">
                                     ${totalDeleted}
@@ -3530,10 +3579,22 @@
         window.updateFeaturedScrollButtons = updateFeaturedScrollButtons;
 
         function renderMenuSelection() {
-            // Chỉ hiển thị categories có ít nhất 1 món active (không phải deleted)
-            const activeCategories = categories.filter(cat =>
-                menuItems.some(item => item.category === cat && item.status !== 'deleted')
-            );
+            // Chỉ hiển thị categories:
+            // 1. Có statusCate = 'active' (không phải đã xóa)
+            // 2. Có ít nhất 1 món active (không phải deleted)
+            const activeCategories = categories
+                .filter(cat => {
+                    const catName = getCategoryName(cat);
+                    const catStatus = getCategoryStatus(cat);
+                    // Loại bỏ category đã xóa
+                    if (catStatus === 'deleted') return false;
+                    // Loại bỏ category không có món nào
+                    const hasItems = menuItems.some(item => 
+                        item.category === catName && item.status !== 'deleted'
+                    );
+                    return hasItems;
+                })
+                .map(cat => getCategoryName(cat));
 
             return `
                 <div class="p-5 sm:p-3 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
@@ -3753,18 +3814,19 @@
                 return;
             }
 
-            if (newName !== editingCategory && categories.includes(newName)) {
+            if (newName !== editingCategory && categories.some(cat => getCategoryName(cat) === newName)) {
                 showMessage("Danh mục này đã tồn tại!", "error");
                 return;
             }
 
-            const index = categories.indexOf(editingCategory);
+            const index = getCategoryIndex(editingCategory);
             if (index > -1) {
-                categories[index] = newName;
+                const oldName = getCategoryName(categories[index]);
+                categories[index].name = newName;
 
                 // Update all items in this category
                 menuItems.forEach(item => {
-                    if (item.category === editingCategory) {
+                    if (item.category === oldName) {
                         // Update in Firestore
                         updateDoc(doc(db, PUBLIC_DATA_PATH, item.id), {
                             category: newName,
@@ -3774,36 +3836,51 @@
                 });
 
                 await saveCategories();
-                showMessage(`Đã cập nhật danh mục: ${editingCategory} → ${newName}`, "success");
+                showMessage(`Đã cập nhật danh mục: ${oldName} → ${newName}`, "success");
                 closeCategoryModal();
                 renderApp();
             }
         }
 
         async function deleteCategory(categoryName) {
-            const index = categories.indexOf(categoryName);
+            const index = getCategoryIndex(categoryName);
+            if (index < 0) {
+                showMessage("Không tìm thấy danh mục!", "error");
+                return;
+            }
+            
             if (index < 3) {
                 showMessage("Không thể xóa 3 danh mục mặc định!", "error");
                 return;
             }
 
-            const itemsInCategory = menuItems.filter(item => item.category === categoryName);
-            if (itemsInCategory.length > 0) {
-                const confirmDelete = confirm(`Danh mục "${categoryName}" có ${itemsInCategory.length} món. Bạn có chắc muốn xóa?\n\nTất cả món sẽ được chuyển sang "Đồ Ăn".`);
-                if (!confirmDelete) return;
+            const confirmDelete = confirm(`Bạn có chắc muốn xóa danh mục "${categoryName}"?\n\nDanh mục sẽ được chuyển vào thùng rác.`);
+            if (!confirmDelete) return;
 
-                // Move items to default category
-                itemsInCategory.forEach(item => {
-                    updateDoc(doc(db, PUBLIC_DATA_PATH, item.id), {
-                        category: 'Đồ Ăn',
-                        updatedAt: new Date()
-                    });
-                });
+            // Chuyển status về 'deleted' thay vì xóa
+            categories[index].statusCate = 'deleted';
+            categories[index].deletedAt = { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 };
+            
+            await saveCategories();
+            showMessage(`Đã chuyển danh mục "${categoryName}" vào thùng rác`, "success");
+            renderApp();
+        }
+
+        async function restoreCategory(categoryName) {
+            if (!confirm(`Bạn có chắc muốn khôi phục danh mục "${categoryName}"?`)) return;
+            
+            const index = getCategoryIndex(categoryName);
+            if (index < 0) {
+                showMessage("Không tìm thấy danh mục!", "error");
+                return;
             }
 
-            categories.splice(index, 1);
+            // Khôi phục status về 'active'
+            categories[index].statusCate = 'active';
+            categories[index].deletedAt = null;
+            
             await saveCategories();
-            showMessage(`Đã xóa danh mục: ${categoryName}`, "success");
+            showMessage(`Đã khôi phục danh mục "${categoryName}"`, "success");
             renderApp();
         }
 
@@ -4058,12 +4135,12 @@
                 return;
             }
 
-            if (categories.includes(categoryName)) {
+            if (categories.some(cat => getCategoryName(cat) === categoryName)) {
                 showMessage("Danh mục này đã tồn tại!", "error");
                 return;
             }
 
-            categories.push(categoryName);
+            categories.push({name: categoryName, statusCate: 'active'});
             await saveCategories();
             showMessage(`Đã thêm danh mục: ${categoryName}`, "success");
             closeCategoryModal();
@@ -4219,15 +4296,18 @@
                         <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg">
                             <h3 class="text-sm sm:text-base md:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📊 Thống Kê Món Ăn</h3>
                             <div class="space-y-2 sm:space-y-3 max-h-32 sm:max-h-40 md:max-h-48 overflow-y-auto pr-2 sm:pr-3">
-                                ${categories.map(cat => {
-                                    const count = menuItems.filter(item => item.category === cat && item.status !== 'deleted').length;
-                                    return `
-                                        <div class="flex justify-between items-center">
-                                            <span class="text-xs sm:text-sm text-gray-700">${getCategoryIcon(cat)} ${cat}</span>
-                                            <span class="text-[10px] sm:text-xs md:text-sm font-semibold text-orange-600">${count} món</span>
-                                        </div>
-                                    `;
-                                }).join('')}
+                                ${categories
+                                    .filter(cat => getCategoryStatus(cat) === 'active')
+                                    .map(cat => {
+                                        const catName = getCategoryName(cat);
+                                        const count = menuItems.filter(item => item.category === catName && item.status !== 'deleted').length;
+                                        return `
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-xs sm:text-sm text-gray-700">${getCategoryIcon(catName)} ${catName}</span>
+                                                <span class="text-[10px] sm:text-xs md:text-sm font-semibold text-orange-600">${count} món</span>
+                                            </div>
+                                        `;
+                                    }).join('')}
                                 <hr class="my-2 sm:my-3">
                                 
                             </div>
@@ -4506,28 +4586,34 @@
                                 <span class="hidden sm:inline">Thêm Danh Mục</span>
                             </button>
                         </div>
-                        <div class="space-y-2 ${categories.length > 6 ? 'max-h-80 overflow-y-auto' : ''}">
-                            ${categories.map((cat, index) => `
+                        <div class="space-y-2 ${categories.filter(cat => getCategoryStatus(cat) === 'active').length > 6 ? 'max-h-80 overflow-y-auto' : ''}">
+                            ${categories
+                                .filter(cat => getCategoryStatus(cat) === 'active')
+                                .map((cat, index) => {
+                                    const catName = getCategoryName(cat);
+                                    const originalIndex = categories.indexOf(cat);
+                                    return `
                                 <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-200 flex justify-between items-center active:scale-[0.98] transition">
                                     <div class="flex items-center gap-2 flex-1 min-w-0">
-                                        <span class="text-lg flex-shrink-0">${getCategoryIcon(cat)}</span>
-                                        <span class="font-medium text-gray-800 truncate">${cat}</span>
+                                        <span class="text-lg flex-shrink-0">${getCategoryIcon(catName)}</span>
+                                        <span class="font-medium text-gray-800 truncate">${catName}</span>
                                         <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full flex-shrink-0 ml-2">
-                                            ${menuItems.filter(item => item.category === cat && item.status !== 'deleted').length} món
+                                            ${menuItems.filter(item => item.category === catName && item.status !== 'deleted').length} món
                                         </span>
                                     </div>
                                     <div class="flex gap-1 ml-2">
-                                        <button onclick="openEditCategoryModalAdmin('${cat}')" class="text-blue-600 hover:text-blue-800 p-1.5 active:scale-95 transition" title="Sửa">
+                                        <button onclick="openEditCategoryModalAdmin('${catName}')" class="text-blue-600 hover:text-blue-800 p-1.5 active:scale-95 transition" title="Sửa">
                                             <i data-lucide="edit" class="w-4 h-4"></i>
                                         </button>
-                                        ${index >= 3 ? `
-                                            <button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 p-1.5 active:scale-95 transition" title="Xóa">
+                                        ${originalIndex >= 3 ? `
+                                            <button onclick="deleteCategory('${catName}')" class="text-red-600 hover:text-red-800 p-1.5 active:scale-95 transition" title="Xóa">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         ` : ''}
                                     </div>
                                 </div>
-                            `).join('')}
+                            `;
+                                }).join('')}
                         </div>
                         <div class="text-[10px] sm:text-xs md:text-sm text-gray-600">
                             <strong>Lưu ý:</strong> Tất cả danh mục đều có thể sửa tên. 3 danh mục đầu tiên (Đồ Uống, Đồ Ăn, Đồ Nhậu) không thể xóa.
@@ -4752,7 +4838,10 @@
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Danh Mục</label>
                                         <select id="item-modal-category" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
-                                            ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+                                            ${categories
+                                                .filter(cat => getCategoryStatus(cat) === 'active')
+                                                .map(cat => `<option value="${getCategoryName(cat)}">${getCategoryName(cat)}</option>`)
+                                                .join('')}
                                         </select>
                                     </div>
                                     <div>
@@ -4952,12 +5041,12 @@
                 return;
             }
 
-            if (categories.includes(categoryName)) {
+            if (categories.some(cat => getCategoryName(cat) === categoryName)) {
                 showMessage("Danh mục này đã tồn tại!", "error");
                 return;
             }
 
-            categories.push(categoryName);
+            categories.push({name: categoryName, statusCate: 'active'});
             await saveCategories();
             showMessage(`Đã thêm danh mục: ${categoryName}`, "success");
             closeCategoryModalAdmin();
@@ -5039,18 +5128,19 @@
                 return;
             }
 
-            if (newName !== editingCategoryAdmin && categories.includes(newName)) {
+            if (newName !== editingCategoryAdmin && categories.some(cat => getCategoryName(cat) === newName)) {
                 showMessage("Danh mục này đã tồn tại!", "error");
                 return;
             }
 
-            const index = categories.indexOf(editingCategoryAdmin);
+            const index = getCategoryIndex(editingCategoryAdmin);
             if (index > -1) {
-                categories[index] = newName;
+                const oldName = getCategoryName(categories[index]);
+                categories[index].name = newName;
 
                 // Update all items in this category
                 menuItems.forEach(item => {
-                    if (item.category === editingCategoryAdmin) {
+                    if (item.category === oldName) {
                         // Update in Firestore
                         updateDoc(doc(db, PUBLIC_DATA_PATH, item.id), {
                             category: newName,
@@ -5060,7 +5150,7 @@
                 });
 
                 await saveCategories();
-                showMessage(`Đã cập nhật danh mục: ${editingCategoryAdmin} → ${newName}`, "success");
+                showMessage(`Đã cập nhật danh mục: ${oldName} → ${newName}`, "success");
                 closeEditCategoryModalAdmin();
                 renderApp();
             }
@@ -5336,6 +5426,7 @@
         function renderAdminTrash() {
             const deletedOrders = orders.filter(o => o.status === 'deleted');
             const deletedMenuItems = menuItems.filter(m => m.status === 'deleted');
+            const deletedCategories = categories.filter(cat => getCategoryStatus(cat) === 'deleted');
             
             return `
                 <div class="p-2 sm:p-3 md:p-6 lg:p-10 bg-gray-50 min-h-screen pb-16 sm:pb-20 relative">
@@ -5348,7 +5439,7 @@
                     </div>
 
                     <!-- Thống kê nhanh -->
-                    <div class="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4 mb-6">
+                    <div class="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
                         <div class="bg-white p-3 sm:p-4 rounded-lg shadow border-l-4 border-purple-500">
                             <div class="flex items-center justify-between">
                                 <div class="flex-1">
@@ -5365,6 +5456,15 @@
                                     <p class="text-xl sm:text-2xl font-bold text-orange-600">${deletedMenuItems.length}</p>
                                 </div>
                                 <i data-lucide="coffee" class="w-6 h-6 sm:w-8 sm:h-8 text-orange-400 flex-shrink-0 ml-2"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 sm:p-4 rounded-lg shadow border-l-4 border-indigo-500">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="text-gray-600 text-xs sm:text-sm">Danh mục đã xóa</p>
+                                    <p class="text-xl sm:text-2xl font-bold text-indigo-600">${deletedCategories.length}</p>
+                                </div>
+                                <i data-lucide="folder-x" class="w-6 h-6 sm:w-8 sm:h-8 text-indigo-400 flex-shrink-0 ml-2"></i>
                             </div>
                         </div>
                     </div>
@@ -5482,6 +5582,45 @@
                                         </div>
                                     </div>
                                 `).join('')}
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Danh mục đã xóa -->
+                    <div class="bg-white rounded-lg shadow-lg p-3 sm:p-4 md:p-6 mt-4 sm:mt-6">
+                        <h3 class="text-base sm:text-lg md:text-xl font-bold text-indigo-900 mb-3 sm:mb-4 flex items-center gap-2">
+                            <i data-lucide="folder-x" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                            Danh mục đã xóa (${deletedCategories.length})
+                        </h3>
+                        
+                        ${deletedCategories.length === 0 ? `
+                            <p class="text-center text-gray-500 py-8">
+                                <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                                <br>Không có danh mục nào trong thùng rác
+                            </p>
+                        ` : `
+                            <div class="space-y-2">
+                                ${deletedCategories.map(cat => {
+                                    const catName = getCategoryName(cat);
+                                    const itemCount = menuItems.filter(item => item.category === catName && item.status !== 'deleted').length;
+                                    return `
+                                    <div class="bg-gray-100 border-2 border-gray-300 p-3 sm:p-4 rounded-lg flex justify-between items-center">
+                                        <div class="flex items-center gap-2 flex-1 min-w-0">
+                                            <span class="text-lg flex-shrink-0">${getCategoryIcon(catName)}</span>
+                                            <span class="font-medium text-gray-800 truncate">${catName}</span>
+                                            <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full flex-shrink-0 ml-2">
+                                                ${itemCount} món
+                                            </span>
+                                            ${cat.deletedAt ? `<span class="text-xs text-red-600 ml-2">Xóa lúc: ${new Date(cat.deletedAt.seconds * 1000).toLocaleString('vi-VN')}</span>` : ''}
+                                        </div>
+                                        <div class="flex gap-2 ml-2">
+                                            <button onclick="restoreCategory('${catName}')" class="bg-green-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-green-600 text-xs sm:text-sm whitespace-nowrap">
+                                                ♻️ Khôi phục
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                                }).join('')}
                             </div>
                         `}
                     </div>
@@ -8144,6 +8283,7 @@
             window.addNewCategory = addNewCategory;
             window.editCategory = editCategory;
             window.deleteCategory = deleteCategory;
+            window.restoreCategory = restoreCategory;
             window.loadOrders = loadOrders;
             window.acceptOrder = acceptOrder;
             window.cancelOrder = cancelOrder;
