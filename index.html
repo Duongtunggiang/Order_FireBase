@@ -286,9 +286,15 @@
             const toppings2 = (details2.toppings || []).sort().join(',');
             if (toppings1 !== toppings2) return false;
             
-            // So sánh các field khác
-            if (details1.ice !== details2.ice) return false;
-            if (details1.sugar !== details2.sugar) return false;
+            // So sánh các field khác (chuyển về số để so sánh đúng)
+            const ice1 = details1.ice !== undefined ? Number(details1.ice) : undefined;
+            const ice2 = details2.ice !== undefined ? Number(details2.ice) : undefined;
+            if (ice1 !== ice2) return false;
+            
+            const sugar1 = details1.sugar !== undefined ? Number(details1.sugar) : undefined;
+            const sugar2 = details2.sugar !== undefined ? Number(details2.sugar) : undefined;
+            if (sugar1 !== sugar2) return false;
+            
             if (details1.spice !== details2.spice) return false;
             if (details1.noodle !== details2.noodle) return false;
             if (details1.notes !== details2.notes) return false;
@@ -416,13 +422,17 @@
             
             // Ice/Sugar level - radio buttons vuông
             if (details.iceOptions && details.iceOptions.length > 0) {
+                // Sắp xếp giảm dần và ưu tiên 100%
+                const sortedIceOptions = [...details.iceOptions].sort((a, b) => b - a);
+                const defaultIce = sortedIceOptions.includes(100) ? 100 : sortedIceOptions[0];
+                
                 html += `
                     <div class="mb-3 sm:mb-4">
                         <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🧊 Đá (%)</label>
                         <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-                            ${details.iceOptions.map((opt, idx) => `
+                            ${sortedIceOptions.map((opt) => `
                                 <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                                    <input type="radio" name="customer-ice" value="${opt}" ${idx === 0 ? 'checked' : ''} 
+                                    <input type="radio" name="customer-ice" value="${opt}" ${opt === defaultIce ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
                                         class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
                                     <span class="text-xs sm:text-sm">${opt}%</span>
@@ -434,13 +444,17 @@
             }
             
             if (details.sugarOptions && details.sugarOptions.length > 0) {
+                // Sắp xếp giảm dần và ưu tiên 100%
+                const sortedSugarOptions = [...details.sugarOptions].sort((a, b) => b - a);
+                const defaultSugar = sortedSugarOptions.includes(100) ? 100 : sortedSugarOptions[0];
+                
                 html += `
                     <div class="mb-3 sm:mb-4">
                         <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🍯 Đường (%)</label>
                         <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-                            ${details.sugarOptions.map((opt, idx) => `
+                            ${sortedSugarOptions.map((opt) => `
                                 <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                                    <input type="radio" name="customer-sugar" value="${opt}" ${idx === 0 ? 'checked' : ''} 
+                                    <input type="radio" name="customer-sugar" value="${opt}" ${opt === defaultSugar ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
                                         class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
                                     <span class="text-xs sm:text-sm">${opt}%</span>
@@ -549,16 +563,16 @@
                 selectedDetails.toppings = Array.from(toppingCheckboxes).map(cb => cb.value);
             }
             
-            // Ice
-            const iceSelect = modal.querySelector('select[name="customer-ice"]');
-            if (iceSelect) {
-                selectedDetails.ice = iceSelect.value;
+            // Ice (radio buttons)
+            const iceRadio = modal.querySelector('input[name="customer-ice"]:checked');
+            if (iceRadio) {
+                selectedDetails.ice = parseInt(iceRadio.value);
             }
             
-            // Sugar
-            const sugarSelect = modal.querySelector('select[name="customer-sugar"]');
-            if (sugarSelect) {
-                selectedDetails.sugar = sugarSelect.value;
+            // Sugar (radio buttons)
+            const sugarRadio = modal.querySelector('input[name="customer-sugar"]:checked');
+            if (sugarRadio) {
+                selectedDetails.sugar = parseInt(sugarRadio.value);
             }
             
             // Spice
@@ -793,13 +807,18 @@
             
             // Ice/Sugar level - radio buttons vuông
             if (details.iceOptions && details.iceOptions.length > 0) {
+                // Sắp xếp giảm dần và ưu tiên 100%
+                const sortedIceOptions = [...details.iceOptions].sort((a, b) => b - a);
+                const defaultIce = sortedIceOptions.includes(100) ? 100 : sortedIceOptions[0];
+                const currentIce = currentDetails.ice !== undefined ? currentDetails.ice : defaultIce;
+                
                 html += `
                     <div class="mb-3 sm:mb-4">
                         <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🧊 Đá (%)</label>
                         <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-                            ${details.iceOptions.map((opt) => `
+                            ${sortedIceOptions.map((opt) => `
                                 <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                                    <input type="radio" name="customer-ice" value="${opt}" ${currentDetails.ice === opt || (!currentDetails.ice && opt === details.iceOptions[0]) ? 'checked' : ''} 
+                                    <input type="radio" name="customer-ice" value="${opt}" ${currentIce === opt ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
                                         class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
                                     <span class="text-xs sm:text-sm">${opt}%</span>
@@ -811,13 +830,18 @@
             }
             
             if (details.sugarOptions && details.sugarOptions.length > 0) {
+                // Sắp xếp giảm dần và ưu tiên 100%
+                const sortedSugarOptions = [...details.sugarOptions].sort((a, b) => b - a);
+                const defaultSugar = sortedSugarOptions.includes(100) ? 100 : sortedSugarOptions[0];
+                const currentSugar = currentDetails.sugar !== undefined ? currentDetails.sugar : defaultSugar;
+                
                 html += `
                     <div class="mb-3 sm:mb-4">
                         <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🍯 Đường (%)</label>
                         <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-                            ${details.sugarOptions.map((opt) => `
+                            ${sortedSugarOptions.map((opt) => `
                                 <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                                    <input type="radio" name="customer-sugar" value="${opt}" ${currentDetails.sugar === opt || (!currentDetails.sugar && opt === details.sugarOptions[0]) ? 'checked' : ''} 
+                                    <input type="radio" name="customer-sugar" value="${opt}" ${currentSugar === opt ? 'checked' : ''} 
                                         onchange="updateCustomerItemPrice()" 
                                         class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
                                     <span class="text-xs sm:text-sm">${opt}%</span>
@@ -1259,6 +1283,12 @@
             const item = menuItems.find(i => i.id === itemId);
             if (!item) return;
 
+            // Console log full item data including details
+            console.log('📝 Chỉnh sửa món - Dữ liệu đầy đủ:', item);
+            if (item.details) {
+                console.log('📋 Chi tiết món:', item.details);
+            }
+
             document.getElementById('item-modal-title').textContent = '✏️ Chỉnh Sửa Món';
             document.getElementById('item-modal-submit').textContent = 'Cập Nhật Món';
 
@@ -1333,6 +1363,12 @@
         function openItemDetailModal(itemId) {
             const item = menuItems.find(i => i.id === itemId);
             if (!item) return;
+
+            // Console log full item data including details
+            console.log('👀 Xem chi tiết món - Dữ liệu đầy đủ:', item);
+            if (item.details) {
+                console.log('📋 Chi tiết món:', item.details);
+            }
 
             const modal = document.getElementById('item-detail-modal');
             const content = document.getElementById('item-detail-content');
@@ -2991,55 +3027,88 @@
             // Chỉ hiển thị nút thêm khi không phải admin (ẩn hoàn toàn với admin)
             const showAddButton = !isAdmin;
             
-            if (currentCategory === 'Đồ Uống') {
-                // Layout Đồ Uống: 1 món/hàng, ảnh trái
-                return filteredItems.map(item => {
-                    const statusBadge = getStatusBadge(item.status);
-                    const isOutOfStock = item.status === 'out_of_stock';
-                    
-                    return `
-                    <div class="flex items-center bg-white rounded-lg shadow-md hover:shadow-lg transition duration-300 p-2 sm:p-3 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
-                        <img src="${item.imageUrl}" alt="${item.name}" class="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 object-cover rounded-md mr-2 sm:mr-3 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
-                        <div class="flex-grow min-w-0">
-                            <div class="flex items-start justify-between gap-1 sm:gap-2 mb-1">
-                                <h3 class="text-sm sm:text-base font-medium text-amber-900 truncate">${item.name}</h3>
-                                ${showAddButton && !isOutOfStock ? `
-                                    <button onclick="updateCart('${item.id}', 1)" class="p-1.5 sm:p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-sm active:scale-95">
-                                        <i data-lucide="plus" class="w-3 h-3 sm:w-4 sm:h-4"></i>
-                                    </button>
-                                ` : ''}
-                            </div>
-                            <div class="flex items-center gap-1 sm:gap-2 mb-1">
-                                ${item.size ? `<span class="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded whitespace-nowrap">${item.size}</span>` : ''}
-                                ${statusBadge}
-                            </div>
-                            <p class="text-xs text-gray-500 mb-1 line-clamp-2">${item.description}</p>
-                            <div class="flex items-center justify-between gap-1 sm:gap-2">
-                                <div class="flex items-center gap-1 sm:gap-2">
-                                    ${item.newPrice ?
-                                        (parseFloat(item.newPrice) >= parseFloat(item.price) ?
-                                            // Giá mới >= giá cũ: chỉ hiện giá mới
-                                            `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
-                                            // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
-                                            `<div class="flex items-center gap-1">
-                                                <span class="text-xs sm:text-sm text-gray-500 line-through">${formatCurrency(item.price)}</span>
-                                                <span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>
-                                             </div>`
-                                        ) :
-                                        // Không có giá mới: chỉ hiện giá cũ
-                                        `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.price)}</span>`
-                                    }
+            // Phân chia items theo categoryType
+            // Nếu không có categoryType, fallback: drink nếu itemType là 'drink' hoặc 'alcohol', còn lại là food
+            const drinkItems = filteredItems.filter(item => {
+                if (item.categoryType === 'drink') return true;
+                if (!item.categoryType) {
+                    // Fallback cho items cũ: dựa vào itemType
+                    return item.itemType === 'drink' || item.itemType === 'alcohol';
+                }
+                return false;
+            });
+            const foodItems = filteredItems.filter(item => {
+                // Nếu đã là drink thì không thêm vào food
+                if (item.categoryType === 'drink') return false;
+                if (item.categoryType === 'food') return true;
+                if (!item.categoryType) {
+                    // Fallback cho items cũ: không phải drink/alcohol thì là food
+                    return item.itemType !== 'drink' && item.itemType !== 'alcohol';
+                }
+                // Mặc định là food nếu không xác định được
+                return true;
+            });
+            
+            let html = '';
+            
+            // Render drink items: Layout 1 món/hàng, ảnh trái
+            if (drinkItems.length > 0) {
+                html += `
+                    <div class="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
+                        ${drinkItems.map(item => {
+                            const statusBadge = getStatusBadge(item.status);
+                            const isOutOfStock = item.status === 'out_of_stock';
+                            
+                            return `
+                            <div class="flex items-center bg-white rounded-lg shadow-md hover:shadow-lg transition duration-300 p-2 sm:p-3 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
+                                <img src="${item.imageUrl}" alt="${item.name}" class="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 object-cover rounded-md mr-2 sm:mr-3 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
+                                <div class="flex-grow min-w-0">
+                                    <div class="flex items-start justify-between gap-1 sm:gap-2 mb-1">
+                                        <h3 class="text-sm sm:text-base font-medium text-amber-900 truncate">${item.name}</h3>
+                                        ${showAddButton && !isOutOfStock ? `
+                                            <button onclick="updateCart('${item.id}', 1)" class="p-1.5 sm:p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition duration-150 flex-shrink-0 shadow-sm active:scale-95">
+                                                <i data-lucide="plus" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                    <div class="flex items-center gap-1 sm:gap-2 mb-1">
+                                        ${item.size ? `<span class="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded whitespace-nowrap">${item.size}</span>` : ''}
+                                        ${statusBadge}
+                                    </div>
+                                    <p class="text-xs text-gray-500 mb-1 line-clamp-2">${item.description}</p>
+                                    <div class="flex items-center justify-between gap-1 sm:gap-2">
+                                        <div class="flex items-center gap-1 sm:gap-2">
+                                            ${item.newPrice ?
+                                                (parseFloat(item.newPrice) >= parseFloat(item.price) ?
+                                                    // Giá mới >= giá cũ: chỉ hiện giá mới
+                                                    `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
+                                                    // Giá mới < giá cũ: gạch giá cũ, hiện giá mới
+                                                    `<div class="flex items-center gap-1">
+                                                        <span class="text-xs sm:text-sm text-gray-500 line-through">${formatCurrency(item.price)}</span>
+                                                        <span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>
+                                                     </div>`
+                                                ) :
+                                                // Không có giá mới: chỉ hiện giá cũ
+                                                `<span class="text-base sm:text-lg font-semibold text-orange-600">${formatCurrency(item.price)}</span>`
+                                            }
+                                        </div>
+                                        ${isAdmin ? `<button onclick="openPriceModal('${item.id}')" class="px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150">💰</button>` : ''}
+                                    </div>
                                 </div>
-                                ${isAdmin ? `<button onclick="openPriceModal('${item.id}')" class="px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150">💰</button>` : ''}
                             </div>
-                        </div>
+                        `}).join('')}
                     </div>
-                `}).join('');
-            } else {
-                // Layout Đồ Ăn/Đồ Nhậu: 2 món/hàng, khung vuông
-                return `
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4">
-                        ${filteredItems.map(item => {
+                `;
+            }
+            
+            // Render food items: Layout luôn 2 món/hàng ở mọi kích thước màn hình
+            if (foodItems.length > 0) {
+                // Thêm margin-top nếu có drink items trước đó
+                const marginTop = drinkItems.length > 0 ? 'mt-4' : '';
+                html += `
+                    <div class="max-w-7xl mx-auto ${marginTop}">
+                        <div class="grid grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4">
+                        ${foodItems.map(item => {
                             const statusBadge = getStatusBadge(item.status);
                             const isOutOfStock = item.status === 'out_of_stock';
                             
@@ -3078,9 +3147,12 @@
                                 </div>
                             </div>
                         `}).join('')}
+                        </div>
                     </div>
                 `;
             }
+            
+            return html;
         }
 
         function getStatusBadge(status) {
@@ -4545,7 +4617,15 @@
         function handleSaveItem() {
             const newPriceValue = document.getElementById('item-modal-new-price').value.trim();
             const itemType = document.getElementById('item-modal-item-type').value;
-            
+
+            // Determine category type based on item type
+            let categoryType;
+            if (['simple', 'noodle', 'food'].includes(itemType)) {
+                categoryType = 'food';
+            } else if (['drink', 'alcohol'].includes(itemType)) {
+                categoryType = 'drink';
+            }
+
             const item = {
                 id: document.getElementById('item-modal-id').value,
                 name: document.getElementById('item-modal-name').value,
@@ -4553,6 +4633,7 @@
                 category: document.getElementById('item-modal-category').value,
                 status: document.getElementById('item-modal-status').value,
                 itemType: itemType,
+                categoryType: categoryType,
                 imageUrl: document.getElementById('item-modal-image').value,
                 description: document.getElementById('item-modal-description').value,
             };
@@ -4665,12 +4746,37 @@
                                         </div>
                                         
                                         <div class="space-y-1.5 sm:space-y-2">
-                                            ${order.items.map(item => `
-                                                <div class="flex justify-between text-xs sm:text-sm bg-white p-2 rounded">
-                                                    <span class="flex-1 min-w-0 pr-2 truncate">${item.name} ${item.size ? `(${item.size})` : ''} x${item.quantity}</span>
-                                                    <span class="font-semibold text-orange-600 flex-shrink-0">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
-                                                </div>
-                                            `).join('')}
+                                            ${order.items.map(item => {
+                                                const hasDetails = item.selectedDetails && Object.keys(item.selectedDetails).length > 0;
+                                                let detailsHtml = '';
+                                                
+                                                if (hasDetails) {
+                                                    const details = item.selectedDetails;
+                                                    const detailsParts = [];
+                                                    
+                                                    if (details.size) detailsParts.push(`Size: ${details.size}`);
+                                                    if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
+                                                    if (details.ice !== undefined) detailsParts.push(`Đá: ${details.ice}%`);
+                                                    if (details.sugar !== undefined) detailsParts.push(`Đường: ${details.sugar}%`);
+                                                    if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
+                                                    if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
+                                                    if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
+                                                    
+                                                    if (detailsParts.length > 0) {
+                                                        detailsHtml = `<div class="text-[9px] sm:text-[10px] text-gray-600 mt-0.5">${detailsParts.join(' • ')}</div>`;
+                                                    }
+                                                }
+                                                
+                                                return `
+                                                    <div class="bg-white p-2 rounded">
+                                                        <div class="flex justify-between text-xs sm:text-sm">
+                                                            <span class="flex-1 min-w-0 pr-2 truncate">${item.name} ${item.size ? `(${item.size})` : ''} x${item.quantity}</span>
+                                                            <span class="font-semibold text-orange-600 flex-shrink-0">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
+                                                        </div>
+                                                        ${detailsHtml}
+                                                    </div>
+                                                `;
+                                            }).join('')}
                                         </div>
 
                                         <div class="mt-3 pt-3 border-t flex justify-between items-center">
@@ -4739,9 +4845,7 @@
                     return isAdmin ? renderAdminTrash() : renderLoginView();
                 case 'customer':
                 default:
-                    const menuHtml = currentCategory === 'Đồ Uống'
-                        ? `<div class="max-w-7xl mx-auto p-4 md:p-6 space-y-4 pb-16 sm:pb-20">${renderCustomerMenu()}</div>`
-                        : `<div class="max-w-7xl mx-auto pb-16 sm:pb-20">${renderCustomerMenu()}</div>`;
+                    const menuHtml = `<div class="pb-16 sm:pb-20">${renderCustomerMenu()}</div>`;
 
                     return `
                         ${renderMenuSelection()}
@@ -4789,8 +4893,8 @@
                                 
                                 if (details.size) detailsParts.push(`Size: ${details.size}`);
                                 if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
-                                if (details.ice) detailsParts.push(`Đá: ${details.ice}`);
-                                if (details.sugar) detailsParts.push(`Đường: ${details.sugar}`);
+                                if (details.ice !== undefined) detailsParts.push(`Đá: ${details.ice}%`);
+                                if (details.sugar !== undefined) detailsParts.push(`Đường: ${details.sugar}%`);
                                 if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
                                 if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
                                 if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
@@ -5478,8 +5582,8 @@
                                           
                                           if (details.size) detailsParts.push(`Size: ${details.size}`);
                                           if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
-                                          if (details.ice) detailsParts.push(`Đá: ${details.ice}`);
-                                          if (details.sugar) detailsParts.push(`Đường: ${details.sugar}`);
+                                          if (details.ice !== undefined) detailsParts.push(`Đá: ${details.ice}%`);
+                                          if (details.sugar !== undefined) detailsParts.push(`Đường: ${details.sugar}%`);
                                           if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
                                           if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
                                           if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
@@ -5704,23 +5808,48 @@
                       ` : ''}
 
                       <div class="space-y-2 mb-3">
-                          ${order.items.map(item => `
-                              <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                                  <div class="flex-1">
-                                      <span class="font-medium">${item.name}</span>
-                                      ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
-                                      <span class="text-sm text-gray-600">x${item.quantity}</span>
+                          ${order.items.map(item => {
+                              const hasDetails = item.selectedDetails && Object.keys(item.selectedDetails).length > 0;
+                              let detailsHtml = '';
+                              
+                              if (hasDetails) {
+                                  const details = item.selectedDetails;
+                                  const detailsParts = [];
+                                  
+                                  if (details.size) detailsParts.push(`Size: ${details.size}`);
+                                  if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
+                                  if (details.ice !== undefined) detailsParts.push(`Đá: ${details.ice}%`);
+                                  if (details.sugar !== undefined) detailsParts.push(`Đường: ${details.sugar}%`);
+                                  if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
+                                  if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
+                                  if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
+                                  
+                                  if (detailsParts.length > 0) {
+                                      detailsHtml = `<div class="text-xs text-gray-600 mt-1">${detailsParts.join(' • ')}</div>`;
+                                  }
+                              }
+                              
+                              return `
+                                  <div class="bg-gray-50 p-2 rounded">
+                                      <div class="flex justify-between items-center">
+                                          <div class="flex-1">
+                                              <span class="font-medium">${item.name}</span>
+                                              ${item.size ? `<span class="text-sm text-blue-600 ml-1">(${item.size})</span>` : ''}
+                                              <span class="text-sm text-gray-600">x${item.quantity}</span>
+                                          </div>
+                                          <div class="flex items-center gap-2">
+                                              <span class="text-sm font-semibold text-orange-600">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
+                                              ${order.status === 'preparing' ? `
+                                                  <button onclick="removeItemFromOrder('${order.id}', '${item.id}')" class="text-red-500 hover:text-red-700 p-1" title="Xóa món">
+                                                      <i data-lucide="x" class="w-4 h-4"></i>
+                                                  </button>
+                                              ` : ''}
+                                          </div>
+                                      </div>
+                                      ${detailsHtml}
                                   </div>
-                                  <div class="flex items-center gap-2">
-                                      <span class="text-sm font-semibold text-orange-600">${formatCurrency((item.newPrice || item.price) * item.quantity)}</span>
-                                      ${order.status === 'preparing' ? `
-                                          <button onclick="removeItemFromOrder('${order.id}', '${item.id}')" class="text-red-500 hover:text-red-700 p-1" title="Xóa món">
-                                              <i data-lucide="x" class="w-4 h-4"></i>
-                                          </button>
-                                      ` : ''}
-                                  </div>
-                              </div>
-                          `).join('')}
+                              `;
+                          }).join('')}
                       </div>
 
                       ${order.status === 'preparing' ? `
@@ -6195,13 +6324,18 @@
               
               // Ice/Sugar level - radio buttons vuông
               if (details.iceOptions && details.iceOptions.length > 0) {
+                  // Sắp xếp giảm dần và ưu tiên 100%
+                  const sortedIceOptions = [...details.iceOptions].sort((a, b) => b - a);
+                  const defaultIce = sortedIceOptions.includes(100) ? 100 : sortedIceOptions[0];
+                  const currentIce = currentDetails.ice !== undefined ? currentDetails.ice : defaultIce;
+                  
                   html += `
                       <div class="mb-3 sm:mb-4">
                           <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🧊 Đá (%)</label>
                           <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-                              ${details.iceOptions.map((opt) => `
+                              ${sortedIceOptions.map((opt) => `
                                   <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                                      <input type="radio" name="customer-ice" value="${opt}" ${currentDetails.ice === opt || (!currentDetails.ice && opt === details.iceOptions[0]) ? 'checked' : ''} 
+                                      <input type="radio" name="customer-ice" value="${opt}" ${currentIce === opt ? 'checked' : ''} 
                                           onchange="updateCustomerItemPrice()" 
                                           class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
                                       <span class="text-xs sm:text-sm">${opt}%</span>
@@ -6213,13 +6347,18 @@
               }
               
               if (details.sugarOptions && details.sugarOptions.length > 0) {
+                  // Sắp xếp giảm dần và ưu tiên 100%
+                  const sortedSugarOptions = [...details.sugarOptions].sort((a, b) => b - a);
+                  const defaultSugar = sortedSugarOptions.includes(100) ? 100 : sortedSugarOptions[0];
+                  const currentSugar = currentDetails.sugar !== undefined ? currentDetails.sugar : defaultSugar;
+                  
                   html += `
                       <div class="mb-3 sm:mb-4">
                           <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">🍯 Đường (%)</label>
                           <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-                              ${details.sugarOptions.map((opt) => `
+                              ${sortedSugarOptions.map((opt) => `
                                   <label class="flex items-center justify-center p-1.5 sm:p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                                      <input type="radio" name="customer-sugar" value="${opt}" ${currentDetails.sugar === opt || (!currentDetails.sugar && opt === details.sugarOptions[0]) ? 'checked' : ''} 
+                                      <input type="radio" name="customer-sugar" value="${opt}" ${currentSugar === opt ? 'checked' : ''} 
                                           onchange="updateCustomerItemPrice()" 
                                           class="mr-1 sm:mr-2 w-3 h-3 sm:w-4 sm:h-4">
                                       <span class="text-xs sm:text-sm">${opt}%</span>
@@ -6770,8 +6909,8 @@
                                           
                                           if (details.size) detailsParts.push(`Size: ${details.size}`);
                                           if (details.toppings && details.toppings.length > 0) detailsParts.push(`Topping: ${details.toppings.join(', ')}`);
-                                          if (details.ice) detailsParts.push(`Đá: ${details.ice}`);
-                                          if (details.sugar) detailsParts.push(`Đường: ${details.sugar}`);
+                                          if (details.ice !== undefined) detailsParts.push(`Đá: ${details.ice}%`);
+                                          if (details.sugar !== undefined) detailsParts.push(`Đường: ${details.sugar}%`);
                                           if (details.spice) detailsParts.push(`Cay: ${details.spice}`);
                                           if (details.noodle) detailsParts.push(`Sợi: ${details.noodle}`);
                                           if (details.notes) detailsParts.push(`Ghi chú: ${details.notes}`);
