@@ -4526,7 +4526,20 @@
 
                     <!-- Danh sách món -->
                     <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg">
-                        <h3 class="text-sm sm:text-base md:text-xl font-bold text-amber-900 mb-3 sm:mb-4">📋 Danh Sách Món Ăn/Đồ Uống (${menuItems.filter(item => item.status !== 'deleted').length})</h3>
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-2 sm:gap-0">
+                            <h3 class="text-sm sm:text-base md:text-xl font-bold text-amber-900">📋 Danh Sách Món Ăn/Đồ Uống (${getFilteredMenuItems().length})</h3>
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Hiển thị:</label>
+                                <select onchange="setMenuItemsPerPage(parseInt(this.value)); event.stopPropagation();" class="px-2 py-1 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" value="${menuItemsPerPage}">
+                                    <option value="5" ${menuItemsPerPage === 5 ? 'selected' : ''}>5</option>
+                                    <option value="10" ${menuItemsPerPage === 10 ? 'selected' : ''}>10</option>
+                                    <option value="15" ${menuItemsPerPage === 15 ? 'selected' : ''}>15</option>
+                                    <option value="20" ${menuItemsPerPage === 20 ? 'selected' : ''}>20</option>
+                                    <option value="25" ${menuItemsPerPage === 25 ? 'selected' : ''}>25</option>
+                                    <option value="30" ${menuItemsPerPage === 30 ? 'selected' : ''}>30</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-amber-50">
@@ -4535,35 +4548,39 @@
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Ảnh</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Món</th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
-                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Danh Mục</th>
-                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng Thái</th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <div class="flex flex-col gap-1">
+                                                <span>Danh Mục</span>
+                                                <select onchange="setMenuFilterCategory(this.value); event.stopPropagation();" class="text-[9px] sm:text-xs px-1 py-0.5 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500" style="min-width: 100px;">
+                                                    <option value="">-- Tất cả --</option>
+                                                    ${[...new Set(menuItems.filter(item => item.status !== 'deleted').map(item => item.category))].sort().map(cat => `
+                                                        <option value="${cat}" ${menuFilterCategory === cat ? 'selected' : ''}>${cat}</option>
+                                                    `).join('')}
+                                                </select>
+                                            </div>
+                                        </th>
+                                        <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <div class="flex flex-col gap-1">
+                                                <span>Trạng Thái</span>
+                                                <select onchange="setMenuFilterStatus(this.value); event.stopPropagation();" class="text-[9px] sm:text-xs px-1 py-0.5 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500" style="min-width: 100px;">
+                                                    <option value="">-- Tất cả --</option>
+                                                    <option value="active" ${menuFilterStatus === 'active' ? 'selected' : ''}>Đang bán</option>
+                                                    <option value="new" ${menuFilterStatus === 'new' ? 'selected' : ''}>Mới</option>
+                                                    <option value="hot" ${menuFilterStatus === 'hot' ? 'selected' : ''}>🔥 Bán chạy (Hot)</option>
+                                                    <option value="best_seller" ${menuFilterStatus === 'best_seller' ? 'selected' : ''}>⭐ Best Seller</option>
+                                                    <option value="sale" ${menuFilterStatus === 'sale' ? 'selected' : ''}>Sale</option>
+                                                    <option value="out_of_stock" ${menuFilterStatus === 'out_of_stock' ? 'selected' : ''}>Hết hàng</option>
+                                                    <option value="coming_soon" ${menuFilterStatus === 'coming_soon' ? 'selected' : ''}>Sắp có</option>
+                                                </select>
+                                            </div>
+                                        </th>
                                         <th class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Thao Tác</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     ${(() => {
-                                        // Sắp xếp món giảm dần theo itemId (món mới nhất có ID lớn nhất lên đầu)
-                                        const filteredItems = menuItems
-                                            .filter(item => item.status !== 'deleted')
-                                            .sort((a, b) => {
-                                                // Sắp xếp theo itemId giảm dần
-                                                const idA = a.itemId !== undefined && a.itemId !== null ? a.itemId : 0;
-                                                const idB = b.itemId !== undefined && b.itemId !== null ? b.itemId : 0;
-                                                
-                                                // Nếu cả hai đều có itemId, sắp xếp theo itemId
-                                                if (idA > 0 && idB > 0) {
-                                                    return idB - idA; // ID lớn nhất trước (món mới nhất)
-                                                }
-                                                
-                                                // Nếu một trong hai không có itemId, ưu tiên món có itemId
-                                                if (idA > 0 && idB === 0) return -1; // a có itemId, a lên trước
-                                                if (idA === 0 && idB > 0) return 1;  // b có itemId, b lên trước
-                                                
-                                                // Nếu cả hai đều không có itemId, sắp xếp theo thời gian (fallback)
-                                                const timeA = a.createdAt?.seconds || a.updatedAt?.seconds || 0;
-                                                const timeB = b.createdAt?.seconds || b.updatedAt?.seconds || 0;
-                                                return timeB - timeA; // Mới nhất trước
-                                            });
+                                        // Use getFilteredMenuItems() which already handles filtering and sorting
+                                        const filteredItems = getFilteredMenuItems();
                                         const startIndex = (menuCurrentPage - 1) * menuItemsPerPage;
                                         const endIndex = startIndex + menuItemsPerPage;
                                         const paginatedItems = filteredItems.slice(startIndex, endIndex);
@@ -4606,21 +4623,60 @@
 
                         <!-- Menu Items Pagination -->
                         ${(() => {
-                            const filteredItems = menuItems.filter(item => item.status !== 'deleted');
+                            const filteredItems = getFilteredMenuItems();
                             const totalPages = Math.ceil(filteredItems.length / menuItemsPerPage);
+                            if (totalPages <= 1 && filteredItems.length === 0) {
+                                return '<div class="mt-4 px-4 py-3 text-center text-sm text-gray-500">Không có món nào</div>';
+                            }
                             if (totalPages <= 1) return '';
 
-                            let paginationHtml = '<div class="flex items-center justify-between mt-4 px-4 py-3 bg-gray-50 border-t">';
-
-                            // Previous button
-                            paginationHtml += `<button onclick="setMenuPage(${menuCurrentPage - 1})" ${menuCurrentPage <= 1 ? 'disabled class="text-gray-400 cursor-not-allowed"' : 'class="text-blue-600 hover:text-blue-800"'} class="px-3 py-1 text-sm">← Trước</button>`;
+                            let paginationHtml = '<div class="flex flex-col sm:flex-row items-center justify-between mt-4 px-4 py-3 bg-gray-50 border-t gap-2">';
 
                             // Page info
-                            paginationHtml += `<span class="text-sm text-gray-700">Trang ${menuCurrentPage} / ${totalPages} (${filteredItems.length} món)</span>`;
+                            paginationHtml += `<span class="text-xs sm:text-sm text-gray-700">Trang ${menuCurrentPage} / ${totalPages} (${filteredItems.length} món)</span>`;
+
+                            // Pagination buttons
+                            paginationHtml += '<div class="flex items-center gap-2">';
+                            
+                            // First page button
+                            paginationHtml += `<button onclick="setMenuPage(1)" ${menuCurrentPage <= 1 ? 'disabled' : ''} class="px-2 py-1 text-xs sm:text-sm ${menuCurrentPage <= 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}">« Đầu</button>`;
+                            
+                            // Previous button
+                            paginationHtml += `<button onclick="setMenuPage(${menuCurrentPage - 1})" ${menuCurrentPage <= 1 ? 'disabled' : ''} class="px-2 py-1 text-xs sm:text-sm ${menuCurrentPage <= 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}">← Trước</button>`;
+
+                            // Page numbers (show max 5 pages around current)
+                            const maxPagesToShow = 5;
+                            let startPage = Math.max(1, menuCurrentPage - Math.floor(maxPagesToShow / 2));
+                            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                            if (endPage - startPage < maxPagesToShow - 1) {
+                                startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                            }
+
+                            if (startPage > 1) {
+                                paginationHtml += `<button onclick="setMenuPage(1)" class="px-2 py-1 text-xs sm:text-sm text-blue-600 hover:text-blue-800">1</button>`;
+                                if (startPage > 2) {
+                                    paginationHtml += '<span class="px-1 text-gray-400">...</span>';
+                                }
+                            }
+
+                            for (let i = startPage; i <= endPage; i++) {
+                                paginationHtml += `<button onclick="setMenuPage(${i})" class="px-2 py-1 text-xs sm:text-sm ${i === menuCurrentPage ? 'bg-blue-600 text-white' : 'text-blue-600 hover:text-blue-800'}">${i}</button>`;
+                            }
+
+                            if (endPage < totalPages) {
+                                if (endPage < totalPages - 1) {
+                                    paginationHtml += '<span class="px-1 text-gray-400">...</span>';
+                                }
+                                paginationHtml += `<button onclick="setMenuPage(${totalPages})" class="px-2 py-1 text-xs sm:text-sm text-blue-600 hover:text-blue-800">${totalPages}</button>`;
+                            }
 
                             // Next button
-                            paginationHtml += `<button onclick="setMenuPage(${menuCurrentPage + 1})" ${menuCurrentPage >= totalPages ? 'disabled class="text-gray-400 cursor-not-allowed"' : 'class="text-blue-600 hover:text-blue-800"'} class="px-3 py-1 text-sm">Sau →</button>`;
-
+                            paginationHtml += `<button onclick="setMenuPage(${menuCurrentPage + 1})" ${menuCurrentPage >= totalPages ? 'disabled' : ''} class="px-2 py-1 text-xs sm:text-sm ${menuCurrentPage >= totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}">Sau →</button>`;
+                            
+                            // Last page button
+                            paginationHtml += `<button onclick="setMenuPage(${totalPages})" ${menuCurrentPage >= totalPages ? 'disabled' : ''} class="px-2 py-1 text-xs sm:text-sm ${menuCurrentPage >= totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}">Cuối »</button>`;
+                            
+                            paginationHtml += '</div>';
                             paginationHtml += '</div>';
                             return paginationHtml;
                         })()}
@@ -5651,7 +5707,9 @@
           let currentPage = 1;
           let itemsPerPage = 5; // Default 10 items per page
           let menuCurrentPage = 1;
-          let menuItemsPerPage = 15; // Show 15 menu items per page
+          let menuItemsPerPage = 10; // Show 10 menu items per page (default)
+          let menuFilterStatus = ''; // Filter by status (empty = all)
+          let menuFilterCategory = ''; // Filter by category (empty = all)
           let processingOrderId = localStorage.getItem('processingOrderId'); // Lấy từ storage nếu reload
 
           // Setup realtime listener cho orders
@@ -5885,12 +5943,68 @@
           }
 
           function setMenuPage(page) {
-              const filteredItems = menuItems.filter(item => item.status !== 'deleted');
+              const filteredItems = getFilteredMenuItems();
               const totalPages = Math.ceil(filteredItems.length / menuItemsPerPage);
               if (page >= 1 && page <= totalPages) {
                   menuCurrentPage = page;
-                  renderAdminMenu();
+                  renderApp(); // Re-render entire app to update menu
               }
+          }
+
+          function setMenuItemsPerPage(itemsPerPage) {
+              if (itemsPerPage && itemsPerPage > 0) {
+                  menuItemsPerPage = parseInt(itemsPerPage);
+                  menuCurrentPage = 1; // Reset to first page
+                  renderApp(); // Re-render entire app to update menu
+              }
+          }
+
+          function setMenuFilterStatus(status) {
+              menuFilterStatus = status === '-- Tất cả --' ? '' : (status || '');
+              menuCurrentPage = 1; // Reset to first page
+              renderApp(); // Re-render entire app to update menu
+          }
+
+          function setMenuFilterCategory(category) {
+              menuFilterCategory = category === '-- Tất cả --' ? '' : (category || '');
+              menuCurrentPage = 1; // Reset to first page
+              renderApp(); // Re-render entire app to update menu
+          }
+
+          function getFilteredMenuItems() {
+              return menuItems
+                  .filter(item => {
+                      // Always exclude deleted items
+                      if (item.status === 'deleted') return false;
+                      
+                      // Filter by status if selected (empty string means show all)
+                      if (menuFilterStatus && menuFilterStatus !== '') {
+                          if (item.status !== menuFilterStatus) return false;
+                      }
+                      
+                      // Filter by category if selected (empty string means show all)
+                      if (menuFilterCategory && menuFilterCategory !== '') {
+                          if (item.category !== menuFilterCategory) return false;
+                      }
+                      
+                      return true;
+                  })
+                  .sort((a, b) => {
+                      // Sắp xếp theo itemId giảm dần
+                      const idA = a.itemId !== undefined && a.itemId !== null ? a.itemId : 0;
+                      const idB = b.itemId !== undefined && b.itemId !== null ? b.itemId : 0;
+                      
+                      if (idA > 0 && idB > 0) {
+                          return idB - idA;
+                      }
+                      
+                      if (idA > 0 && idB === 0) return -1;
+                      if (idA === 0 && idB > 0) return 1;
+                      
+                      const timeA = a.createdAt?.seconds || a.updatedAt?.seconds || 0;
+                      const timeB = b.createdAt?.seconds || b.updatedAt?.seconds || 0;
+                      return timeB - timeA;
+                  });
           }
 
           function nextPage() {
@@ -8021,6 +8135,10 @@
             window.setItemsPerPage = setItemsPerPage;
             window.setPage = setPage;
             window.setMenuPage = setMenuPage;
+            window.setMenuItemsPerPage = setMenuItemsPerPage;
+            window.setMenuFilterStatus = setMenuFilterStatus;
+            window.setMenuFilterCategory = setMenuFilterCategory;
+            window.getFilteredMenuItems = getFilteredMenuItems;
             window.nextPage = nextPage;
             window.prevPage = prevPage;
             window.addTable = addTable;
