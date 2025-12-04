@@ -1245,21 +1245,38 @@
             setupImagePreview();
         }
 
+        // Variables for image cropping
+        let cropImageSrc = null;
+        let cropImageElement = null;
+        let cropOverlay = null;
+        let isDragging = false;
+        let isResizing = false;
+        let resizeHandle = null; // 'top-left' or 'bottom-right'
+        let cropStartX = 0;
+        let cropStartY = 0;
+        let cropStartSize = 0;
+        let cropSize = 200; // Default crop size
+        let cropLeft = 0;
+        let cropTop = 0;
+
         function setupImagePreview() {
             // Update preview when file is selected
             const fileInput = document.getElementById('item-modal-image-file');
             const urlInput = document.getElementById('item-modal-image');
             const previewImg = document.getElementById('item-modal-preview-img');
 
+            // Remove old listeners to avoid duplicates
+            const newFileInput = fileInput.cloneNode(true);
+            fileInput.parentNode.replaceChild(newFileInput, fileInput);
+
             // File input listener
-            fileInput.addEventListener('change', function(e) {
+            newFileInput.addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (file) {
                     const reader = new FileReader();
                     reader.onload = function(e) {
-                        previewImg.src = e.target.result;
-                        // Also update URL input to show data URL
-                        urlInput.value = e.target.result;
+                        // Open crop modal instead of directly setting preview
+                        openImageCropModal(e.target.result);
                     };
                     reader.readAsDataURL(file);
                 }
@@ -1278,6 +1295,265 @@
                 }
             });
         }
+
+        function openImageCropModal(imageSrc) {
+            cropImageSrc = imageSrc;
+            const modal = document.getElementById('image-crop-modal');
+            const cropImg = document.getElementById('crop-image');
+            cropOverlay = document.getElementById('crop-overlay');
+            
+            if (!modal || !cropImg) return;
+
+            cropImg.src = imageSrc;
+            cropImageElement = cropImg;
+            
+            // Wait for image to load
+            cropImg.onload = function() {
+                initializeCrop();
+            };
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeImageCropModal() {
+            const modal = document.getElementById('image-crop-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+            cropImageSrc = null;
+            cropImageElement = null;
+            cropOverlay = null;
+        }
+
+        function initializeCrop() {
+            if (!cropImageElement || !cropOverlay) return;
+
+            const img = cropImageElement;
+            const container = document.getElementById('crop-container');
+            const parentContainer = container.parentElement;
+            
+            // Wait for image to be fully rendered
+            setTimeout(() => {
+                // Check if image is portrait (height > width)
+                const isPortrait = img.naturalHeight > img.naturalWidth;
+                const maxHeight = 500; // Max height of parent container
+                
+                if (isPortrait) {
+                    // Scale portrait image to fit container height
+                    const scaleFactor = maxHeight / img.naturalHeight;
+                    const scaledWidth = img.naturalWidth * scaleFactor;
+                    const scaledHeight = maxHeight;
+                    
+                    // Set image size
+                    img.style.width = scaledWidth + 'px';
+                    img.style.height = scaledHeight + 'px';
+                    img.style.maxWidth = 'none';
+                    img.style.maxHeight = 'none';
+                    
+                    // Adjust container width to match image width (no side gaps)
+                    container.style.width = scaledWidth + 'px';
+                    container.style.height = scaledHeight + 'px';
+                    container.style.margin = '0 auto'; // Center the container
+                } else {
+                    // Landscape or square - fit to width
+                    img.style.width = '100%';
+                    img.style.height = 'auto';
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '100%';
+                    
+                    // Reset container to full width
+                    container.style.width = '100%';
+                    container.style.height = 'auto';
+                    container.style.margin = '0';
+                }
+                
+                // Wait for image to be fully rendered after style change
+                setTimeout(() => {
+                    const imgRect = img.getBoundingClientRect();
+                    
+                    // Calculate initial crop size (square, 80% of smaller displayed dimension)
+                    const minDisplayDimension = Math.min(imgRect.width, imgRect.height);
+                    cropSize = Math.floor(minDisplayDimension * 0.8);
+                    
+                    // Center the crop overlay
+                    const left = (imgRect.width - cropSize) / 2;
+                    const top = (imgRect.height - cropSize) / 2;
+                    
+                    updateCropOverlay(left, top, cropSize);
+                    
+                    // Add drag functionality
+                    setupCropDrag();
+                }, 100);
+            }, 100);
+        }
+
+        function updateCropOverlay(left, top, size) {
+            if (!cropOverlay) return;
+            
+            cropLeft = left;
+            cropTop = top;
+            cropSize = size;
+            
+            cropOverlay.style.left = left + 'px';
+            cropOverlay.style.top = top + 'px';
+            cropOverlay.style.width = size + 'px';
+            cropOverlay.style.height = size + 'px';
+        }
+
+        function setupCropDrag() {
+            if (!cropOverlay || !cropImageElement) return;
+
+            const container = document.getElementById('crop-container');
+            const img = cropImageElement;
+            const handleBottomRight = document.getElementById('crop-handle-bottom-right');
+            
+            // Helper function to get event coordinates (mouse or touch)
+            function getEventCoords(e) {
+                if (e.touches && e.touches.length > 0) {
+                    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+                return { x: e.clientX, y: e.clientY };
+            }
+
+            // Move crop area (center area, not handles)
+            function startMove(e) {
+                const coords = getEventCoords(e);
+                isDragging = true;
+                const rect = cropOverlay.getBoundingClientRect();
+                cropStartX = coords.x - rect.left;
+                cropStartY = coords.y - rect.top;
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            function startResizeBottomRight(e) {
+                const coords = getEventCoords(e);
+                isResizing = true;
+                resizeHandle = 'bottom-right';
+                cropStartX = coords.x;
+                cropStartY = coords.y;
+                cropStartSize = cropSize;
+                const rect = cropOverlay.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                cropLeft = rect.left - containerRect.left;
+                cropTop = rect.top - containerRect.top;
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            function handleMove(e) {
+                const coords = getEventCoords(e);
+                
+                if (isResizing && resizeHandle === 'bottom-right') {
+                    const containerRect = container.getBoundingClientRect();
+                    const imgRect = cropImageElement.getBoundingClientRect();
+                    
+                    // Calculate distance moved
+                    const deltaX = coords.x - cropStartX;
+                    const deltaY = coords.y - cropStartY;
+                    const delta = Math.max(deltaX, deltaY); // Use larger delta to maintain square
+                    
+                    const newSize = Math.max(50, Math.min(
+                        cropStartSize + delta,
+                        imgRect.width - cropLeft,
+                        imgRect.height - cropTop
+                    ));
+                    
+                    updateCropOverlay(cropLeft, cropTop, newSize);
+                } else if (isDragging) {
+                    const containerRect = container.getBoundingClientRect();
+                    const imgRect = cropImageElement.getBoundingClientRect();
+                    
+                    let newLeft = coords.x - containerRect.left - cropStartX;
+                    let newTop = coords.y - containerRect.top - cropStartY;
+                    
+                    // Constrain to image bounds
+                    newLeft = Math.max(0, Math.min(newLeft, imgRect.width - cropSize));
+                    newTop = Math.max(0, Math.min(newTop, imgRect.height - cropSize));
+                    
+                    updateCropOverlay(newLeft, newTop, cropSize);
+                }
+                
+                if (isDragging || isResizing) {
+                    e.preventDefault();
+                }
+            }
+
+            function handleEnd(e) {
+                isDragging = false;
+                isResizing = false;
+                resizeHandle = null;
+            }
+
+            // Mouse events
+            cropOverlay.addEventListener('mousedown', startMove);
+            if (handleBottomRight) {
+                handleBottomRight.addEventListener('mousedown', startResizeBottomRight);
+            }
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleEnd);
+
+            // Touch events
+            cropOverlay.addEventListener('touchstart', startMove, { passive: false });
+            if (handleBottomRight) {
+                handleBottomRight.addEventListener('touchstart', startResizeBottomRight, { passive: false });
+            }
+            document.addEventListener('touchmove', handleMove, { passive: false });
+            document.addEventListener('touchend', handleEnd);
+        }
+
+        function applyCrop() {
+            if (!cropImageSrc || !cropImageElement || !cropOverlay) return;
+
+            const img = cropImageElement;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Get displayed image dimensions
+            const imgRect = img.getBoundingClientRect();
+            const overlayRect = cropOverlay.getBoundingClientRect();
+            
+            // Calculate scale factors
+            const scaleX = img.naturalWidth / imgRect.width;
+            const scaleY = img.naturalHeight / imgRect.height;
+            
+            // Calculate source coordinates in original image
+            const sourceX = (overlayRect.left - imgRect.left) * scaleX;
+            const sourceY = (overlayRect.top - imgRect.top) * scaleY;
+            const sourceSize = (overlayRect.width * scaleX + overlayRect.height * scaleY) / 2; // Average for square
+            
+            // Use the larger dimension to ensure quality
+            const outputSize = Math.max(400, Math.floor(sourceSize));
+            canvas.width = outputSize;
+            canvas.height = outputSize;
+            
+            // Draw cropped image to canvas
+            ctx.drawImage(
+                img,
+                sourceX, sourceY, sourceSize, sourceSize,  // Source rectangle
+                0, 0, outputSize, outputSize  // Destination rectangle
+            );
+            
+            // Convert to data URL with good quality
+            const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            
+            // Update preview and URL input
+            const previewImg = document.getElementById('item-modal-preview-img');
+            const urlInput = document.getElementById('item-modal-image');
+            
+            if (previewImg) previewImg.src = croppedDataUrl;
+            if (urlInput) urlInput.value = croppedDataUrl;
+            
+            // Close modal
+            closeImageCropModal();
+            
+            showMessage("✅ Đã cắt ảnh thành hình vuông!", "success");
+        }
+
+        // Expose to global scope
+        window.openImageCropModal = openImageCropModal;
+        window.closeImageCropModal = closeImageCropModal;
+        window.applyCrop = applyCrop;
 
         function openEditItemModal(itemId) {
             const item = menuItems.find(i => i.id === itemId);
@@ -1430,7 +1706,7 @@
                 <div class="space-y-3 sm:space-y-4">
                     ${item.imageUrl ? `
                         <div class="flex justify-center">
-                            <img src="${item.imageUrl}" alt="${item.name}" class="w-full max-w-xs h-48 sm:h-64 object-cover rounded-lg border border-gray-200" onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'">
+                            <img src="${item.imageUrl}" alt="${item.name}" class="w-full max-w-xs aspect-square object-cover rounded-lg border border-gray-200" onerror="this.src='https://via.placeholder.com/400x400?text=No+Image'">
                         </div>
                     ` : ''}
                     
@@ -3061,7 +3337,7 @@
                             
                             return `
                             <div class="flex items-center bg-white rounded-lg shadow-md hover:shadow-lg transition duration-300 p-2 sm:p-3 border border-amber-200 ${isOutOfStock ? 'opacity-60' : ''}">
-                                <img src="${item.imageUrl}" alt="${item.name}" class="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 object-cover rounded-md mr-2 sm:mr-3 flex-shrink-0" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
+                                <img src="${item.imageUrl}" alt="${item.name}" class="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 object-cover rounded-md mr-2 sm:mr-3 flex-shrink-0 aspect-square" onerror="this.onerror=null;this.src='https://placehold.co/96x96/f0d48f/8b542f?text=Nước'">
                                 <div class="flex-grow min-w-0">
                                     <div class="flex items-start justify-between gap-1 sm:gap-2 mb-1">
                                         <h3 class="text-sm sm:text-base font-medium text-amber-900 truncate">${item.name}</h3>
@@ -3115,7 +3391,7 @@
                             return `
                             <div class="bg-white rounded-lg shadow-md overflow-hidden border border-amber-300 flex flex-col hover:shadow-lg transition duration-300 ${isOutOfStock ? 'opacity-60' : ''}">
                                 <div class="relative">
-                                    <img src="${item.imageUrl}" alt="${item.name}" class="w-full h-24 sm:h-32 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x160/f0d48f/8b542f?text=Món+Ăn'">
+                                    <img src="${item.imageUrl}" alt="${item.name}" class="w-full aspect-square object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x400/f0d48f/8b542f?text=Món+Ăn'">
                                     <div class="absolute top-1 right-1 sm:top-2 sm:right-2">
                                         ${statusBadge}
                                     </div>
@@ -4158,7 +4434,7 @@
                                 <div id="item-modal-image-preview" class="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
                                     <div class="text-sm text-gray-700 mb-2"><strong>Preview ảnh:</strong></div>
                                     <div class="flex justify-center">
-                                        <img id="item-modal-preview-img" src="image.png" alt="Preview" class="max-w-full h-32 object-cover rounded border border-gray-300">
+                                        <img id="item-modal-preview-img" src="image.png" alt="Preview" class="max-w-full w-48 aspect-square object-cover rounded border border-gray-300">
                                     </div>
                                     <div class="md:col-span-2">
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh</label>
@@ -4184,6 +4460,35 @@
                                     <button type="submit" id="item-modal-submit" class="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700">Thêm Món</button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+
+                    <!-- Image Crop Modal -->
+                    <div id="image-crop-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[105] hidden">
+                        <div class="bg-white p-6 rounded-xl max-w-2xl w-full mx-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-bold text-gray-900">✂️ Cắt Ảnh Hình Vuông</h3>
+                                <button onclick="closeImageCropModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-sm text-gray-600 mb-3">Kéo để điều chỉnh vùng cắt (hình vuông):</p>
+                                <div class="relative border-2 border-orange-500 rounded-lg overflow-hidden bg-gray-100" style="max-height: 500px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                                    <div id="crop-container" class="relative" style="display: flex; align-items: center; justify-content: center; min-height: 300px;">
+                                        <img id="crop-image" src="" alt="Crop" style="display: block;">
+                                        <div id="crop-overlay" class="absolute border-2 border-white shadow-lg" style="box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); cursor: move; touch-action: none;">
+                                            <div class="absolute inset-0 border-2 border-dashed border-white"></div>
+                                            <!-- Top-left resize handle (hidden) -->
+                                            <div id="crop-handle-top-left" class="hidden"></div>
+                                            <!-- Bottom-right resize handle -->
+                                            <div id="crop-handle-bottom-right" class="absolute -bottom-2 -right-2 w-6 h-6 bg-white border-2 border-orange-500 rounded-full cursor:nwse-resize" style="touch-action: none; cursor: nwse-resize;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex justify-end space-x-3">
+                                <button onclick="closeImageCropModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
+                                <button onclick="applyCrop()" class="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700">✓ Áp Dụng</button>
+                            </div>
                         </div>
                     </div>
 
