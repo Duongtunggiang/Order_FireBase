@@ -2405,6 +2405,16 @@
                 // Note: If newPrice is not included, Firestore will remove the field
 
                 if (isNew) {
+                    // Tạo itemId tự động tăng dần
+                    // Tìm itemId lớn nhất hiện có
+                    const maxItemId = menuItems
+                        .filter(item => item.itemId !== undefined && item.itemId !== null)
+                        .reduce((max, item) => Math.max(max, item.itemId || 0), 0);
+                    
+                    // Tạo itemId mới = maxItemId + 1
+                    itemToSave.itemId = maxItemId + 1;
+                    itemToSave.createdAt = new Date();
+                    
                     await addDoc(collection(db, PUBLIC_DATA_PATH), itemToSave);
                     // console.log("Thêm món thành công"); // Ẩn để bảo mật
                     showMessage("Thêm món thành công!", "success");
@@ -4276,11 +4286,24 @@
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     ${(() => {
-                                        // Sắp xếp món mới nhất lên đầu (giảm dần theo createdAt, nếu không có thì dùng updatedAt)
+                                        // Sắp xếp món giảm dần theo itemId (món mới nhất có ID lớn nhất lên đầu)
                                         const filteredItems = menuItems
                                             .filter(item => item.status !== 'deleted')
                                             .sort((a, b) => {
-                                                // Ưu tiên createdAt, nếu không có thì dùng updatedAt
+                                                // Sắp xếp theo itemId giảm dần
+                                                const idA = a.itemId !== undefined && a.itemId !== null ? a.itemId : 0;
+                                                const idB = b.itemId !== undefined && b.itemId !== null ? b.itemId : 0;
+                                                
+                                                // Nếu cả hai đều có itemId, sắp xếp theo itemId
+                                                if (idA > 0 && idB > 0) {
+                                                    return idB - idA; // ID lớn nhất trước (món mới nhất)
+                                                }
+                                                
+                                                // Nếu một trong hai không có itemId, ưu tiên món có itemId
+                                                if (idA > 0 && idB === 0) return -1; // a có itemId, a lên trước
+                                                if (idA === 0 && idB > 0) return 1;  // b có itemId, b lên trước
+                                                
+                                                // Nếu cả hai đều không có itemId, sắp xếp theo thời gian (fallback)
                                                 const timeA = a.createdAt?.seconds || a.updatedAt?.seconds || 0;
                                                 const timeB = b.createdAt?.seconds || b.updatedAt?.seconds || 0;
                                                 return timeB - timeA; // Mới nhất trước
