@@ -5738,9 +5738,10 @@
                       orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                       console.log("📋 Orders updated:", orders.length);
                       
-                      // --- TỰ ĐỘNG HỦY ĐƠN QUÁ HẠN (3 TIẾNG) ---
+                      // --- TỰ ĐỘNG HỦY ĐƠN QUÁ HẠN ---
                       const now = Date.now();
-                      const threeHours = 3 * 60 * 60 * 1000; // 3 giờ tính bằng milliseconds
+                      const threeHours = 3 * 60 * 60 * 1000; // 3 giờ tính bằng milliseconds (cho đơn "Chờ nhận")
+                      const sixHours = 6 * 60 * 60 * 1000; // 6 giờ tính bằng milliseconds (cho đơn "Đang làm")
                       
                       for (const order of orders) {
                           // Tự động hủy đơn "Chờ nhận" (ordered) quá 3 giờ
@@ -5768,19 +5769,19 @@
                               }
                           }
                           
-                          // Tự động hủy đơn "Đang làm" (preparing) quá 3 giờ
+                          // Tự động hủy đơn "Đang làm" (preparing) quá 6 giờ
                           if (order.status === 'preparing' && order.createdAt && order.createdAt.seconds) {
                               const orderTime = order.createdAt.seconds * 1000;
                               const timeDiff = now - orderTime;
                               
-                              // Nếu đơn hàng đã quá 3 tiếng
-                              if (timeDiff >= threeHours) {
+                              // Nếu đơn hàng đã quá 6 tiếng
+                              if (timeDiff >= sixHours) {
                                   console.log(`⏰ Auto-cancelling expired preparing order: ${order.id.slice(-6)}`);
                                   
                                   try {
                                       await updateDoc(doc(db, 'orders', order.id), {
                                           status: 'cancelled',
-                                          cancelReason: 'Đơn hàng quá hạn (tự động hủy sau 3 giờ)',
+                                          cancelReason: 'Đơn hàng quá hạn (tự động hủy sau 6 giờ)',
                                           cancelledAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
                                           cancelledBy: 'system',
                                           updatedAt: new Date()
