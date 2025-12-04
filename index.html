@@ -1843,13 +1843,13 @@
                         <div class="grid grid-cols-2 gap-3 sm:gap-4">
                             <div>
                                 <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Giá</label>
-                                <p class="text-sm sm:text-base font-semibold text-orange-600">
+                                <p class="text-sm sm:text-base">
                                     ${item.newPrice ? 
                                         (parseFloat(item.newPrice) >= parseFloat(item.price) ?
-                                            `${formatCurrency(item.newPrice)}` :
-                                            `${formatCurrency(item.price)} → ${formatCurrency(item.newPrice)}`
+                                            `<span class="font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>` :
+                                            `<span class="text-gray-900">${formatCurrency(item.price)}</span> → <span class="font-semibold text-orange-600">${formatCurrency(item.newPrice)}</span>`
                                         ) :
-                                        formatCurrency(item.price)
+                                        `<span class="font-semibold text-orange-600">${formatCurrency(item.price)}</span>`
                                     }
                                 </p>
                             </div>
@@ -4702,13 +4702,13 @@
                                                 <img src="${item.imageUrl || 'https://via.placeholder.com/40x40?text=No+Img'}" alt="${item.name}" class="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded border border-gray-200" onerror="this.src='https://via.placeholder.com/40x40?text=No+Img'">
                                             </td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">${item.name}</td>
-                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-orange-600 font-semibold">
+                                            <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm">
                                                 ${item.newPrice ?
                                                     (parseFloat(item.newPrice) >= parseFloat(item.price) ?
-                                                        formatCurrency(item.newPrice) :
-                                                        `${formatCurrency(item.price)} → ${formatCurrency(item.newPrice)}`
+                                                        `<span class="text-orange-600 font-semibold">${formatCurrency(item.newPrice)}</span>` :
+                                                        `<span class="text-gray-900">${formatCurrency(item.price)}</span> → <span class="text-orange-600 font-semibold">${formatCurrency(item.newPrice)}</span>`
                                                     ) :
-                                                    formatCurrency(item.price)
+                                                    `<span class="text-orange-600 font-semibold">${formatCurrency(item.price)}</span>`
                                                 }
                                             </td>
                                             <td class="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">${item.category}</td>
