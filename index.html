@@ -4206,7 +4206,7 @@
 
                         <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg">
                             <h3 class="text-sm sm:text-base md:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📊 Thống Kê Món Ăn</h3>
-                            <div class="space-y-2 sm:space-y-3 max-h-32 sm:max-h-40 md:max-h-48 overflow-y-auto">
+                            <div class="space-y-2 sm:space-y-3 max-h-32 sm:max-h-40 md:max-h-48 overflow-y-auto pr-2 sm:pr-3">
                                 ${categories.map(cat => {
                                     const count = menuItems.filter(item => item.category === cat && item.status !== 'deleted').length;
                                     return `
@@ -4219,7 +4219,7 @@
                                 <hr class="my-2 sm:my-3">
                                 
                             </div>
-                            <div class="flex justify-between mt-2 items-center font-bold">
+                            <div class="flex justify-between mt-2 items-center pr-2 font-bold">
                                     <span class="text-xs sm:text-sm text-gray-900">Tổng cộng</span>
                                     <span class="text-[10px] sm:text-xs md:text-sm text-orange-600">${activeItems} món</span>
                                 </div>
@@ -4254,7 +4254,12 @@
 
                     <!-- Test Thông Báo (chỉ hiển thị cho admin) -->
                     <div class="bg-white p-3 mt-3 sm:p-4 rounded-lg sm:rounded-xl shadow-lg border-2 border-dashed border-gray-300">
-                        <h3 class="text-sm sm:text-base font-bold text-gray-900 mb-3">🔔 Test Thông Báo</h3>
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm sm:text-base font-bold text-gray-900">🔔 Test Thông Báo</h3>
+                            <button onclick="toggleNotifications()" class="px-3 py-1.5 rounded text-xs sm:text-sm font-medium transition ${notificationsEnabled ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-400 text-white hover:bg-gray-500'}">
+                                ${notificationsEnabled ? '✅ Bật' : '❌ Tắt'} Thông Báo
+                            </button>
+                        </div>
                         <div class="flex flex-wrap gap-2">
                             <button onclick="requestNotificationPermission()" class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 text-xs sm:text-sm active:scale-95 transition">
                                 Cấp Quyền Thông Báo
@@ -4270,6 +4275,9 @@
                             </button>
                         </div>
                         <p class="text-xs text-gray-500 mt-2">Sử dụng các nút này để test tính năng thông báo trình duyệt, âm thanh và rung.</p>
+                        <p class="text-xs mt-1 font-medium ${notificationsEnabled ? 'text-green-600' : 'text-red-600'}">
+                            ${notificationsEnabled ? '✅ Thông báo đã bật' : '❌ Đã tắt thông báo'}
+                        </p>
                     </div>
                 </div>
             `;
@@ -5711,6 +5719,9 @@
           let menuFilterStatus = ''; // Filter by status (empty = all)
           let menuFilterCategory = ''; // Filter by category (empty = all)
           let processingOrderId = localStorage.getItem('processingOrderId'); // Lấy từ storage nếu reload
+          
+          // Notification settings
+          let notificationsEnabled = localStorage.getItem('notificationsEnabled') !== 'false'; // Default: enabled
 
           // Setup realtime listener cho orders
           function setupOrdersListener() {
@@ -7267,8 +7278,22 @@
             }
         }
 
+        // Toggle notifications on/off
+        function toggleNotifications() {
+            notificationsEnabled = !notificationsEnabled;
+            localStorage.setItem('notificationsEnabled', notificationsEnabled.toString());
+            showMessage(notificationsEnabled ? '✅ Đã bật thông báo' : '❌ Đã tắt thông báo', notificationsEnabled ? 'success' : 'info');
+            renderApp(); // Re-render to update UI
+        }
+
         // Hiển thị thông báo trình duyệt với âm thanh và rung
         async function showBrowserNotification(title, body, icon = null) {
+            // Kiểm tra xem thông báo có được bật không
+            if (!notificationsEnabled) {
+                // console.log('🔕 Notifications are disabled, skipping notification'); // Ẩn để bảo mật
+                return false;
+            }
+            
             // Đảm bảo service worker đã được đăng ký (cần thiết cho mobile)
             if (!serviceWorkerRegistration && 'serviceWorker' in navigator) {
                 serviceWorkerRegistration = await registerServiceWorker();
@@ -8038,6 +8063,7 @@
             window.showBrowserNotification = showBrowserNotification;
             window.playNotificationSound = playNotificationSound;
             window.vibrateDevice = vibrateDevice;
+            window.toggleNotifications = toggleNotifications;
             window.toggleAdminMode = toggleAdminMode;
             window.saveItem = saveItem;
             window.deleteItem = deleteItem;
