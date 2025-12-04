@@ -1893,24 +1893,24 @@
                 currentItemDetails.sizes.findIndex(s => s.enabled) : -1;
             
             return `
-                <div class="space-y-6">
+                <div class="space-y-4 sm:space-y-6">
                     <!-- Sizes -->
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="font-bold text-blue-900">📏 Size (Kích cỡ)</h4>
-                            <button onclick="addDrinkSize()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">+ Thêm Size</button>
+                    <div class="bg-blue-50 p-3 sm:p-4 rounded-lg border border-blue-200">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-2 sm:mb-3">
+                            <h4 class="text-base sm:text-lg font-bold text-blue-900">📏 Size (Kích cỡ)</h4>
+                            <button onclick="addDrinkSize()" class="w-full sm:w-auto bg-blue-500 text-white px-3 py-2 sm:py-1 rounded text-sm hover:bg-blue-600 active:scale-95 transition">+ Thêm Size</button>
                         </div>
-                        <p class="text-xs text-gray-600 mb-2">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
-                        <div id="drink-sizes-list" class="space-y-2">
+                        <p class="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
+                        <div id="drink-sizes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             ${currentItemDetails.sizes.map((size, idx) => {
                                 const isSmallest = idx === smallestEnabledIdx;
                                 const displayPrice = isSmallest && size.enabled ? basePrice : size.priceAdd;
                                 return `
-                                    <div class="flex gap-2 items-center bg-white p-2 rounded ${size.enabled ? '' : 'opacity-60'}">
-                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleDrinkSize(${idx}, this.checked)" class="w-4 h-4">
-                                        <input type="text" value="${size.name}" onchange="updateDrinkSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 px-2 py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
-                                        <input type="number" value="${displayPrice}" onchange="updateDrinkSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-32 px-2 py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
-                                        <button onclick="removeDrinkSize(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                    <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded ${size.enabled ? '' : 'opacity-60'}">
+                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleDrinkSize(${idx}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0">
+                                        <input type="text" value="${size.name}" onchange="updateDrinkSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
+                                        <input type="number" value="${displayPrice}" onchange="updateDrinkSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <button onclick="removeDrinkSize(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                     </div>
                                 `;
                             }).join('')}
@@ -1918,43 +1918,43 @@
                     </div>
 
                     <!-- Toppings -->
-                    <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="font-bold text-purple-900">🧋 Topping</h4>
-                            <button onclick="addDrinkTopping()" class="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600">+ Thêm Topping</button>
+                    <div class="bg-purple-50 p-3 sm:p-4 rounded-lg border border-purple-200">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-2 sm:mb-3">
+                            <h4 class="text-base sm:text-lg font-bold text-purple-900">🧋 Topping</h4>
+                            <button onclick="addDrinkTopping()" class="w-full sm:w-auto bg-purple-500 text-white px-3 py-2 sm:py-1 rounded text-sm hover:bg-purple-600 active:scale-95 transition">+ Thêm Topping</button>
                         </div>
-                        <div id="drink-toppings-list" class="space-y-2">
+                        <div id="drink-toppings-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             ${currentItemDetails.toppings.map((topping, idx) => `
-                                <div class="flex gap-2 items-center bg-white p-2 rounded">
-                                    <input type="text" value="${topping.name}" onchange="updateDrinkTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 px-2 py-1 border rounded text-sm">
-                                    <input type="number" value="${topping.price}" onchange="updateDrinkTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-32 px-2 py-1 border rounded text-sm">
-                                    <button onclick="removeDrinkTopping(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded">
+                                    <input type="text" value="${topping.name}" onchange="updateDrinkTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm">
+                                    <input type="number" value="${topping.price}" onchange="updateDrinkTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm">
+                                    <button onclick="removeDrinkTopping(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                 </div>
                             `).join('')}
                         </div>
                     </div>
 
                     <!-- Ice Options -->
-                    <div class="bg-cyan-50 p-4 rounded-lg border border-cyan-200">
-                        <h4 class="font-bold text-cyan-900 mb-3">🧊 Tùy chọn Đá (%)</h4>
-                        <div class="flex flex-wrap gap-2">
+                    <div class="bg-cyan-50 p-3 sm:p-4 rounded-lg border border-cyan-200">
+                        <h4 class="text-base sm:text-lg font-bold text-cyan-900 mb-2 sm:mb-3">🧊 Tùy chọn Đá (%)</h4>
+                        <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                             ${[0, 25, 50, 75, 100].map(val => `
-                                <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-cyan-100">
-                                    <input type="checkbox" ${currentItemDetails.iceOptions.includes(val) ? 'checked' : ''} onchange="toggleIceOption(${val}, this.checked)">
-                                    <span class="text-sm">${val}%</span>
+                                <label class="flex items-center justify-center gap-1.5 sm:gap-1 bg-white px-3 sm:px-4 py-2.5 sm:py-2 rounded border cursor-pointer hover:bg-cyan-100 active:scale-95 transition touch-manipulation">
+                                    <input type="checkbox" ${currentItemDetails.iceOptions.includes(val) ? 'checked' : ''} onchange="toggleIceOption(${val}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-4">
+                                    <span class="text-sm sm:text-xs">${val}%</span>
                                 </label>
                             `).join('')}
                         </div>
                     </div>
 
                     <!-- Sugar Options -->
-                    <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                        <h4 class="font-bold text-yellow-900 mb-3">🍯 Tùy chọn Đường (%)</h4>
-                        <div class="flex flex-wrap gap-2">
+                    <div class="bg-yellow-50 p-3 sm:p-4 rounded-lg border border-yellow-200">
+                        <h4 class="text-base sm:text-lg font-bold text-yellow-900 mb-2 sm:mb-3">🍯 Tùy chọn Đường (%)</h4>
+                        <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                             ${[0, 25, 50, 75, 100].map(val => `
-                                <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-yellow-100">
-                                    <input type="checkbox" ${currentItemDetails.sugarOptions.includes(val) ? 'checked' : ''} onchange="toggleSugarOption(${val}, this.checked)">
-                                    <span class="text-sm">${val}%</span>
+                                <label class="flex items-center justify-center gap-1.5 sm:gap-1 bg-white px-3 sm:px-4 py-2.5 sm:py-2 rounded border cursor-pointer hover:bg-yellow-100 active:scale-95 transition touch-manipulation">
+                                    <input type="checkbox" ${currentItemDetails.sugarOptions.includes(val) ? 'checked' : ''} onchange="toggleSugarOption(${val}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-4">
+                                    <span class="text-sm sm:text-xs">${val}%</span>
                                 </label>
                             `).join('')}
                         </div>
@@ -1966,46 +1966,46 @@
         function renderNoodleConfig() {
             const maxLevel = Math.max(...currentItemDetails.spiceLevels);
             return `
-                <div class="space-y-6">
+                <div class="space-y-4 sm:space-y-6">
                     <!-- Spice Levels -->
-                    <div class="bg-red-50 p-4 rounded-lg border border-red-200">
-                        <h4 class="font-bold text-red-900 mb-3">🌶️ Độ Cay (Cấp độ)</h4>
-                        <div class="flex flex-wrap gap-2">
+                    <div class="bg-red-50 p-3 sm:p-4 rounded-lg border border-red-200">
+                        <h4 class="text-base sm:text-lg font-bold text-red-900 mb-2 sm:mb-3">🌶️ Độ Cay (Cấp độ)</h4>
+                        <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                             ${[0, 1, 2, 3, 4, 5, 6, 7].map(val => {
                                 const label = val === 0 ? 'Không cay' : `Cấp ${val}`;
                                 return `
-                                    <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-red-100">
-                                        <input type="checkbox" ${currentItemDetails.spiceLevels.includes(val) ? 'checked' : ''} onchange="toggleSpiceLevel(${val}, this.checked)">
-                                        <span class="text-sm">${label}</span>
+                                    <label class="flex items-center justify-center gap-1.5 sm:gap-1 bg-white px-3 sm:px-4 py-2.5 sm:py-2 rounded border cursor-pointer hover:bg-red-100 active:scale-95 transition touch-manipulation">
+                                        <input type="checkbox" ${currentItemDetails.spiceLevels.includes(val) ? 'checked' : ''} onchange="toggleSpiceLevel(${val}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-4">
+                                        <span class="text-sm sm:text-xs">${label}</span>
                                     </label>
                                 `;
                             }).join('')}
                             ${currentItemDetails.spiceLevels.filter(l => l > 7).map(val => `
-                                <label class="flex items-center gap-1 bg-white px-3 py-2 rounded border cursor-pointer hover:bg-red-100 relative group">
-                                    <input type="checkbox" checked disabled class="opacity-50">
-                                    <span class="text-sm">Cấp ${val}</span>
-                                    <button onclick="event.preventDefault(); removeCustomSpiceLevel(${val})" class="text-red-600 hover:text-red-800 ml-1">🗑️</button>
+                                <label class="flex items-center justify-center gap-1.5 sm:gap-1 bg-white px-3 sm:px-4 py-2.5 sm:py-2 rounded border cursor-pointer hover:bg-red-100 relative group active:scale-95 transition touch-manipulation">
+                                    <input type="checkbox" checked disabled class="opacity-50 w-4 h-4 sm:w-5 sm:h-4">
+                                    <span class="text-sm sm:text-xs">Cấp ${val}</span>
+                                    <button onclick="event.preventDefault(); removeCustomSpiceLevel(${val})" class="text-red-600 hover:text-red-800 ml-1 text-lg sm:text-base">🗑️</button>
                                 </label>
                             `).join('')}
                         </div>
-                        <button onclick="addCustomSpiceLevel()" class="mt-3 bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600 w-full">
+                        <button onclick="addCustomSpiceLevel()" class="mt-3 bg-red-500 text-white px-4 py-2.5 sm:py-2 rounded text-sm hover:bg-red-600 w-full active:scale-95 transition">
                             + Thêm Cấp Độ Cao Hơn (Cấp ${maxLevel + 1})
                         </button>
-                        <p class="text-xs text-gray-500 mt-2">💡 Chọn các cấp độ cay cơ bản 0-7, hoặc thêm cấp độ cao hơn nếu cần</p>
+                        <p class="text-xs sm:text-sm text-gray-500 mt-2">💡 Chọn các cấp độ cay cơ bản 0-7, hoặc thêm cấp độ cao hơn nếu cần</p>
                     </div>
 
                     <!-- Toppings -->
-                    <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="font-bold text-purple-900">🍜 Topping</h4>
-                            <button onclick="addNoodleTopping()" class="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600">+ Thêm Topping</button>
+                    <div class="bg-purple-50 p-3 sm:p-4 rounded-lg border border-purple-200">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-2 sm:mb-3">
+                            <h4 class="text-base sm:text-lg font-bold text-purple-900">🍜 Topping</h4>
+                            <button onclick="addNoodleTopping()" class="w-full sm:w-auto bg-purple-500 text-white px-3 py-2 sm:py-1 rounded text-sm hover:bg-purple-600 active:scale-95 transition">+ Thêm Topping</button>
                         </div>
-                        <div id="noodle-toppings-list" class="space-y-2">
+                        <div id="noodle-toppings-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             ${currentItemDetails.toppings.map((topping, idx) => `
-                                <div class="flex gap-2 items-center bg-white p-2 rounded">
-                                    <input type="text" value="${topping.name}" onchange="updateNoodleTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 px-2 py-1 border rounded text-sm">
-                                    <input type="number" value="${topping.price}" onchange="updateNoodleTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-32 px-2 py-1 border rounded text-sm">
-                                    <button onclick="removeNoodleTopping(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded">
+                                    <input type="text" value="${topping.name}" onchange="updateNoodleTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm">
+                                    <input type="number" value="${topping.price}" onchange="updateNoodleTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm">
+                                    <button onclick="removeNoodleTopping(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -2024,24 +2024,24 @@
                 currentItemDetails.sizes.findIndex(s => s.enabled) : -1;
             
             return `
-                <div class="space-y-6">
+                <div class="space-y-4 sm:space-y-6">
                     <!-- Sizes -->
-                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="font-bold text-green-900">📏 Size/Phần</h4>
-                            <button onclick="addFoodSize()" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">+ Thêm Size</button>
+                    <div class="bg-green-50 p-3 sm:p-4 rounded-lg border border-green-200">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-2 sm:mb-3">
+                            <h4 class="text-base sm:text-lg font-bold text-green-900">📏 Size/Phần</h4>
+                            <button onclick="addFoodSize()" class="w-full sm:w-auto bg-green-500 text-white px-3 py-2 sm:py-1 rounded text-sm hover:bg-green-600 active:scale-95 transition">+ Thêm Size</button>
                         </div>
-                        <p class="text-xs text-gray-600 mb-2">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
-                        <div id="food-sizes-list" class="space-y-2">
+                        <p class="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
+                        <div id="food-sizes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             ${currentItemDetails.sizes.map((size, idx) => {
                                 const isSmallest = idx === smallestEnabledIdx;
                                 const displayPrice = isSmallest && size.enabled ? basePrice : size.priceAdd;
                                 return `
-                                    <div class="flex gap-2 items-center bg-white p-2 rounded ${size.enabled ? '' : 'opacity-60'}">
-                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleFoodSize(${idx}, this.checked)" class="w-4 h-4">
-                                        <input type="text" value="${size.name}" onchange="updateFoodSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 px-2 py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
-                                        <input type="number" value="${displayPrice}" onchange="updateFoodSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-32 px-2 py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
-                                        <button onclick="removeFoodSize(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                    <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded ${size.enabled ? '' : 'opacity-60'}">
+                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleFoodSize(${idx}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-4 flex-shrink-0">
+                                        <input type="text" value="${size.name}" onchange="updateFoodSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
+                                        <input type="number" value="${displayPrice}" onchange="updateFoodSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <button onclick="removeFoodSize(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                     </div>
                                 `;
                             }).join('')}
@@ -2061,24 +2061,24 @@
                 currentItemDetails.sizes.findIndex(s => s.enabled) : -1;
             
             return `
-                <div class="space-y-6">
+                <div class="space-y-4 sm:space-y-6">
                     <!-- Sizes -->
-                    <div class="bg-amber-50 p-4 rounded-lg border border-amber-200">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="font-bold text-amber-900">🍺 Size</h4>
-                            <button onclick="addAlcoholSize()" class="bg-amber-500 text-white px-3 py-1 rounded text-sm hover:bg-amber-600">+ Thêm Size</button>
+                    <div class="bg-amber-50 p-3 sm:p-4 rounded-lg border border-amber-200">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-2 sm:mb-3">
+                            <h4 class="text-base sm:text-lg font-bold text-amber-900">🍺 Size</h4>
+                            <button onclick="addAlcoholSize()" class="w-full sm:w-auto bg-amber-500 text-white px-3 py-2 sm:py-1 rounded text-sm hover:bg-amber-600 active:scale-95 transition">+ Thêm Size</button>
                         </div>
-                        <p class="text-xs text-gray-600 mb-2">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
-                        <div id="alcohol-sizes-list" class="space-y-2">
+                        <p class="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">💡 Size nhỏ nhất được chọn sẽ lấy giá từ món (${formatCurrency(basePrice)}). Các size lớn hơn nhập giá thêm.</p>
+                        <div id="alcohol-sizes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             ${currentItemDetails.sizes.map((size, idx) => {
                                 const isSmallest = idx === smallestEnabledIdx;
                                 const displayPrice = isSmallest && size.enabled ? basePrice : size.priceAdd;
                                 return `
-                                    <div class="flex gap-2 items-center bg-white p-2 rounded ${size.enabled ? '' : 'opacity-60'}">
-                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleAlcoholSize(${idx}, this.checked)" class="w-4 h-4">
-                                        <input type="text" value="${size.name}" onchange="updateAlcoholSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 px-2 py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
-                                        <input type="number" value="${displayPrice}" onchange="updateAlcoholSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-32 px-2 py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
-                                        <button onclick="removeAlcoholSize(${idx})" class="text-red-600 hover:text-red-800 px-2">🗑️</button>
+                                    <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded ${size.enabled ? '' : 'opacity-60'}">
+                                        <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleAlcoholSize(${idx}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-4 flex-shrink-0">
+                                        <input type="text" value="${size.name}" onchange="updateAlcoholSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
+                                        <input type="number" value="${displayPrice}" onchange="updateAlcoholSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <button onclick="removeAlcoholSize(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                     </div>
                                 `;
                             }).join('')}
@@ -3303,12 +3303,33 @@
         
         // Ẩn món đã xóa cho khách hàng và admin preview mode
         function renderCustomerMenu() {
-            const filteredItems = menuItems.filter(item => {
-                // Ẩn món đã xóa cho khách hàng
-                if (!isAdmin && item.status === 'deleted') return false;
-                if (isAdmin && item.status === 'deleted') return false;
-                return item.category === currentCategory;
-            });
+            // Filter và sắp xếp món giảm dần theo itemId (món mới nhất có ID lớn nhất lên đầu)
+            const filteredItems = menuItems
+                .filter(item => {
+                    // Ẩn món đã xóa cho khách hàng
+                    if (!isAdmin && item.status === 'deleted') return false;
+                    if (isAdmin && item.status === 'deleted') return false;
+                    return item.category === currentCategory;
+                })
+                .sort((a, b) => {
+                    // Sắp xếp theo itemId giảm dần
+                    const idA = a.itemId !== undefined && a.itemId !== null ? a.itemId : 0;
+                    const idB = b.itemId !== undefined && b.itemId !== null ? b.itemId : 0;
+                    
+                    // Nếu cả hai đều có itemId, sắp xếp theo itemId
+                    if (idA > 0 && idB > 0) {
+                        return idB - idA; // ID lớn nhất trước (món mới nhất)
+                    }
+                    
+                    // Nếu một trong hai không có itemId, ưu tiên món có itemId
+                    if (idA > 0 && idB === 0) return -1; // a có itemId, a lên trước
+                    if (idA === 0 && idB > 0) return 1;  // b có itemId, b lên trước
+                    
+                    // Nếu cả hai đều không có itemId, sắp xếp theo thời gian (fallback)
+                    const timeA = a.createdAt?.seconds || a.updatedAt?.seconds || 0;
+                    const timeB = b.createdAt?.seconds || b.updatedAt?.seconds || 0;
+                    return timeB - timeA; // Mới nhất trước
+                });
             
             // Chỉ hiển thị nút thêm khi không phải admin (ẩn hoàn toàn với admin)
             const showAddButton = !isAdmin;
@@ -4516,20 +4537,20 @@
                     </div>
 
                     <!-- Item Details Config Modal -->
-                    <div id="item-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110] hidden overflow-y-auto">
-                        <div class="bg-white p-6 rounded-xl max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
-                            <div class="flex justify-between items-center mb-6">
-                                <h3 class="text-2xl font-bold text-purple-900">⚙️ Cấu Hình Chi Tiết Món</h3>
-                                <button onclick="closeItemDetailsConfig()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                    <div id="item-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110] hidden overflow-y-auto p-2 sm:p-4">
+                        <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl max-w-4xl w-full mx-2 sm:mx-4 my-2 sm:my-4 md:my-8 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-3 sm:mb-4 md:mb-6">
+                                <h3 class="text-lg sm:text-xl md:text-2xl font-bold text-purple-900">⚙️ Cấu Hình Chi Tiết Món</h3>
+                                <button onclick="closeItemDetailsConfig()" class="text-gray-400 hover:text-gray-600 text-xl sm:text-2xl p-1 sm:p-2">×</button>
                             </div>
 
-                            <div id="item-details-content">
+                            <div id="item-details-content" class="text-sm sm:text-base">
                                 <!-- Content will be dynamically loaded based on itemType -->
                             </div>
 
-                            <div class="mt-6 flex justify-end space-x-3">
-                                <button type="button" onclick="closeItemDetailsConfig()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
-                                <button type="button" onclick="saveItemDetailsConfig()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">💾 Lưu Cấu Hình</button>
+                            <div class="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                                <button type="button" onclick="closeItemDetailsConfig()" class="w-full sm:w-auto px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-95 transition">Hủy</button>
+                                <button type="button" onclick="saveItemDetailsConfig()" class="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 active:scale-95 transition">💾 Lưu Cấu Hình</button>
                             </div>
                         </div>
                     </div>
