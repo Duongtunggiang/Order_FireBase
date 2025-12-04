@@ -5743,6 +5743,7 @@
                       const threeHours = 3 * 60 * 60 * 1000; // 3 giờ tính bằng milliseconds
                       
                       for (const order of orders) {
+                          // Tự động hủy đơn "Chờ nhận" (ordered) quá 3 giờ
                           if (order.status === 'ordered' && order.createdAt && order.createdAt.seconds) {
                               const orderTime = order.createdAt.seconds * 1000;
                               const timeDiff = now - orderTime;
@@ -5763,6 +5764,31 @@
                                       showMessage(`⏰ Đơn #${order.id.slice(-6).toUpperCase()} đã bị hủy do quá hạn`, "warning");
                                   } catch (error) {
                                       console.error("Error auto-cancelling order:", error);
+                                  }
+                              }
+                          }
+                          
+                          // Tự động hủy đơn "Đang làm" (preparing) quá 3 giờ
+                          if (order.status === 'preparing' && order.createdAt && order.createdAt.seconds) {
+                              const orderTime = order.createdAt.seconds * 1000;
+                              const timeDiff = now - orderTime;
+                              
+                              // Nếu đơn hàng đã quá 3 tiếng
+                              if (timeDiff >= threeHours) {
+                                  console.log(`⏰ Auto-cancelling expired preparing order: ${order.id.slice(-6)}`);
+                                  
+                                  try {
+                                      await updateDoc(doc(db, 'orders', order.id), {
+                                          status: 'cancelled',
+                                          cancelReason: 'Đơn hàng quá hạn (tự động hủy sau 3 giờ)',
+                                          cancelledAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+                                          cancelledBy: 'system',
+                                          updatedAt: new Date()
+                                      });
+                                      
+                                      showMessage(`⏰ Đơn #${order.id.slice(-6).toUpperCase()} đã bị hủy do quá hạn`, "warning");
+                                  } catch (error) {
+                                      console.error("Error auto-cancelling preparing order:", error);
                                   }
                               }
                           }
