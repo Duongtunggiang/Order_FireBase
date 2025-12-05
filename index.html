@@ -3437,7 +3437,7 @@
              const totalItemsInCart = Object.values(cart).reduce((sum, item) => sum + item.quantity, 0);
 
             return `
-                <header class="sticky top-0 z-20 bg-amber-100/90 backdrop-blur-sm shadow-md border-b border-yellow-700/50">
+                <header class="fixed top-0 left-0 right-0 z-20 bg-amber-100/90 backdrop-blur-sm shadow-md border-b border-yellow-700/50">
                     <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
                         <!-- Logo Quán + Số Bàn -->
                         <div class="flex items-center justify-between">
@@ -8581,7 +8581,7 @@
             </div>
         </div>
 
-        <div id="main-content-container">
+        <div id="main-content-container" class="pt-16 sm:pt-20">
             <!-- Nội dung chính (Menu, Login, Admin) sẽ được render tại đây -->
         </div>
 
