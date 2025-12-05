@@ -2151,8 +2151,8 @@
         }
 
         function renderDrinkConfig() {
-            const itemPrice = parseFloat(document.getElementById('item-modal-price')?.value) || 0;
-            const itemNewPrice = parseFloat(document.getElementById('item-modal-new-price')?.value) || 0;
+            const itemPrice = parsePriceInput(document.getElementById('item-modal-price')?.value) || 0;
+            const itemNewPrice = parsePriceInput(document.getElementById('item-modal-new-price')?.value) || 0;
             const basePrice = itemNewPrice > 0 ? itemNewPrice : itemPrice;
             
             const enabledSizes = currentItemDetails.sizes.filter(s => s.enabled);
@@ -2282,8 +2282,8 @@
         }
 
         function renderFoodConfig() {
-            const itemPrice = parseFloat(document.getElementById('item-modal-price')?.value) || 0;
-            const itemNewPrice = parseFloat(document.getElementById('item-modal-new-price')?.value) || 0;
+            const itemPrice = parsePriceInput(document.getElementById('item-modal-price')?.value) || 0;
+            const itemNewPrice = parsePriceInput(document.getElementById('item-modal-new-price')?.value) || 0;
             const basePrice = itemNewPrice > 0 ? itemNewPrice : itemPrice;
             
             const enabledSizes = currentItemDetails.sizes.filter(s => s.enabled);
@@ -2319,8 +2319,8 @@
         }
 
         function renderAlcoholConfig() {
-            const itemPrice = parseFloat(document.getElementById('item-modal-price')?.value) || 0;
-            const itemNewPrice = parseFloat(document.getElementById('item-modal-new-price')?.value) || 0;
+            const itemPrice = parsePriceInput(document.getElementById('item-modal-price')?.value) || 0;
+            const itemNewPrice = parsePriceInput(document.getElementById('item-modal-new-price')?.value) || 0;
             const basePrice = itemNewPrice > 0 ? itemNewPrice : itemPrice;
             
             const enabledSizes = currentItemDetails.sizes.filter(s => s.enabled);
