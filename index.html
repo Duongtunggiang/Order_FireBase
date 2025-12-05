@@ -2584,6 +2584,24 @@
                 const urlInput = document.getElementById('item-modal-image');
                 const previewImg = document.getElementById('item-modal-preview-img');
 
+                // For new items, validate image selection first
+                if (isNew) {
+                    // Check if user has selected an image (either cropped or file)
+                    const hasCroppedImage = urlInput && urlInput.value && urlInput.value.startsWith('data:image');
+                    const hasFileInput = fileInput && fileInput.files && fileInput.files[0];
+                    const hasExternalUrl = urlInput && urlInput.value && urlInput.value.trim() !== '' && !urlInput.value.startsWith('data:image');
+                    
+                    // Check if preview image is still default (opacity-50 means default)
+                    const isPreviewDefault = previewImg && (previewImg.classList.contains('opacity-50') || 
+                                                           previewImg.src === 'image.png' || 
+                                                           previewImg.src.endsWith('image.png'));
+                    
+                    if (!hasCroppedImage && !hasFileInput && !hasExternalUrl && isPreviewDefault) {
+                        showMessage("⚠️ Vui lòng chọn ảnh cho món trước khi thêm!", "error");
+                        throw new Error("Chưa chọn ảnh cho món");
+                    }
+                }
+
                 // Priority 1: Check if there's a cropped image in URL input (dataURL from crop)
                 if (urlInput && urlInput.value && urlInput.value.startsWith('data:image')) {
                     console.log("📸 Sử dụng ảnh đã crop từ URL input");
@@ -2613,16 +2631,9 @@
                     }
                 }
 
-                // For new items, require image (not default/placeholder)
+                // Final validation for new items: ensure we have a valid image URL
                 if (isNew) {
-                    // Check if image is default/placeholder
-                    const isDefaultImage = !imageUrl || 
-                                         imageUrl.trim() === '' || 
-                                         imageUrl === 'image.png' ||
-                                         (previewImg && (previewImg.src === 'image.png' || previewImg.src.endsWith('image.png'))) ||
-                                         (previewImg && previewImg.classList.contains('opacity-50'));
-                    
-                    if (isDefaultImage) {
+                    if (!imageUrl || imageUrl.trim() === '' || imageUrl === 'image.png') {
                         showMessage("⚠️ Vui lòng chọn ảnh cho món trước khi thêm!", "error");
                         throw new Error("Chưa chọn ảnh cho món");
                     }
