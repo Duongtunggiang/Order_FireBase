@@ -2547,33 +2547,24 @@
                 // console.log("📋 Menu items:", menuItems.map(...)); // Ẩn để bảo mật
                 // console.log("🔍 Raw snapshot:", snapshot.docs.map(...)); // Ẩn để bảo mật
 
-                // Tìm tất cả categories có món (active và không deleted) và sắp xếp theo số lượng món
-                const activeCategoriesWithCount = categories
+                // Tìm tất cả categories có món (active và không deleted)
+                const activeCategories = categories
                     .filter(cat => {
                         const catName = getCategoryName(cat);
                         const catStatus = getCategoryStatus(cat);
                         if (catStatus === 'deleted') return false;
                         return menuItems.some(item => item.category === catName && item.status !== 'deleted');
                     })
-                    .map(cat => {
-                        const catName = getCategoryName(cat);
-                        const itemCount = menuItems.filter(item => 
-                            item.category === catName && item.status !== 'deleted'
-                        ).length;
-                        return { name: catName, count: itemCount };
-                    })
-                    .sort((a, b) => b.count - a.count); // Sắp xếp giảm dần theo số lượng món
+                    .map(cat => getCategoryName(cat));
                 
-                const activeCategories = activeCategoriesWithCount.map(cat => cat.name);
-                
-                // Tự động chọn category đầu tiên có món (nhiều món nhất) nếu:
+                // Tự động chọn category đầu tiên có món nếu:
                 // 1. currentCategory chưa được set (null)
                 // 2. currentCategory không còn active (không có món)
                 // 3. currentCategory không tồn tại trong danh sách active
                 if (activeCategories.length > 0) {
                     if (!currentCategory || !activeCategories.includes(currentCategory)) {
                         currentCategory = activeCategories[0];
-                        console.log("🔄 Auto-selected first category with items:", currentCategory, `(${activeCategoriesWithCount[0].count} món)`);
+                        console.log("🔄 Auto-selected first category with items:", currentCategory);
                     }
                 } else {
                     // Nếu không có category nào có món, set về null
@@ -3791,8 +3782,7 @@
             // Chỉ hiển thị categories:
             // 1. Có statusCate = 'active' (không phải đã xóa)
             // 2. Có ít nhất 1 món active (không phải deleted)
-            // Sắp xếp theo số lượng món (nhiều nhất trước)
-            const activeCategoriesWithCount = categories
+            const activeCategories = categories
                 .filter(cat => {
                     const catName = getCategoryName(cat);
                     const catStatus = getCategoryStatus(cat);
@@ -3804,16 +3794,7 @@
                     );
                     return hasItems;
                 })
-                .map(cat => {
-                    const catName = getCategoryName(cat);
-                    const itemCount = menuItems.filter(item => 
-                        item.category === catName && item.status !== 'deleted'
-                    ).length;
-                    return { name: catName, count: itemCount };
-                })
-                .sort((a, b) => b.count - a.count); // Sắp xếp giảm dần theo số lượng món
-            
-            const activeCategories = activeCategoriesWithCount.map(cat => cat.name);
+                .map(cat => getCategoryName(cat));
 
             // KHÔNG set currentCategory ở đây vì đây chỉ là render function
             // currentCategory đã được set trong setupMenuListener
@@ -6144,27 +6125,18 @@
                 default:
                     // Đảm bảo currentCategory được set trước khi render
                     if (currentView === 'customer' || !currentView) {
-                        const activeCategoriesWithCount = categories
+                        const activeCategories = categories
                             .filter(cat => {
                                 const catName = getCategoryName(cat);
                                 const catStatus = getCategoryStatus(cat);
                                 if (catStatus === 'deleted') return false;
                                 return menuItems.some(item => item.category === catName && item.status !== 'deleted');
                             })
-                            .map(cat => {
-                                const catName = getCategoryName(cat);
-                                const itemCount = menuItems.filter(item => 
-                                    item.category === catName && item.status !== 'deleted'
-                                ).length;
-                                return { name: catName, count: itemCount };
-                            })
-                            .sort((a, b) => b.count - a.count);
-                        
-                        const activeCategories = activeCategoriesWithCount.map(cat => cat.name);
+                            .map(cat => getCategoryName(cat));
                         
                         if (activeCategories.length > 0 && (!currentCategory || !activeCategories.includes(currentCategory))) {
                             currentCategory = activeCategories[0];
-                            console.log("🔄 renderMainContent - Auto-selected first category:", currentCategory, `(${activeCategoriesWithCount[0].count} món)`);
+                            console.log("🔄 renderMainContent - Auto-selected first category:", currentCategory);
                         }
                     }
                     
