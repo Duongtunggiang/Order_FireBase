@@ -3757,7 +3757,7 @@
         
         // Ẩn món đã xóa cho khách hàng và admin preview mode
         function renderCustomerMenu() {
-            // Filter và sắp xếp món giảm dần theo itemId (món mới nhất có ID lớn nhất lên đầu)
+            // Filter và sắp xếp món: ưu tiên món có trạng thái đặc biệt, sau đó giảm dần theo itemId
             const filteredItems = menuItems
                 .filter(item => {
                     // Ẩn món đã xóa cho khách hàng
@@ -3766,6 +3766,16 @@
                     return item.category === currentCategory;
                 })
                 .sort((a, b) => {
+                    // Kiểm tra trạng thái đặc biệt (new, hot, best_seller, sale)
+                    const specialStatuses = ['new', 'hot', 'best_seller', 'sale'];
+                    const aIsSpecial = specialStatuses.includes(a.status);
+                    const bIsSpecial = specialStatuses.includes(b.status);
+                    
+                    // Ưu tiên món có trạng thái đặc biệt lên trước
+                    if (aIsSpecial && !bIsSpecial) return -1; // a đặc biệt, a lên trước
+                    if (!aIsSpecial && bIsSpecial) return 1;  // b đặc biệt, b lên trước
+                    
+                    // Nếu cả hai đều có trạng thái đặc biệt hoặc cả hai đều không có
                     // Sắp xếp theo itemId giảm dần
                     const idA = a.itemId !== undefined && a.itemId !== null ? a.itemId : 0;
                     const idB = b.itemId !== undefined && b.itemId !== null ? b.itemId : 0;
