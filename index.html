@@ -224,7 +224,26 @@
 
         // --- Hàm hỗ trợ chung ---
         function renderLucideIcons() {
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined' && lucide && lucide.createIcons) {
+                try {
+                    lucide.createIcons();
+                } catch (error) {
+                    console.warn('Lucide icons not ready yet:', error);
+                    // Retry after a short delay
+                    setTimeout(() => {
+                        if (typeof lucide !== 'undefined' && lucide && lucide.createIcons) {
+                            lucide.createIcons();
+                        }
+                    }, 100);
+                }
+            } else {
+                // Retry after a short delay if lucide is not loaded yet
+                setTimeout(() => {
+                    if (typeof lucide !== 'undefined' && lucide && lucide.createIcons) {
+                        lucide.createIcons();
+                    }
+                }, 100);
+            }
         }
 
 
@@ -1311,6 +1330,12 @@
             // Reset item details
             currentItemDetails = null;
 
+            // Setup price inputs
+            setTimeout(() => {
+                setupPriceInput('item-modal-price');
+                setupPriceInput('item-modal-new-price');
+            }, 100);
+
             document.getElementById('item-modal').classList.remove('hidden');
 
             // Setup item type change listener
@@ -1791,12 +1816,16 @@
             // Fill form
             document.getElementById('item-modal-id').value = item.id;
             document.getElementById('item-modal-name').value = item.name;
-            document.getElementById('item-modal-price').value = item.price;
-            document.getElementById('item-modal-new-price').value = item.newPrice || '';
+            document.getElementById('item-modal-price').value = formatPriceInput(item.price);
+            document.getElementById('item-modal-new-price').value = item.newPrice ? formatPriceInput(item.newPrice) : '';
             document.getElementById('item-modal-category').value = item.category;
             document.getElementById('item-modal-status').value = item.status;
             document.getElementById('item-modal-item-type').value = item.itemType || 'simple';
             document.getElementById('item-modal-image').value = item.imageUrl || '';
+            
+            // Setup price inputs
+            setupPriceInput('item-modal-price');
+            setupPriceInput('item-modal-new-price');
             document.getElementById('item-modal-description').value = item.description || '';
 
             // Update image preview
@@ -2147,7 +2176,7 @@
                                     <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded ${size.enabled ? '' : 'opacity-60'}">
                                         <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleDrinkSize(${idx}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0">
                                         <input type="text" value="${size.name}" onchange="updateDrinkSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
-                                        <input type="number" value="${displayPrice}" onchange="updateDrinkSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <input type="text" value="${isSmallest && size.enabled ? '' : formatPriceInput(displayPrice)}" onchange="updateDrinkSize(${idx}, 'priceAdd', this.value)" oninput="this.value = formatPriceInput(this.value)" onfocus="this.select()" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
                                         <button onclick="removeDrinkSize(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                     </div>
                                 `;
@@ -2165,7 +2194,7 @@
                             ${currentItemDetails.toppings.map((topping, idx) => `
                                 <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded">
                                     <input type="text" value="${topping.name}" onchange="updateDrinkTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm">
-                                    <input type="number" value="${topping.price}" onchange="updateDrinkTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm">
+                                    <input type="text" value="${formatPriceInput(topping.price)}" onchange="updateDrinkTopping(${idx}, 'price', this.value)" oninput="this.value = formatPriceInput(this.value)" onfocus="this.select()" placeholder="Giá" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm">
                                     <button onclick="removeDrinkTopping(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                 </div>
                             `).join('')}
@@ -2242,7 +2271,7 @@
                             ${currentItemDetails.toppings.map((topping, idx) => `
                                 <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded">
                                     <input type="text" value="${topping.name}" onchange="updateNoodleTopping(${idx}, 'name', this.value)" placeholder="Tên topping" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm">
-                                    <input type="number" value="${topping.price}" onchange="updateNoodleTopping(${idx}, 'price', this.value)" placeholder="Giá" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm">
+                                    <input type="text" value="${formatPriceInput(topping.price)}" onchange="updateNoodleTopping(${idx}, 'price', this.value)" oninput="this.value = formatPriceInput(this.value)" onfocus="this.select()" placeholder="Giá" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm">
                                     <button onclick="removeNoodleTopping(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                 </div>
                             `).join('')}
@@ -2278,7 +2307,7 @@
                                     <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded ${size.enabled ? '' : 'opacity-60'}">
                                         <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleFoodSize(${idx}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-4 flex-shrink-0">
                                         <input type="text" value="${size.name}" onchange="updateFoodSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
-                                        <input type="number" value="${displayPrice}" onchange="updateFoodSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <input type="text" value="${isSmallest && size.enabled ? '' : formatPriceInput(displayPrice)}" onchange="updateFoodSize(${idx}, 'priceAdd', this.value)" oninput="this.value = formatPriceInput(this.value)" onfocus="this.select()" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
                                         <button onclick="removeFoodSize(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                     </div>
                                 `;
@@ -2315,7 +2344,7 @@
                                     <div class="flex gap-2 items-center bg-white p-2 sm:p-3 rounded ${size.enabled ? '' : 'opacity-60'}">
                                         <input type="checkbox" ${size.enabled ? 'checked' : ''} onchange="toggleAlcoholSize(${idx}, this.checked)" class="w-4 h-4 sm:w-5 sm:h-4 flex-shrink-0">
                                         <input type="text" value="${size.name}" onchange="updateAlcoholSize(${idx}, 'name', this.value)" placeholder="Tên size" class="flex-1 min-w-0 px-2 py-1.5 sm:py-1 border rounded text-sm ${size.enabled ? '' : 'bg-gray-100'}">
-                                        <input type="number" value="${displayPrice}" onchange="updateAlcoholSize(${idx}, 'priceAdd', this.value)" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
+                                        <input type="text" value="${isSmallest && size.enabled ? '' : formatPriceInput(displayPrice)}" onchange="updateAlcoholSize(${idx}, 'priceAdd', this.value)" oninput="this.value = formatPriceInput(this.value)" onfocus="this.select()" placeholder="${isSmallest && size.enabled ? 'Giá từ món' : 'Giá thêm'}" class="w-20 sm:w-32 px-2 py-1.5 sm:py-1 border rounded text-sm ${isSmallest && size.enabled ? 'bg-gray-100 cursor-not-allowed' : ''}" ${isSmallest && size.enabled ? 'disabled' : ''}>
                                         <button onclick="removeAlcoholSize(${idx})" class="text-red-600 hover:text-red-800 px-2 text-lg sm:text-base active:scale-95 transition">🗑️</button>
                                     </div>
                                 `;
@@ -2338,7 +2367,7 @@
             renderItemDetailsConfig('drink');
         }
         function updateDrinkSize(idx, field, value) {
-            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parseFloat(value) || 0 : value;
+            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parsePriceInput(value) : value;
         }
         function toggleDrinkSize(idx, checked) {
             currentItemDetails.sizes[idx].enabled = checked;
@@ -2353,7 +2382,7 @@
             renderItemDetailsConfig('drink');
         }
         function updateDrinkTopping(idx, field, value) {
-            currentItemDetails.toppings[idx][field] = field === 'price' ? parseFloat(value) || 0 : value;
+            currentItemDetails.toppings[idx][field] = field === 'price' ? parsePriceInput(value) : value;
         }
         function removeDrinkTopping(idx) {
             currentItemDetails.toppings.splice(idx, 1);
@@ -2413,7 +2442,7 @@
             renderItemDetailsConfig('noodle');
         }
         function updateNoodleTopping(idx, field, value) {
-            currentItemDetails.toppings[idx][field] = field === 'price' ? parseFloat(value) || 0 : value;
+            currentItemDetails.toppings[idx][field] = field === 'price' ? parsePriceInput(value) : value;
         }
         function removeNoodleTopping(idx) {
             currentItemDetails.toppings.splice(idx, 1);
@@ -2426,7 +2455,7 @@
             renderItemDetailsConfig('food');
         }
         function updateFoodSize(idx, field, value) {
-            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parseFloat(value) || 0 : value;
+            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parsePriceInput(value) : value;
         }
         function toggleFoodSize(idx, checked) {
             currentItemDetails.sizes[idx].enabled = checked;
@@ -2443,7 +2472,7 @@
             renderItemDetailsConfig('alcohol');
         }
         function updateAlcoholSize(idx, field, value) {
-            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parseFloat(value) || 0 : value;
+            currentItemDetails.sizes[idx][field] = field === 'priceAdd' ? parsePriceInput(value) : value;
         }
         function toggleAlcoholSize(idx, checked) {
             currentItemDetails.sizes[idx].enabled = checked;
@@ -2458,10 +2487,64 @@
             return amount.toLocaleString('vi-VN') + ' ₫';
         }
 
+        // Format price input with comma separators (no currency symbol)
+        function formatPriceInput(value) {
+            // Remove all non-digit characters
+            const numericValue = value.toString().replace(/[^\d]/g, '');
+            if (!numericValue) return '';
+            // Format with comma separators
+            return parseInt(numericValue).toLocaleString('vi-VN');
+        }
+
+        // Parse price input (remove commas and return number)
+        function parsePriceInput(value) {
+            if (!value) return 0;
+            // Remove all non-digit characters
+            const numericValue = value.toString().replace(/[^\d]/g, '');
+            return numericValue ? parseFloat(numericValue) : 0;
+        }
+
+        // Setup price input with formatting and select all on focus
+        function setupPriceInput(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            // Format on input
+            input.addEventListener('input', function(e) {
+                const cursorPosition = e.target.selectionStart;
+                const oldValue = e.target.value;
+                const newValue = formatPriceInput(oldValue);
+                
+                // Calculate new cursor position
+                const oldLength = oldValue.length;
+                const newLength = newValue.length;
+                const lengthDiff = newLength - oldLength;
+                
+                e.target.value = newValue;
+                
+                // Restore cursor position
+                const newCursorPosition = Math.max(0, cursorPosition + lengthDiff);
+                e.target.setSelectionRange(newCursorPosition, newCursorPosition);
+            });
+
+            // Select all on focus
+            input.addEventListener('focus', function(e) {
+                e.target.select();
+            });
+
+            // Format initial value
+            if (input.value) {
+                input.value = formatPriceInput(input.value);
+            }
+        }
+
         // Helper function to get the appropriate price (prefer newPrice, fallback to price)
         function getItemPrice(item) {
             return item.newPrice ? parseFloat(item.newPrice) : parseFloat(item.price);
         }
+
+        // Expose formatPriceInput to global scope for inline event handlers
+        window.formatPriceInput = formatPriceInput;
 
         // Normalize item details: Set priceAdd = 0 cho size nhỏ nhất được enabled
         function normalizeItemDetails(details) {
@@ -2563,7 +2646,7 @@
                 // 3. currentCategory không tồn tại trong danh sách active
                 if (activeCategories.length > 0) {
                     if (!currentCategory || !activeCategories.includes(currentCategory)) {
-                        currentCategory = activeCategories[0];
+                    currentCategory = activeCategories[0];
                         console.log("🔄 Auto-selected first category with items:", currentCategory);
                     }
                 } else {
@@ -4100,8 +4183,8 @@
                 const duplicateCheck = await checkAndRemoveDuplicateCategory(newName);
                 if (duplicateCheck === false) {
                     // Category trùng và đang active
-                    showMessage("Danh mục này đã tồn tại!", "error");
-                    return;
+                showMessage("Danh mục này đã tồn tại!", "error");
+                return;
                 }
                 // Nếu duplicateCheck === true, đã xóa category trùng (đã bị xóa), tiếp tục
             }
@@ -4184,14 +4267,14 @@
                 }
                 
                 // Xóa category khỏi mảng
-                categories.splice(index, 1);
-                await saveCategories();
+            categories.splice(index, 1);
+            await saveCategories();
                 
                 showMessage(`Đã xóa vĩnh viễn danh mục: ${categoryName}`, "success");
                 
                 // Re-render trash view
                 if (currentView === 'admin-trash') {
-                    renderApp();
+            renderApp();
                 }
             } catch (e) {
                 console.error("❌ Lỗi khi xóa vĩnh viễn danh mục:", e);
@@ -4225,7 +4308,7 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Giá Mới (Có Thể Bỏ Trống)</label>
-                            <input type="number" id="new-price-input" value="${newPrice}" placeholder="Nhập giá mới..."
+                            <input type="text" id="new-price-input" value="${newPrice ? formatPriceInput(newPrice) : ''}" placeholder="Nhập giá mới, ví dụ: 20,000"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
                             <p class="text-xs text-gray-500 mt-1">Để trống nếu muốn xóa giá mới</p>
                         </div>
@@ -4246,6 +4329,11 @@
             `;
 
             document.getElementById('price-modal').classList.remove('hidden');
+            
+            // Setup price input
+            setTimeout(() => {
+                setupPriceInput('new-price-input');
+            }, 100);
         }
 
         function closePriceModal() {
@@ -4389,7 +4477,7 @@
                     // Firestore sẽ xóa field newPrice nếu không include
                 } else {
                     // Cập nhật giá mới
-                    const newPriceNum = parseFloat(newPriceValue);
+                    const newPriceNum = parsePriceInput(newPriceValue);
                     if (newPriceNum <= 0) {
                         showMessage("Giá phải lớn hơn 0!", "error");
                         return;
@@ -5155,11 +5243,11 @@
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Giá Cũ (VNĐ)</label>
-                                        <input type="number" id="item-modal-price" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                        <input type="text" id="item-modal-price" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="Nhập giá, ví dụ: 25,000">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Giá Mới (VNĐ) <span class="text-xs text-gray-500">(Không bắt buộc)</span></label>
-                                        <input type="number" id="item-modal-new-price" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                        <input type="text" id="item-modal-new-price" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="Nhập giá, ví dụ: 20,000">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Danh Mục</label>
@@ -5460,8 +5548,8 @@
                 const duplicateCheck = await checkAndRemoveDuplicateCategory(newName);
                 if (duplicateCheck === false) {
                     // Category trùng và đang active
-                    showMessage("Danh mục này đã tồn tại!", "error");
-                    return;
+                showMessage("Danh mục này đã tồn tại!", "error");
+                return;
                 }
                 // Nếu duplicateCheck === true, đã xóa category trùng (đã bị xóa), tiếp tục
             }
@@ -5712,7 +5800,7 @@
             const item = {
                 id: document.getElementById('item-modal-id').value,
                 name: document.getElementById('item-modal-name').value,
-                price: parseFloat(document.getElementById('item-modal-price').value),
+                price: parsePriceInput(document.getElementById('item-modal-price').value),
                 category: document.getElementById('item-modal-category').value,
                 status: document.getElementById('item-modal-status').value,
                 itemType: itemType,
@@ -5722,8 +5810,11 @@
             };
 
             // Add newPrice if provided
-            if (newPriceValue && parseFloat(newPriceValue) > 0) {
-                item.newPrice = parseFloat(newPriceValue);
+            if (newPriceValue) {
+                const parsedNewPrice = parsePriceInput(newPriceValue);
+                if (parsedNewPrice > 0) {
+                    item.newPrice = parsedNewPrice;
+                }
             }
 
             // Add details if itemType is not simple
@@ -5800,9 +5891,9 @@
                                 <span class="hidden sm:inline">Xóa tất cả</span>
                             </button>
                             <button onclick="loadOrders(); loadMenuItems();" class="bg-gray-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-700 flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
-                                <i data-lucide="refresh-cw" class="w-3 h-3 sm:w-4 sm:h-4"></i>
-                                <span class="hidden sm:inline">Làm mới</span>
-                            </button>
+                            <i data-lucide="refresh-cw" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                            <span class="hidden sm:inline">Làm mới</span>
+                        </button>
                         </div>
                     </div>
                     
@@ -5852,9 +5943,9 @@
                     <div class="bg-white rounded-lg shadow-lg p-3 sm:p-4 md:p-6 mb-4 sm:mb-6">
                         <div class="flex items-center justify-between mb-3 sm:mb-4">
                             <h3 class="text-base sm:text-lg md:text-xl font-bold text-purple-900 flex items-center gap-2">
-                                <i data-lucide="clipboard-x" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                                Đơn hàng đã xóa (${deletedOrders.length})
-                            </h3>
+                            <i data-lucide="clipboard-x" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                            Đơn hàng đã xóa (${deletedOrders.length})
+                        </h3>
                             <button onclick="toggleTrashSection('orders')" class="text-gray-500 hover:text-gray-700 text-xs sm:text-sm px-2 py-1 rounded hover:bg-gray-100 transition">
                                 ${isTrashSectionHidden('orders') ? '👁️ Hiện' : '🙈 Ẩn'}
                             </button>
@@ -5950,9 +6041,9 @@
                     <div class="bg-white rounded-lg shadow-lg p-3 sm:p-4 md:p-6">
                         <div class="flex items-center justify-between mb-3 sm:mb-4">
                             <h3 class="text-base sm:text-lg md:text-xl font-bold text-orange-900 flex items-center gap-2">
-                                <i data-lucide="coffee" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                                Món ăn đã xóa (${deletedMenuItems.length})
-                            </h3>
+                            <i data-lucide="coffee" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                            Món ăn đã xóa (${deletedMenuItems.length})
+                        </h3>
                             <button onclick="toggleTrashSection('menuItems')" class="text-gray-500 hover:text-gray-700 text-xs sm:text-sm px-2 py-1 rounded hover:bg-gray-100 transition">
                                 ${isTrashSectionHidden('menuItems') ? '👁️ Hiện' : '🙈 Ẩn'}
                             </button>
@@ -6014,13 +6105,13 @@
                                                 <button onclick="restoreMenuItem('${item.id}')" class="bg-green-500 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-green-600 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center">
                                                     <span class="sm:hidden">♻️</span>
                                                     <span class="hidden sm:inline">♻️ Khôi phục</span>
-                                                </button>
+                                            </button>
                                                 <button onclick="permanentDeleteMenuItem('${item.id}')" class="bg-red-600 text-white px-2 sm:px-3 py-1.5 rounded hover:bg-red-700 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center">
                                                     <span class="sm:hidden">⚠️</span>
                                                     <span class="hidden sm:inline">⚠️ Xóa vĩnh viễn</span>
-                                                </button>
-                                            </div>
+                                            </button>
                                         </div>
+                                    </div>
                                     </div>
                                 `;
                                 }).join('')}
@@ -8400,19 +8491,19 @@
                               <div class="flex justify-between items-center pt-2 border-t border-gray-300">
                                   <span class="font-bold text-lg text-orange-600">Tổng: ${formatCurrency(order.total)}</span>
                                   <div class="flex items-center gap-2 flex-wrap justify-end">
-                                      <span class="text-xs font-medium ${
-                                          order.status === 'ordered' ? 'text-blue-600' :
-                                          order.status === 'preparing' ? 'text-yellow-600' :
-                                          order.status === 'cancelled' ? 'text-red-600' :
-                                          order.status === 'completed' ? 'text-green-600' :
-                                          'text-gray-600'
-                                      }">
+                                  <span class="text-xs font-medium ${
+                                      order.status === 'ordered' ? 'text-blue-600' :
+                                      order.status === 'preparing' ? 'text-yellow-600' :
+                                      order.status === 'cancelled' ? 'text-red-600' :
+                                      order.status === 'completed' ? 'text-green-600' :
+                                      'text-gray-600'
+                                  }">
                                           ${order.status === 'ordered' ? '⏳ Chờ nhận đơn' :
-                                            order.status === 'preparing' ? '👨‍🍳 Đang làm' :
-                                            order.status === 'cancelled' ? '❌ Đã hủy' :
-                                            order.status === 'completed' ? '✅ Hoàn thành' :
-                                            '🔄 Đang xử lý'}
-                                      </span>
+                                        order.status === 'preparing' ? '👨‍🍳 Đang làm' :
+                                        order.status === 'cancelled' ? '❌ Đã hủy' :
+                                        order.status === 'completed' ? '✅ Hoàn thành' :
+                                        '🔄 Đang xử lý'}
+                                  </span>
                                       ${(() => {
                                           const canCancel = order.status === 'ordered';
                                           console.log(`🔍 Order ${order.id.slice(-6)}: status="${order.status}", canCancel=${canCancel}`);
@@ -8751,20 +8842,20 @@
                                       order.status === 'completed' ? 'text-green-600' :
                                       'text-gray-600'
                                   }">
-                                      ${order.status === 'ordered' ? '⏳ Chờ nhận đơn' :
+                                  ${order.status === 'ordered' ? '⏳ Chờ nhận đơn' :
                                         order.status === 'preparing' ? '👨‍🍳 Đang làm' :
-                                        order.status === 'cancelled' ? '❌ Đã hủy' :
-                                        order.status === 'completed' ? '✅ Hoàn thành' :
-                                        '🔄 Đang xử lý'}
-                                  </span>
+                                    order.status === 'cancelled' ? '❌ Đã hủy' :
+                                    order.status === 'completed' ? '✅ Hoàn thành' :
+                                    '🔄 Đang xử lý'}
+                              </span>
                                   ${canCancel ? `
                                       <button onclick="cancelOrderByCustomer('${order.orderId || order.id}')" 
                                           class="px-3 py-1.5 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition duration-150 active:scale-95 whitespace-nowrap">
                                           ❌ Hủy đơn
                                       </button>
                                   ` : ''}
-                              </div>
                           </div>
+                      </div>
                       </div>
                   `;
                   }).join('');
