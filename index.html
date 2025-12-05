@@ -2939,6 +2939,27 @@
             }
         }
 
+        // Toggle password visibility
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('password-toggle-icon');
+            
+            if (passwordInput && toggleIcon) {
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    toggleIcon.setAttribute('data-lucide', 'eye-off');
+                } else {
+                    passwordInput.type = 'password';
+                    toggleIcon.setAttribute('data-lucide', 'eye');
+                }
+                // Re-render icon
+                renderLucideIcons();
+            }
+        }
+
+        // Expose to global scope
+        window.togglePasswordVisibility = togglePasswordVisibility;
+
         // --- Khởi tạo và Quản lý Auth ---
         // ==================== SESSION MANAGEMENT (COOKIE) ====================
 
@@ -4329,11 +4350,16 @@
                         <form id="login-form" onsubmit="handleLogin(event)">
                             <div class="mb-4">
                                 <label for="email" class="block text-amber-800 font-semibold mb-2">Email Admin</label>
-                                <input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="binhbiinshop@admin.com">
+                                <input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="email@example.com">
                             </div>
                             <div class="mb-6">
                                 <label for="password" class="block text-amber-800 font-semibold mb-2">Mật khẩu</label>
-                                <input type="password" id="password" name="password" required class="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="••••••••">
+                                <div class="relative">
+                                    <input type="password" id="password" name="password" required class="w-full px-4 py-2 pr-12 border border-amber-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150" placeholder="••••••••">
+                                    <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none" aria-label="Toggle password visibility">
+                                        <i data-lucide="eye" id="password-toggle-icon" class="w-5 h-5"></i>
+                                    </button>
+                                </div>
                             </div>
                             <p id="login-message" class="text-red-500 text-sm mb-4"></p>
                             <button type="submit" class="w-full bg-orange-600 text-white py-3 rounded-xl font-bold hover:bg-orange-700 transition duration-150 shadow-lg">Đăng Nhập</button>
@@ -4357,15 +4383,17 @@
             const currentMonth = currentDate.getMonth();
             const currentYear = currentDate.getFullYear();
 
-            const totalRevenue = orders
+            const completedOrdersThisMonth = orders
                 .filter(order => order.status === 'completed')
                 .filter(order => {
                     if (!order.createdAt || !order.createdAt.seconds) return false;
                     const orderDate = new Date(order.createdAt.seconds * 1000);
                     return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-                })
+                });
+            
+            const totalRevenue = completedOrdersThisMonth
                 .reduce((sum, order) => sum + (order.total || 0), 0);
-            const totalOrders = orders.length;
+            const totalOrders = completedOrdersThisMonth.length;
             const activeItems = menuItems.filter(item => item.status !== 'deleted').length;
             const pendingOrders = orders.filter(o => o.status === 'ordered').length;
 
@@ -4396,7 +4424,8 @@
                         <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl shadow-lg border-l-4 border-blue-500">
                             <div class="flex items-center justify-between">
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-[10px] sm:text-xs md:text-sm text-gray-500">Tổng Đơn Hàng</p>
+                                    <p class="text-[10px] sm:text-xs md:text-sm text-gray-500">Đơn Đã Hoàn Thành</p>
+                                    <p class="text-[8px] sm:text-[10px] md:text-xs text-gray-400">(Tháng này)</p>
                                     <p class="text-lg sm:text-xl md:text-3xl font-extrabold text-amber-900 mt-0.5 sm:mt-1 truncate">${totalOrders}</p>
                                 </div>
                                 <i data-lucide="shopping-bag" class="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-500 flex-shrink-0 ml-2"></i>
