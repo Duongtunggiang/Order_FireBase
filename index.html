@@ -1254,6 +1254,18 @@
             document.getElementById('item-modal-description').value = '';
             document.getElementById('item-modal-config-button-field').style.display = 'none';
 
+            // Reset image preview to default
+            const previewImg = document.getElementById('item-modal-preview-img');
+            const fileInput = document.getElementById('item-modal-image-file');
+            if (previewImg) {
+                previewImg.src = 'image.png';
+                previewImg.classList.add('opacity-50');
+                previewImg.classList.add('cursor-pointer');
+            }
+            if (fileInput) {
+                fileInput.value = '';
+            }
+
             // Reset item details
             currentItemDetails = null;
 
@@ -1300,6 +1312,13 @@
             const newFileInput = fileInput.cloneNode(true);
             fileInput.parentNode.replaceChild(newFileInput, fileInput);
 
+            // Click on preview image to open file picker
+            if (previewImg) {
+                previewImg.addEventListener('click', function() {
+                    newFileInput.click();
+                });
+            }
+
             // File input listener
             newFileInput.addEventListener('change', function(e) {
                 const file = e.target.files[0];
@@ -1321,18 +1340,33 @@
                 }
             });
 
-            // URL input listener
-            urlInput.addEventListener('input', function(e) {
-                const url = e.target.value.trim();
-                if (url) {
-                    previewImg.src = url;
-                    previewImg.onerror = function() {
-                        previewImg.src = 'https://via.placeholder.com/200x150?text=Invalid+URL';
-                    };
-                } else {
-                    previewImg.src = 'https://via.placeholder.com/200x150?text=No+Image';
-                }
-            });
+            // URL input listener (hidden but still functional for internal use)
+            if (urlInput) {
+                urlInput.addEventListener('input', function(e) {
+                    const url = e.target.value.trim();
+                    if (url && url.startsWith('data:image')) {
+                        // If it's a data URL (from crop), update preview and remove opacity
+                        previewImg.src = url;
+                        previewImg.classList.remove('opacity-50');
+                        previewImg.classList.remove('cursor-pointer');
+                    } else if (url && !url.startsWith('data:image')) {
+                        // External URL
+                        previewImg.src = url;
+                        previewImg.classList.remove('opacity-50');
+                        previewImg.classList.remove('cursor-pointer');
+                        previewImg.onerror = function() {
+                            previewImg.src = 'https://via.placeholder.com/200x150?text=Invalid+URL';
+                            previewImg.classList.add('opacity-50');
+                            previewImg.classList.add('cursor-pointer');
+                        };
+                    } else {
+                        // Reset to default
+                        previewImg.src = 'image.png';
+                        previewImg.classList.add('opacity-50');
+                        previewImg.classList.add('cursor-pointer');
+                    }
+                });
+            }
         }
 
         function openImageCropModal(imageSrc) {
@@ -1586,70 +1620,111 @@
             );
             
             // Convert to blob first to check size, then compress if needed
-            const maxSize = 10 * 1024 * 1024; // 10MB
-            const targetSize = 2 * 1024 * 1024; // Target 2MB for better compression
-            let quality = 0.6; // Start with lower quality to reduce size significantly
+            const maxSize = 1 * 1024 * 1024; // Target 1MB max
+            const targetSize = 0.8 * 1024 * 1024; // Target 0.8MB for better compression
+            let quality = 0.5; // Start with lower quality to reduce size significantly
+            
+            console.log("🖼️ Bắt đầu crop và nén ảnh...");
+            console.log("📐 Canvas size:", outputSize + "x" + outputSize);
             
             canvas.toBlob(function(blob) {
+                console.log("📦 Blob đầu tiên - Size:", (blob ? (blob.size / 1024 / 1024).toFixed(2) : 0) + "MB", "Quality:", quality);
+                
                 // If blob is still too large, reduce quality further
                 if (blob && blob.size > maxSize) {
-                    quality = 0.5;
+                    quality = 0.4;
+                    console.log("⚠️ Ảnh vẫn lớn, giảm quality xuống:", quality);
                     canvas.toBlob(function(compressedBlob) {
+                        console.log("📦 Blob sau nén lần 1 - Size:", (compressedBlob ? (compressedBlob.size / 1024 / 1024).toFixed(2) : 0) + "MB");
                         if (compressedBlob && compressedBlob.size > maxSize) {
-                            quality = 0.4;
+                            quality = 0.3;
+                            console.log("⚠️ Ảnh vẫn lớn, giảm quality xuống:", quality);
                             canvas.toBlob(function(finalBlob) {
-                                const reader = new FileReader();
-                                reader.onload = function(e) {
-                                    updateImagePreview(e.target.result);
-                                };
-                                reader.readAsDataURL(finalBlob);
+                                console.log("📦 Blob sau nén lần 2 - Size:", (finalBlob ? (finalBlob.size / 1024 / 1024).toFixed(2) : 0) + "MB");
+                                if (finalBlob && finalBlob.size > maxSize) {
+                                    quality = 0.2;
+                                    console.log("⚠️ Ảnh vẫn lớn, giảm quality xuống:", quality);
+                                    canvas.toBlob(function(ultraBlob) {
+                                        console.log("📦 Blob sau nén lần 3 - Size:", (ultraBlob ? (ultraBlob.size / 1024 / 1024).toFixed(2) : 0) + "MB");
+                                        const reader = new FileReader();
+                                        reader.onload = function(e) {
+                                            updateImagePreview(e.target.result, ultraBlob);
+                                        };
+                                        reader.readAsDataURL(ultraBlob);
+                                    }, 'image/jpeg', quality);
+                                } else {
+                                    const reader = new FileReader();
+                                    reader.onload = function(e) {
+                                        updateImagePreview(e.target.result, finalBlob);
+                                    };
+                                    reader.readAsDataURL(finalBlob);
+                                }
                             }, 'image/jpeg', quality);
                         } else {
                             const reader = new FileReader();
                             reader.onload = function(e) {
-                                updateImagePreview(e.target.result);
+                                updateImagePreview(e.target.result, compressedBlob);
                             };
                             reader.readAsDataURL(compressedBlob);
                         }
                     }, 'image/jpeg', quality);
                 } else if (blob && blob.size > targetSize) {
                     // If larger than target but smaller than max, try to compress a bit more
-                    quality = 0.55;
+                    quality = 0.45;
+                    console.log("📦 Ảnh gần đạt target, tối ưu thêm với quality:", quality);
                     canvas.toBlob(function(optimizedBlob) {
+                        console.log("📦 Blob sau tối ưu - Size:", (optimizedBlob ? (optimizedBlob.size / 1024 / 1024).toFixed(2) : 0) + "MB");
                         const reader = new FileReader();
                         reader.onload = function(e) {
-                            updateImagePreview(e.target.result);
+                            updateImagePreview(e.target.result, optimizedBlob);
                         };
                         reader.readAsDataURL(optimizedBlob);
                     }, 'image/jpeg', quality);
                 } else {
                     // Size is acceptable, use current quality
+                    console.log("✅ Ảnh đã đạt kích thước phù hợp");
                     const reader = new FileReader();
                     reader.onload = function(e) {
-                        updateImagePreview(e.target.result);
+                        updateImagePreview(e.target.result, blob);
                     };
                     reader.readAsDataURL(blob);
                 }
             }, 'image/jpeg', quality);
         }
         
-        function updateImagePreview(dataUrl) {
+        function updateImagePreview(dataUrl, blob) {
             // Update preview and URL input
             const previewImg = document.getElementById('item-modal-preview-img');
             const urlInput = document.getElementById('item-modal-image');
+            const fileInput = document.getElementById('item-modal-image-file');
             
-            if (previewImg) previewImg.src = dataUrl;
+            if (previewImg) {
+                previewImg.src = dataUrl;
+                // Remove opacity and cursor pointer when image is loaded
+                previewImg.classList.remove('opacity-50');
+                previewImg.classList.remove('cursor-pointer');
+            }
             if (urlInput) urlInput.value = dataUrl;
+            
+            // Clear file input to prevent uploading original file
+            if (fileInput) {
+                fileInput.value = '';
+                console.log("🗑️ Đã xóa file gốc khỏi fileInput để tránh upload file lớn");
+            }
             
             // Close modal
             closeImageCropModal();
             
             // Check final size
-            const sizeInMB = (dataUrl.length * 3 / 4) / 1024 / 1024;
-            if (sizeInMB > 10) {
-                showMessage(`⚠️ Ảnh sau khi cắt vẫn lớn hơn 10MB (${sizeInMB.toFixed(2)}MB). Vui lòng chọn ảnh nhỏ hơn.`, 'warning');
+            const sizeInMB = blob ? (blob.size / 1024 / 1024) : ((dataUrl.length * 3 / 4) / 1024 / 1024);
+            console.log("✅ Ảnh sau khi crop - Size:", sizeInMB.toFixed(2) + "MB");
+            
+            if (sizeInMB > 1) {
+                showMessage(`⚠️ Ảnh sau khi cắt vẫn lớn hơn 1MB (${sizeInMB.toFixed(2)}MB). Vui lòng chọn ảnh nhỏ hơn.`, 'warning');
+                console.warn("⚠️ Ảnh vẫn lớn hơn 1MB:", sizeInMB.toFixed(2) + "MB");
             } else {
                 showMessage(`✅ Đã cắt ảnh thành hình vuông! (${sizeInMB.toFixed(2)}MB)`, "success");
+                console.log("✅ Ảnh đã được crop và nén thành công:", sizeInMB.toFixed(2) + "MB");
             }
         }
 
@@ -1681,6 +1756,24 @@
             document.getElementById('item-modal-item-type').value = item.itemType || 'simple';
             document.getElementById('item-modal-image').value = item.imageUrl || '';
             document.getElementById('item-modal-description').value = item.description || '';
+
+            // Update image preview
+            const previewImg = document.getElementById('item-modal-preview-img');
+            const fileInput = document.getElementById('item-modal-image-file');
+            if (previewImg) {
+                if (item.imageUrl && item.imageUrl.trim() !== '' && item.imageUrl !== 'image.png') {
+                    previewImg.src = item.imageUrl;
+                    previewImg.classList.remove('opacity-50');
+                    previewImg.classList.remove('cursor-pointer');
+                } else {
+                    previewImg.src = 'image.png';
+                    previewImg.classList.add('opacity-50');
+                    previewImg.classList.add('cursor-pointer');
+                }
+            }
+            if (fileInput) {
+                fileInput.value = '';
+            }
 
             // Load item details - deep clone để tránh reference issues
             if (item.details && item.itemType && item.itemType !== 'simple') {
@@ -1723,15 +1816,7 @@
 
             // Setup image preview and update with current image
             setupImagePreview();
-            const previewImg = document.getElementById('item-modal-preview-img');
-            if (item.imageUrl) {
-                previewImg.src = item.imageUrl;
-                previewImg.onerror = function() {
-                    previewImg.src = 'https://via.placeholder.com/200x150?text=No+Image';
-                };
-            } else {
-                previewImg.src = 'https://via.placeholder.com/200x150?text=No+Image';
-            }
+            // Preview image already updated above in the image preview section
         }
 
         function closeItemModal() {
@@ -2478,27 +2563,61 @@
 
             try {
                 let imageUrl = item.imageUrl;
-
-                // Handle file upload - Convert to Data URL
+                
+                // Get file input element (defined at function scope)
                 const fileInput = document.getElementById('item-modal-image-file');
-                if (fileInput && fileInput.files && fileInput.files[0]) {
-                    // console.log("📸 Processing image..."); // Ẩn để bảo mật
+                const urlInput = document.getElementById('item-modal-image');
+                const previewImg = document.getElementById('item-modal-preview-img');
+
+                // Priority 1: Check if there's a cropped image in URL input (dataURL from crop)
+                if (urlInput && urlInput.value && urlInput.value.startsWith('data:image')) {
+                    console.log("📸 Sử dụng ảnh đã crop từ URL input");
+                    console.log("📊 DataURL length:", urlInput.value.length, "Size:", ((urlInput.value.length * 3 / 4) / 1024 / 1024).toFixed(2) + "MB");
+                    imageUrl = urlInput.value;
+                    showMessage("✅ Sử dụng ảnh đã crop!", "success");
+                } 
+                // Priority 2: Check if there's an external URL
+                else if (urlInput && urlInput.value && urlInput.value.trim() !== '' && !urlInput.value.startsWith('data:image')) {
+                    imageUrl = urlInput.value.trim();
+                    console.log("📸 Sử dụng URL ảnh từ input");
+                }
+                // Priority 3: Handle file upload - Convert to Data URL (only if no cropped image or URL)
+                else if (fileInput && fileInput.files && fileInput.files[0]) {
+                    console.log("📸 Xử lý file ảnh gốc...");
+                    console.log("📁 File:", fileInput.files[0].name, "Size:", (fileInput.files[0].size / 1024 / 1024).toFixed(2) + "MB");
                     showMessage("Đang xử lý ảnh...", "info");
                     
                     try {
                         imageUrl = await uploadImage(fileInput.files[0]);
+                        console.log("✅ Ảnh đã được xử lý thành công");
                         showMessage("✅ Ảnh đã sẵn sàng!", "success");
-                        // console.log("✅ Image ready for save"); // Ẩn để bảo mật
                     } catch (error) {
+                        console.error("❌ Lỗi xử lý ảnh:", error);
                         showMessage("❌ Lỗi xử lý ảnh: " + error.message, "error");
                         throw error;
                     }
                 }
 
-                // Fallback to placeholder if no image provided
+                // For new items, require image (not default/placeholder)
+                if (isNew) {
+                    // Check if image is default/placeholder
+                    const isDefaultImage = !imageUrl || 
+                                         imageUrl.trim() === '' || 
+                                         imageUrl === 'image.png' ||
+                                         (previewImg && (previewImg.src === 'image.png' || previewImg.src.endsWith('image.png'))) ||
+                                         (previewImg && previewImg.classList.contains('opacity-50'));
+                    
+                    if (isDefaultImage) {
+                        showMessage("⚠️ Vui lòng chọn ảnh cho món trước khi thêm!", "error");
+                        throw new Error("Chưa chọn ảnh cho món");
+                    }
+                }
+
+                // Fallback to placeholder only for existing items (not new)
                 if (!imageUrl || imageUrl.trim() === '') {
-                    imageUrl = `https://via.placeholder.com/400x300/f0d48f/8b542f?text=${encodeURIComponent(item.name.substring(0, 10))}`;
-                    // console.log("📝 Using placeholder image"); // Ẩn để bảo mật
+                    if (!isNew) {
+                        imageUrl = `https://via.placeholder.com/400x300/f0d48f/8b542f?text=${encodeURIComponent(item.name.substring(0, 10))}`;
+                    }
                 }
 
                 const itemToSave = {
@@ -2541,6 +2660,9 @@
                 });
                 // Note: If newPrice is not included, Firestore will remove the field
 
+                console.log("💾 Bắt đầu lưu món...");
+                console.log("📊 Image URL length:", imageUrl ? imageUrl.length : 0, "Size:", imageUrl ? ((imageUrl.length * 3 / 4) / 1024 / 1024).toFixed(2) + "MB" : "N/A");
+                
                 if (isNew) {
                     // Tạo itemId tự động tăng dần
                     // Tìm itemId lớn nhất hiện có
@@ -2552,13 +2674,15 @@
                     itemToSave.itemId = maxItemId + 1;
                     itemToSave.createdAt = new Date();
                     
+                    console.log("➕ Thêm món mới vào Firestore...");
                     await addDoc(collection(db, PUBLIC_DATA_PATH), itemToSave);
-                    // console.log("Thêm món thành công"); // Ẩn để bảo mật
+                    console.log("✅ Thêm món thành công!");
                     showMessage("Thêm món thành công!", "success");
                 } else {
+                    console.log("✏️ Cập nhật món trong Firestore...");
                     const itemRef = doc(db, PUBLIC_DATA_PATH, item.id);
                     await updateDoc(itemRef, itemToSave);
-                    // console.log("Cập nhật món thành công"); // Ẩn để bảo mật
+                    console.log("✅ Cập nhật món thành công!");
                     showMessage("Cập nhật món thành công!", "success");
                 }
 
@@ -2569,8 +2693,13 @@
                 await loadMenuItemsOnce();
                 closeItemModal();
             } catch (e) {
-                // console.error("Lỗi khi lưu món:", e); // Ẩn để bảo mật
-                showMessage("Lỗi khi lưu món: " + e.message, "error");
+                console.error("❌ Lỗi khi lưu món:", e);
+                console.error("❌ Error details:", {
+                    message: e.message,
+                    code: e.code,
+                    stack: e.stack
+                });
+                showMessage("❌ Lỗi khi lưu món: " + e.message, "error");
             }
         }
         
@@ -2649,12 +2778,13 @@
             if (!file) return null;
 
             try {
-                // console.log("📸 Converting image to Data URL..."); // Ẩn để bảo mật
-                // console.log("📁 File:", file.name, "Size:", (file.size / 1024).toFixed(2), "KB"); // Ẩn để bảo mật
+                console.log("📸 Converting image to Data URL...");
+                console.log("📁 File:", file.name, "Size:", (file.size / 1024 / 1024).toFixed(2), "MB");
 
-                // Check file size (max 10MB)
+                // Check file size (max 10MB for upload, but will be compressed)
                 const maxSize = 10 * 1024 * 1024; // 10MB
                 if (file.size > maxSize) {
+                    console.error("❌ File quá lớn:", (file.size / 1024 / 1024).toFixed(2) + "MB");
                     throw new Error(`Ảnh quá lớn! Vui lòng chọn ảnh nhỏ hơn 10MB. (File hiện tại: ${(file.size / 1024 / 1024).toFixed(2)}MB)`);
                 }
 
@@ -2663,20 +2793,21 @@
                     
                     reader.onload = function(e) {
                         const dataURL = e.target.result;
-                        // console.log("✅ Image converted successfully!"); // Ẩn để bảo mật
-                        // console.log("📊 Data URL length:", dataURL.length); // Ẩn để bảo mật
+                        const sizeInMB = (dataURL.length * 3 / 4) / 1024 / 1024;
+                        console.log("✅ Image converted successfully!");
+                        console.log("📊 Data URL length:", dataURL.length, "Size:", sizeInMB.toFixed(2) + "MB");
                         resolve(dataURL);
                     };
                     
                     reader.onerror = function(error) {
-                        // console.error("❌ Error reading file:", error); // Ẩn để bảo mật
-                        reject(error);
+                        console.error("❌ Error reading file:", error);
+                        reject(new Error("Lỗi đọc file ảnh: " + error.message));
                     };
                     
                     reader.readAsDataURL(file);
                 });
             } catch (error) {
-                // console.error("❌ Error processing image:", error); // Ẩn để bảo mật
+                console.error("❌ Error processing image:", error);
                 throw error;
             }
         }
@@ -4878,13 +5009,12 @@
                                 <div id="item-modal-image-preview" class="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
                                     <div class="text-sm text-gray-700 mb-2"><strong>Preview ảnh:</strong></div>
                                     <div class="flex justify-center">
-                                        <img id="item-modal-preview-img" src="image.png" alt="Preview" class="max-w-full w-48 aspect-square object-cover rounded border border-gray-300">
+                                        <img id="item-modal-preview-img" src="image.png" alt="Preview" class="max-w-full w-48 aspect-square object-cover rounded border border-gray-300 cursor-pointer opacity-50 hover:opacity-75 transition-opacity">
                                     </div>
                                     <div class="md:col-span-2">
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh</label>
                                         <input type="file" id="item-modal-image-file" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
-                                        <p class="mt-1 text-xs text-gray-500">Hoặc nhập URL trực tiếp:</p>
-                                        <input type="url" id="item-modal-image" placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                                        <input type="url" id="item-modal-image" placeholder="https://..." class="hidden">
                                     </div>
                                 </div>
 
