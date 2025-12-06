@@ -1025,31 +1025,46 @@
             }
         }
 
-        function setCategory(categoryName) {
-            // Lưu scroll position của category container trước khi render
-            // Tìm category container (div có overflow-x-auto và sticky trong main-content)
+        function updateCustomerMenuOnly() {
+            // Chỉ update phần menu items, không render lại category selection
             const mainContent = document.getElementById('main-content-container');
-            let savedScrollLeft = 0;
-            if (mainContent) {
-                const categoryContainer = mainContent.querySelector('.overflow-x-auto.sticky');
-                if (categoryContainer) {
-                    savedScrollLeft = categoryContainer.scrollLeft;
-                }
+            if (!mainContent) return;
+            
+            const mainElement = mainContent.querySelector('main.bg-amber-50');
+            if (mainElement) {
+                const menuHtml = `<div class="pb-16 sm:pb-20">${renderCustomerMenu()}</div>`;
+                mainElement.innerHTML = menuHtml;
             }
             
-            currentCategory = categoryName;
-            renderApp();
-            
-            // Khôi phục scroll position sau khi render xong
-            setTimeout(() => {
-                const newMainContent = document.getElementById('main-content-container');
-                if (newMainContent) {
-                    const newCategoryContainer = newMainContent.querySelector('.overflow-x-auto.sticky');
-                    if (newCategoryContainer) {
-                        newCategoryContainer.scrollLeft = savedScrollLeft;
-                    }
+            // Update active state của category buttons
+            const categoryButtons = mainContent.querySelectorAll('.overflow-x-auto button');
+            categoryButtons.forEach(btn => {
+                const btnCategory = btn.getAttribute('onclick')?.match(/setCategory\('([^']+)'\)/)?.[1];
+                if (btnCategory === currentCategory) {
+                    // Active button: bg-orange-600 text-white shadow-lg
+                    btn.className = 'bg-orange-600 text-white shadow-lg font-medium py-1.5 px-3 sm:px-4 rounded-full transition duration-150 text-xs sm:text-sm whitespace-nowrap active:scale-95';
+                } else {
+                    // Inactive button: bg-white text-amber-900 hover:bg-amber-200
+                    btn.className = 'bg-white text-amber-900 hover:bg-amber-200 font-medium py-1.5 px-3 sm:px-4 rounded-full transition duration-150 text-xs sm:text-sm whitespace-nowrap active:scale-95';
                 }
+            });
+            
+            // Render lại icons nếu có
+            setTimeout(() => {
+                renderLucideIcons();
             }, 0);
+        }
+
+        function setCategory(categoryName) {
+            currentCategory = categoryName;
+            
+            // Chỉ update phần menu, không render lại toàn bộ app
+            if (currentView === 'customer' || !currentView) {
+                updateCustomerMenuOnly();
+            } else {
+                // Nếu không phải customer view, render lại toàn bộ
+                renderApp();
+            }
         }
 
         function toggleAdminMode() {
