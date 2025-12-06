@@ -182,12 +182,71 @@
             return typeof cat === 'string' ? 'active' : (cat.statusCate || 'active');
         }
         
+        function getCategoryId(cat) {
+            if (typeof cat === 'string') return null;
+            return cat.id !== undefined ? cat.id : null;
+        }
+        
+        function setCategoryId(cat, id) {
+            if (typeof cat === 'string') {
+                // Convert string to object
+                return { name: cat, statusCate: 'active', id: id };
+            }
+            cat.id = id;
+            return cat;
+        }
+        
         function getActiveCategories() {
             return categories.filter(cat => getCategoryStatus(cat) === 'active').map(cat => getCategoryName(cat));
         }
         
         function getCategoryIndex(categoryName) {
             return categories.findIndex(cat => getCategoryName(cat) === categoryName);
+        }
+        
+        // Migrate categories to have id field and update ids based on current order
+        async function updateCategoryIds() {
+            let hasChanges = false;
+            
+            // Ensure all categories are objects (not strings)
+            categories = categories.map((cat, index) => {
+                if (typeof cat === 'string') {
+                    hasChanges = true;
+                    return { name: cat, statusCate: 'active', id: index };
+                }
+                // If category doesn't have id, assign based on current index
+                if (cat.id === undefined || cat.id === null) {
+                    hasChanges = true;
+                    cat.id = index;
+                }
+                return cat;
+            });
+            
+            // Re-assign ids based on current order (active first, then deleted)
+            const activeCategories = categories.filter(cat => getCategoryStatus(cat) === 'active');
+            const deletedCategories = categories.filter(cat => getCategoryStatus(cat) === 'deleted');
+            
+            // Update ids for active categories (0, 1, 2, ...)
+            activeCategories.forEach((cat, index) => {
+                if (cat.id !== index) {
+                    hasChanges = true;
+                    cat.id = index;
+                }
+            });
+            
+            // Update ids for deleted categories (continue from active count)
+            deletedCategories.forEach((cat, index) => {
+                const newId = activeCategories.length + index;
+                if (cat.id !== newId) {
+                    hasChanges = true;
+                    cat.id = newId;
+                }
+            });
+            
+            if (hasChanges) {
+                await saveCategories();
+                console.log("✅ Updated category IDs based on current order");
+            }
         }
 
         // Kiểm tra và xóa category trùng nếu nó không hiển thị (đã bị xóa)
@@ -635,6 +694,19 @@
         
         // Expose to global scope for inline event handlers
         window.updateCustomerItemPrice = updateCustomerItemPrice;
+        
+        // Expose drag and drop functions for category reordering
+        window.handleCategoryDragStart = handleCategoryDragStart;
+        window.handleCategoryDragEnd = handleCategoryDragEnd;
+        window.handleCategoryDragOver = handleCategoryDragOver;
+        window.handleCategoryDragEnter = handleCategoryDragEnter;
+        window.handleCategoryDragLeave = handleCategoryDragLeave;
+        window.handleCategoryDrop = handleCategoryDrop;
+        
+        // Expose touch handlers for mobile drag and drop
+        window.handleCategoryTouchStart = handleCategoryTouchStart;
+        window.handleCategoryTouchMove = handleCategoryTouchMove;
+        window.handleCategoryTouchEnd = handleCategoryTouchEnd;
 
         // Lấy details đã chọn từ form
         function getCustomerSelectedDetails() {
@@ -2624,12 +2696,16 @@
                     
                     // Migrate from old format (array of strings) to new format (array of objects)
                     if (loadedCategories.length > 0 && typeof loadedCategories[0] === 'string') {
-                        categories = loadedCategories.map(name => ({name: name, statusCate: 'active'}));
+                        categories = loadedCategories.map((name, index) => ({name: name, statusCate: 'active', id: index}));
                         // Save migrated format
                         await saveCategories();
                     } else {
                         categories = loadedCategories.length > 0 ? loadedCategories : [];
                     }
+                    
+                    // Update category IDs to ensure all categories have id field
+                    await updateCategoryIds();
+                    
                     // console.log("✅ Loaded categories:", categories); // Ẩn để bảo mật
                 } else {
                     // Nếu chưa có, để mảng rỗng - categories sẽ được tạo khi admin thêm
@@ -2651,6 +2727,290 @@
                 // console.error("❌ Error saving categories:", error); // Ẩn để bảo mật
                 showMessage("Lỗi khi lưu danh mục: " + error.message, "error");
             }
+        }
+
+        // Drag and Drop functions for category reordering
+        let draggedCategoryIndex = null;
+        let draggedCategoryElement = null;
+        let isCategoryDragging = false;
+        
+        // Touch drag and drop variables
+        let touchStartY = null;
+        let touchStartElement = null;
+        let touchStartIndex = null;
+        let touchMoved = false;
+
+        function handleCategoryDragStart(e, categoryIndex) {
+            // Chỉ cho phép drag khi click vào icon grip hoặc phần không phải button
+            const target = e.target;
+            const isButton = target.closest('button') || target.tagName === 'BUTTON';
+            const isIcon = target.closest('i[data-lucide]');
+            
+            // Nếu click vào button hoặc icon trong button, không cho drag
+            if (isButton && !target.closest('.cursor-grab')) {
+                e.preventDefault();
+                return false;
+            }
+            
+            isCategoryDragging = true;
+            draggedCategoryIndex = categoryIndex;
+            draggedCategoryElement = e.currentTarget;
+            e.currentTarget.style.opacity = '0.5';
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', e.currentTarget.innerHTML);
+        }
+
+        function handleCategoryDragEnd(e) {
+            e.currentTarget.style.opacity = '1';
+            isCategoryDragging = false;
+            // Remove drag over styles from all items
+            const allItems = document.querySelectorAll('.category-drag-item');
+            allItems.forEach(item => {
+                item.classList.remove('border-indigo-400', 'bg-indigo-100');
+            });
+        }
+
+        function handleCategoryDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleCategoryDragEnter(e) {
+            if (e.currentTarget !== draggedCategoryElement) {
+                e.currentTarget.classList.add('border-indigo-400', 'bg-indigo-100');
+            }
+        }
+
+        function handleCategoryDragLeave(e) {
+            e.currentTarget.classList.remove('border-indigo-400', 'bg-indigo-100');
+        }
+
+        async function handleCategoryDrop(e, dropIndex) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            e.currentTarget.classList.remove('border-indigo-400', 'bg-indigo-100');
+            
+            if (draggedCategoryIndex === null || draggedCategoryIndex === dropIndex) {
+                return false;
+            }
+
+            // Get active categories only
+            const activeCategories = categories.filter(cat => getCategoryStatus(cat) === 'active');
+            
+            // Reorder in active categories array
+            const draggedCategory = activeCategories[draggedCategoryIndex];
+            activeCategories.splice(draggedCategoryIndex, 1);
+            activeCategories.splice(dropIndex, 0, draggedCategory);
+            
+            // Update ids based on new order (0, 1, 2, ...)
+            activeCategories.forEach((cat, index) => {
+                if (typeof cat === 'string') {
+                    // Convert string to object
+                    activeCategories[index] = { name: cat, statusCate: 'active', id: index };
+                } else {
+                    cat.id = index;
+                }
+            });
+            
+            // Update main categories array to match new order
+            // First, remove all active categories
+            const deletedCategories = categories.filter(cat => getCategoryStatus(cat) === 'deleted');
+            
+            // Update ids for deleted categories (continue from active count)
+            deletedCategories.forEach((cat, index) => {
+                const newId = activeCategories.length + index;
+                if (typeof cat === 'string') {
+                    deletedCategories[index] = { name: cat, statusCate: 'deleted', id: newId };
+                } else {
+                    cat.id = newId;
+                }
+            });
+            
+            categories = [...activeCategories, ...deletedCategories];
+            
+            // Save to Firebase
+            await saveCategories();
+            
+            // Re-render admin menu to show new order
+            if (currentView === 'admin-menu') {
+                renderApp();
+            }
+            
+            showMessage("✅ Đã sắp xếp lại thứ tự danh mục", "success");
+            
+            draggedCategoryIndex = null;
+            draggedCategoryElement = null;
+            return false;
+        }
+        
+        // Touch event handlers for mobile drag and drop
+        function handleCategoryTouchStart(e, categoryIndex) {
+            const target = e.target;
+            
+            // Chỉ cho phép drag khi touch vào icon grip hoặc span chứa icon
+            const isGripIcon = target.closest('.cursor-grab') || 
+                              target.closest('i[data-lucide="grip-vertical"]') ||
+                              target.classList.contains('cursor-grab');
+            
+            // Nếu không touch vào icon grip, không cho drag
+            if (!isGripIcon) {
+                return;
+            }
+            
+            // Prevent default để ngăn scroll khi touch vào icon
+            e.preventDefault();
+            e.stopPropagation();
+            
+            touchStartY = e.touches[0].clientY;
+            // Lấy category-drag-item parent
+            touchStartElement = target.closest('.category-drag-item');
+            
+            // Tìm index của category item trong danh sách
+            if (touchStartElement) {
+                const allItems = Array.from(document.querySelectorAll('.category-drag-item'));
+                touchStartIndex = allItems.indexOf(touchStartElement);
+            } else {
+                touchStartIndex = categoryIndex; // Fallback
+            }
+            
+            touchMoved = false;
+        }
+        
+        function handleCategoryTouchMove(e) {
+            if (touchStartElement === null) return;
+            
+            const touchY = e.touches[0].clientY;
+            const deltaY = Math.abs(touchY - touchStartY);
+            
+            // Nếu di chuyển ít nhất 10px thì coi là đang drag
+            if (deltaY > 10) {
+                if (!touchMoved) {
+                    touchMoved = true;
+                    // Prevent scroll khi đang drag
+                    e.preventDefault();
+                }
+                
+                // Visual feedback
+                touchStartElement.style.opacity = '0.5';
+                touchStartElement.style.transform = 'scale(1.05)';
+                touchStartElement.style.zIndex = '1000';
+                touchStartElement.style.position = 'relative';
+                
+                // Update position của dragged element
+                const delta = touchY - touchStartY;
+                touchStartElement.style.top = delta + 'px';
+                
+                // Tìm element đang được touch over
+                const touchX = e.touches[0].clientX;
+                const elementBelow = document.elementFromPoint(touchX, touchY);
+                if (elementBelow) {
+                    const categoryItem = elementBelow.closest('.category-drag-item');
+                    if (categoryItem && categoryItem !== touchStartElement) {
+                        // Remove highlight from all items
+                        document.querySelectorAll('.category-drag-item').forEach(item => {
+                            if (item !== touchStartElement) {
+                                item.classList.remove('border-indigo-400', 'bg-indigo-100');
+                            }
+                        });
+                        // Highlight current item
+                        categoryItem.classList.add('border-indigo-400', 'bg-indigo-100');
+                    }
+                }
+            }
+        }
+        
+        async function handleCategoryTouchEnd(e) {
+            if (touchStartElement === null) return;
+            
+            // Reset visual feedback
+            touchStartElement.style.opacity = '1';
+            touchStartElement.style.transform = '';
+            touchStartElement.style.zIndex = '';
+            touchStartElement.style.position = '';
+            touchStartElement.style.top = '';
+            
+            // Remove all highlights
+            document.querySelectorAll('.category-drag-item').forEach(item => {
+                item.classList.remove('border-indigo-400', 'bg-indigo-100');
+            });
+            
+            if (!touchMoved) {
+                // Nếu không di chuyển, reset và return (cho phép click button)
+                touchStartY = null;
+                touchStartElement = null;
+                touchStartIndex = null;
+                touchMoved = false;
+                return;
+            }
+            
+            // Prevent default để tránh click sau khi drag
+            e.preventDefault();
+            
+            // Tìm element drop target
+            const touch = e.changedTouches[0];
+            const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            if (elementBelow) {
+                const dropTarget = elementBelow.closest('.category-drag-item');
+                if (dropTarget && dropTarget !== touchStartElement) {
+                    // Get drop index by finding position in list
+                    const allItems = Array.from(document.querySelectorAll('.category-drag-item'));
+                    const dropIndex = allItems.indexOf(dropTarget);
+                    
+                    if (dropIndex !== -1 && touchStartIndex !== null && touchStartIndex !== dropIndex) {
+                        // Perform drop using the same logic as handleCategoryDrop
+                        const activeCategories = categories.filter(cat => getCategoryStatus(cat) === 'active');
+                        
+                        // Reorder in active categories array
+                        const draggedCategory = activeCategories[touchStartIndex];
+                        activeCategories.splice(touchStartIndex, 1);
+                        activeCategories.splice(dropIndex, 0, draggedCategory);
+                        
+                        // Update ids based on new order (0, 1, 2, ...)
+                        activeCategories.forEach((cat, index) => {
+                            if (typeof cat === 'string') {
+                                activeCategories[index] = { name: cat, statusCate: 'active', id: index };
+                            } else {
+                                cat.id = index;
+                            }
+                        });
+                        
+                        // Update main categories array to match new order
+                        const deletedCategories = categories.filter(cat => getCategoryStatus(cat) === 'deleted');
+                        deletedCategories.forEach((cat, index) => {
+                            const newId = activeCategories.length + index;
+                            if (typeof cat === 'string') {
+                                deletedCategories[index] = { name: cat, statusCate: 'deleted', id: newId };
+                            } else {
+                                cat.id = newId;
+                            }
+                        });
+                        
+                        categories = [...activeCategories, ...deletedCategories];
+                        
+                        // Save to Firebase
+                        await saveCategories();
+                        
+                        // Re-render admin menu to show new order
+                        if (currentView === 'admin-menu') {
+                            renderApp();
+                        }
+                        
+                        showMessage("✅ Đã sắp xếp lại thứ tự danh mục", "success");
+                    }
+                }
+            }
+            
+            // Reset
+            touchStartY = null;
+            touchStartElement = null;
+            touchStartIndex = null;
+            touchMoved = false;
         }
 
         function setupMenuListener() {
@@ -3902,6 +4262,7 @@
             // Chỉ hiển thị categories:
             // 1. Có statusCate = 'active' (không phải đã xóa)
             // 2. Có ít nhất 1 món active (không phải deleted)
+            // 3. Sắp xếp theo id (thứ tự đã được sắp xếp)
             const activeCategories = categories
                 .filter(cat => {
                     const catName = getCategoryName(cat);
@@ -3913,6 +4274,12 @@
                         item.category === catName && item.status !== 'deleted'
                     );
                     return hasItems;
+                })
+                .sort((a, b) => {
+                    // Sort by id if available, otherwise by current index
+                    const idA = getCategoryId(a) !== null ? getCategoryId(a) : categories.indexOf(a);
+                    const idB = getCategoryId(b) !== null ? getCategoryId(b) : categories.indexOf(b);
+                    return idA - idB;
                 })
                 .map(cat => getCategoryName(cat));
 
@@ -4583,7 +4950,9 @@
             }
             // Nếu duplicateCheck === true, đã xóa category trùng (đã bị xóa), tiếp tục
 
-            categories.push({name: categoryName, statusCate: 'active'});
+            // Get next id (number of active categories)
+            const activeCount = categories.filter(cat => getCategoryStatus(cat) === 'active').length;
+            categories.push({name: categoryName, statusCate: 'active', id: activeCount});
             await saveCategories();
             showMessage(`Đã thêm danh mục: ${categoryName}`, "success");
             closeCategoryModal();
@@ -5037,27 +5406,39 @@
                                 <span class="hidden sm:inline">Thêm Danh Mục</span>
                             </button>
                         </div>
-                        <div class="space-y-2 ${categories.filter(cat => getCategoryStatus(cat) === 'active').length > 6 ? 'max-h-80 overflow-y-auto' : ''}">
+                        <div id="categories-list" class="space-y-2 ${categories.filter(cat => getCategoryStatus(cat) === 'active').length > 6 ? 'max-h-80 overflow-y-auto' : ''}">
                             ${categories
                                 .filter(cat => getCategoryStatus(cat) === 'active')
                                 .map((cat, index) => {
                                     const catName = getCategoryName(cat);
                                     const originalIndex = categories.indexOf(cat);
                                     return `
-                                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-200 flex justify-between items-center active:scale-[0.98] transition">
+                                <div 
+                                    draggable="true"
+                                    class="category-drag-item bg-indigo-50 p-3 rounded-lg border border-indigo-200 flex justify-between items-center transition cursor-move hover:shadow-md"
+                                    ondragstart="handleCategoryDragStart(event, ${index})"
+                                    ondragend="handleCategoryDragEnd(event)"
+                                    ondragover="handleCategoryDragOver(event)"
+                                    ondragenter="handleCategoryDragEnter(event)"
+                                    ondragleave="handleCategoryDragLeave(event)"
+                                    ondrop="handleCategoryDrop(event, ${index})"
+                                >
                                     <div class="flex items-center gap-2 flex-1 min-w-0">
+                                        <span class="text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0" title="Kéo để sắp xếp" style="touch-action: none;" ontouchstart="handleCategoryTouchStart(event, ${index})" ontouchmove="handleCategoryTouchMove(event)" ontouchend="handleCategoryTouchEnd(event)">
+                                            <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                                        </span>
                                         <span class="text-lg flex-shrink-0">${getCategoryIcon(catName)}</span>
                                         <span class="font-medium text-gray-800 truncate">${catName}</span>
                                         <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full flex-shrink-0 ml-2">
                                             ${menuItems.filter(item => item.category === catName && item.status !== 'deleted').length} món
                                         </span>
                                     </div>
-                                    <div class="flex gap-1 ml-2">
-                                        <button onclick="openEditCategoryModalAdmin('${catName}')" class="text-blue-600 hover:text-blue-800 p-1.5 active:scale-95 transition" title="Sửa">
+                                    <div class="flex gap-1 ml-2" onclick="event.stopPropagation()">
+                                        <button onclick="openEditCategoryModalAdmin('${catName}'); event.stopPropagation();" class="text-blue-600 hover:text-blue-800 p-1.5 active:scale-95 transition" title="Sửa">
                                             <i data-lucide="edit" class="w-4 h-4"></i>
                                         </button>
                                         ${originalIndex >= 3 ? `
-                                            <button onclick="deleteCategory('${catName}')" class="text-red-600 hover:text-red-800 p-1.5 active:scale-95 transition" title="Xóa">
+                                            <button onclick="deleteCategory('${catName}'); event.stopPropagation();" class="text-red-600 hover:text-red-800 p-1.5 active:scale-95 transition" title="Xóa">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         ` : ''}
@@ -5499,7 +5880,9 @@
             }
             // Nếu duplicateCheck === true, đã xóa category trùng (đã bị xóa), tiếp tục
 
-            categories.push({name: categoryName, statusCate: 'active'});
+            // Get next id (number of active categories)
+            const activeCount = categories.filter(cat => getCategoryStatus(cat) === 'active').length;
+            categories.push({name: categoryName, statusCate: 'active', id: activeCount});
             await saveCategories();
             showMessage(`Đã thêm danh mục: ${categoryName}`, "success");
             closeCategoryModalAdmin();
