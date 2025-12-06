@@ -1026,8 +1026,30 @@
         }
 
         function setCategory(categoryName) {
+            // Lưu scroll position của category container trước khi render
+            // Tìm category container (div có overflow-x-auto và sticky trong main-content)
+            const mainContent = document.getElementById('main-content-container');
+            let savedScrollLeft = 0;
+            if (mainContent) {
+                const categoryContainer = mainContent.querySelector('.overflow-x-auto.sticky');
+                if (categoryContainer) {
+                    savedScrollLeft = categoryContainer.scrollLeft;
+                }
+            }
+            
             currentCategory = categoryName;
             renderApp();
+            
+            // Khôi phục scroll position sau khi render xong
+            setTimeout(() => {
+                const newMainContent = document.getElementById('main-content-container');
+                if (newMainContent) {
+                    const newCategoryContainer = newMainContent.querySelector('.overflow-x-auto.sticky');
+                    if (newCategoryContainer) {
+                        newCategoryContainer.scrollLeft = savedScrollLeft;
+                    }
+                }
+            }, 0);
         }
 
         function toggleAdminMode() {
