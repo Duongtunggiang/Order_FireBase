@@ -4288,7 +4288,7 @@
 
             return `
                 <div class="p-5 sm:p-3 bg-amber-50 shadow-inner sticky top-[64px] sm:top-[68px] z-10 overflow-x-auto">
-                    <div class="flex space-x-1 sm:space-x-2 min-w-max **px-2 sm:px-3**">
+                    <div class="flex space-x-1 sm:space-x-2 min-w-max px-2 sm:px-3 sm:justify-center">
                         ${activeCategories.map(cat => `
                             <button onclick="setCategory('${cat}')" class="${currentCategory === cat ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-amber-900 hover:bg-amber-200'} font-medium py-1.5 px-3 sm:px-4 rounded-full transition duration-150 text-xs sm:text-sm whitespace-nowrap active:scale-95">
                                 ${cat}
@@ -4387,11 +4387,11 @@
             
             let html = '';
             
-            // Render food items: Layout luôn 2 món/hàng ở mọi kích thước màn hình (ưu tiên hiển thị trước)
+            // Render food items: Responsive grid - 2 cột mobile, 3 cột tablet, 4 cột laptop, 5 cột màn hình lớn (ưu tiên hiển thị trước)
             if (foodItems.length > 0) {
                 html += `
                     <div class="max-w-7xl mx-auto">
-                        <div class="grid grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4">
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 p-3 sm:p-4">
                         ${foodItems.map(item => {
                             const statusBadge = getStatusBadge(item.status);
                             const isOutOfStock = item.status === 'out_of_stock';
@@ -4494,7 +4494,7 @@
                 const marginTop = '';
                 html += `
                     <div class="max-w-7xl mx-auto ${marginTop}">
-                        <div class="grid grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4">
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 p-3 sm:p-4">
                         ${filteredItems.map(item => {
                             const statusBadge = getStatusBadge(item.status);
                             const isOutOfStock = item.status === 'out_of_stock';
